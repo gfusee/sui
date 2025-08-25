@@ -13,7 +13,7 @@ use move_ir_types::location::Loc;
 use std::{collections::BTreeSet, fmt};
 
 // This should be replaced with std::mem::variant::count::<Tok>() if it ever comes out of nightly.
-pub const TOK_COUNT: usize = 77;
+pub const TOK_COUNT: usize = 78;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tok {
@@ -35,6 +35,7 @@ pub enum Tok {
     RBracket,
     Star,
     Plus,
+    PlusPlus,
     Comma,
     Minus,
     Period,
@@ -107,6 +108,7 @@ impl fmt::Display for Tok {
             Identifier => "<Identifier>",
             SyntaxIdentifier => "$<Identifier>",
             Exclaim => "!",
+            PlusPlus => "+?",
             ExclaimEqual => "!=",
             Percent => "%",
             Amp => "&",
@@ -853,7 +855,13 @@ fn find_token(
         '[' => (Ok(Tok::LBracket), 1),
         ']' => (Ok(Tok::RBracket), 1),
         '*' => (Ok(Tok::Star), 1),
-        '+' => (Ok(Tok::Plus), 1),
+        '+' => {
+            if text.starts_with("+?") {
+                (Ok(Tok::PlusPlus), 2)
+            } else {
+                (Ok(Tok::Plus), 1)
+            }
+        }
         ',' => (Ok(Tok::Comma), 1),
         '/' => (Ok(Tok::Slash), 1),
         ';' => (Ok(Tok::Semicolon), 1),

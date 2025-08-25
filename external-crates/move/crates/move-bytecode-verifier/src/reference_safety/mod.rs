@@ -344,6 +344,13 @@ fn execute_inner(
             verifier.push(state.value_for(signature))?
         }
 
+        Bytecode::GasAdd => {
+            let value = safe_unwrap_err!(verifier.stack.pop());
+            safe_assert!(value.is_value());
+
+            verifier.push(AbstractValue::NonReference)?;
+        }
+
         Bytecode::Add
         | Bytecode::Sub
         | Bytecode::Mul

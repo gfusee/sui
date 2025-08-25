@@ -252,6 +252,10 @@ fn fold_unary_op(loc: Loc, sp!(_, op_): &UnaryOp, v: Value_) -> UnannotatedExp_ 
     use Value_ as V;
     let folded = match (op_, v) {
         (U::Not, V::Bool(b)) => V::Bool(!b),
+        (U::GasAdd, V::U64(b)) => {
+            let start: u32 = loc.start().into();
+            V::U64(b + (start as u64))
+        },
         (op_, v) => panic!("ICE unknown unary op. combo while folding: {} {:?}", op_, v),
     };
     evalue_(loc, folded)

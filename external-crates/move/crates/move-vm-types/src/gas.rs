@@ -39,6 +39,7 @@ pub enum SimpleInstruction {
     CastU128,
 
     Add,
+    GasAdd,
     Sub,
     Mul,
     Mod,

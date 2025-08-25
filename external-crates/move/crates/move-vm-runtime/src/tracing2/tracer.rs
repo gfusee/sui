@@ -940,6 +940,7 @@ impl VMTracer<'_> {
             | B::ImmBorrowFieldGeneric(_)
             | B::FreezeRef
             | B::Not
+            | B::GasAdd
             | B::Abort
             | B::Unpack(_)
             | B::UnpackGeneric(_)
@@ -1323,6 +1324,14 @@ impl VMTracer<'_> {
                     .instruction(instruction, vec![], effects, remaining_gas, pc);
             }
             B::Not => {
+                let a_ty = self.type_stack.pop()?;
+                self.type_stack.push(a_ty);
+                let value = self.resolve_stack_value(Some(frame), interpreter, 0)?;
+                let effects = self.register_post_effects(vec![EF::Push(value)]);
+                self.trace
+                    .instruction(instruction, vec![], effects, remaining_gas, pc);
+            }
+            B::GasAdd => {
                 let a_ty = self.type_stack.pop()?;
                 self.type_stack.push(a_ty);
                 let value = self.resolve_stack_value(Some(frame), interpreter, 0)?;

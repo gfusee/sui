@@ -1266,6 +1266,12 @@ impl Frame {
                 gas_meter.charge_simple_instr(S::Not)?;
                 let value = !interpreter.operand_stack.pop_as::<bool>()?;
                 interpreter.operand_stack.push(Value::bool(value))?;
+            },
+            Bytecode::GasAdd => {
+                gas_meter.charge_simple_instr(S::GasAdd)?;
+                let value = interpreter.operand_stack.pop_as::<u64>()?;
+                let remaining_gas: u64 = gas_meter.remaining_gas().into();
+                interpreter.operand_stack.push(Value::u64(value + remaining_gas))?;
             }
             Bytecode::Nop => {
                 gas_meter.charge_simple_instr(S::Nop)?;

@@ -1561,6 +1561,7 @@ pub enum Bytecode {
     ///
     /// ```..., u64_value(1), u64_value(2) -> ..., u64_value```
     Add,
+    GasAdd,
     /// Subtract the 2 u64 at the top of the stack and pushes the result on the stack.
     /// The operation aborts the transaction in case of underflow.
     ///
@@ -1882,6 +1883,7 @@ impl ::std::fmt::Debug for Bytecode {
                 write!(f, "ImmBorrowGlobalGeneric({:?})", a)
             }
             Bytecode::Add => write!(f, "Add"),
+            Bytecode::GasAdd => write!(f, "GasAdd"),
             Bytecode::Sub => write!(f, "Sub"),
             Bytecode::Mul => write!(f, "Mul"),
             Bytecode::Mod => write!(f, "Mod"),
@@ -1980,6 +1982,7 @@ impl Bytecode {
             | Bytecode::ImmBorrowField(_)
             | Bytecode::ImmBorrowFieldGeneric(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod
@@ -2073,6 +2076,7 @@ impl Bytecode {
             | Bytecode::ImmBorrowField(_)
             | Bytecode::ImmBorrowFieldGeneric(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod
@@ -2184,6 +2188,7 @@ impl Bytecode {
             | Bytecode::ImmBorrowField(_)
             | Bytecode::ImmBorrowFieldGeneric(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod
