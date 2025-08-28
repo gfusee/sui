@@ -1739,6 +1739,7 @@ fn load_code(cursor: &mut VersionedCursor, code: &mut Vec<Bytecode>) -> BinaryLo
             Opcodes::READ_REF => Bytecode::ReadRef,
             Opcodes::WRITE_REF => Bytecode::WriteRef,
             Opcodes::ADD => Bytecode::Add,
+            Opcodes::GAS_ADD => Bytecode::GasAdd,
             Opcodes::SUB => Bytecode::Sub,
             Opcodes::MUL => Bytecode::Mul,
             Opcodes::MOD => Bytecode::Mod,
@@ -2075,6 +2076,7 @@ impl Opcodes {
             0x54 => Ok(Opcodes::UNPACK_VARIANT_GENERIC_IMM_REF),
             0x55 => Ok(Opcodes::UNPACK_VARIANT_GENERIC_MUT_REF),
             0x56 => Ok(Opcodes::VARIANT_SWITCH),
+            0x57 => Ok(Opcodes::GAS_ADD),
             _ => Err(PartialVMError::new(StatusCode::UNKNOWN_OPCODE)),
         }
     }

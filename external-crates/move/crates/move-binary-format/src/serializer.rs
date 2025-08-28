@@ -928,6 +928,7 @@ fn serialize_instruction_inner(
         Bytecode::ReadRef => binary.push(Opcodes::READ_REF as u8),
         Bytecode::WriteRef => binary.push(Opcodes::WRITE_REF as u8),
         Bytecode::Add => binary.push(Opcodes::ADD as u8),
+        Bytecode::GasAdd => binary.push(Opcodes::GAS_ADD as u8),
         Bytecode::Sub => binary.push(Opcodes::SUB as u8),
         Bytecode::Mul => binary.push(Opcodes::MUL as u8),
         Bytecode::Mod => binary.push(Opcodes::MOD as u8),

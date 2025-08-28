@@ -555,6 +555,7 @@ pub type Value = Spanned<Value_>;
 pub enum UnaryOp_ {
     // !
     Not,
+    GasAdd,
 }
 pub type UnaryOp = Spanned<UnaryOp_>;
 
@@ -1248,11 +1249,13 @@ impl Type_ {
 
 impl UnaryOp_ {
     pub const NOT: &'static str = "!";
+    pub const GAS_ADD: &'static str = "+?";
 
     pub fn symbol(&self) -> &'static str {
         use UnaryOp_ as U;
         match self {
             U::Not => U::NOT,
+            U::GasAdd => U::GAS_ADD,
         }
     }
 
@@ -1260,6 +1263,7 @@ impl UnaryOp_ {
         use UnaryOp_ as U;
         match self {
             U::Not => true,
+            U::GasAdd => true,
         }
     }
 }

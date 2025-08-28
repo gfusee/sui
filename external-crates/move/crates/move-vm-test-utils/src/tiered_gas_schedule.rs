@@ -429,6 +429,7 @@ fn get_simple_instruction_stack_change(
         ),
         Lt | Gt | Le | Ge => (2, 1, Type::U8.size() + Type::U8.size(), Type::Bool.size()),
         Not => (1, 1, Type::Bool.size(), Type::Bool.size()),
+        GasAdd => (1, 1, Type::U8.size(), Type::U256.size()),
         Abort => (1, 0, Type::U64.size(), 0.into()),
     }
 }

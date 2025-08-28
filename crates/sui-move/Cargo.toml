@@ -62,4 +62,4 @@ normal = ["tikv-jemalloc-ctl"]
 workspace = true
 
 [features]
-tracing = []
+tracing = ["move-unit-test/tracing"]

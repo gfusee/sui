@@ -128,6 +128,7 @@ fn execute_inner(
         | Bytecode::CastU128
         | Bytecode::CastU256
         | Bytecode::Add
+        | Bytecode::GasAdd
         | Bytecode::Sub
         | Bytecode::Mul
         | Bytecode::Mod

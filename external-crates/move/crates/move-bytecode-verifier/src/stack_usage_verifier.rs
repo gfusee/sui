@@ -146,6 +146,7 @@ impl<'a> StackUsageVerifier<'a> {
 
             // Instructions that pop and push once
             Bytecode::Not
+            | Bytecode::GasAdd // TODO: not sure for this one
             | Bytecode::FreezeRef
             | Bytecode::ReadRef
             | Bytecode::ExistsDeprecated(_)

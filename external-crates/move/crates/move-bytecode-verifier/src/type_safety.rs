@@ -880,6 +880,15 @@ fn verify_instr(
             }
         }
 
+        Bytecode::GasAdd => {
+            let operand = safe_unwrap_err!(verifier.stack.pop());
+            if operand.is_integer() {
+                verifier.push(meter, operand)?;
+            } else {
+                return Err(verifier.error(StatusCode::INTEGER_OP_TYPE_MISMATCH_ERROR, offset));
+            }
+        }
+
         Bytecode::Eq | Bytecode::Neq => {
             let operand1 = safe_unwrap_err!(verifier.stack.pop());
             let operand2 = safe_unwrap_err!(verifier.stack.pop());
