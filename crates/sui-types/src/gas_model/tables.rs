@@ -263,12 +263,6 @@ impl GasStatus {
             opcode.clone()
         )?;
 
-        let charged_gas = self.charged_gas_for_opcode
-            .entry(opcode)
-            .or_insert(InternalGas::new(0));
-
-        *charged_gas += gas;
-
         // self.decrease_stack_size(decr_size);
         self.pop_stack(pops);
         Ok(())
@@ -296,10 +290,8 @@ impl GasStatus {
                     .entry(opcode)
                     .or_insert(InternalGas::new(0));
 
-                match charged_gas.checked_sub(amount) {
-                    None => {}
-                    Some(result) => *charged_gas = result
-                }
+                *charged_gas += amount;
+
                 self.gas_left = gas_left;
                 Ok(())
             }
