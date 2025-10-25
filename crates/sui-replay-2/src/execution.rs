@@ -173,6 +173,20 @@ pub fn execute_transaction_to_effects(
         }
     }
 
+    let debug_opcode_gas = match gas_status {
+        SuiGasStatus::V2(ref gas_status) => {
+            gas_status
+                .gas_status
+                .charged_gas_for_opcode
+                .iter()
+                .map(|(opcode, gas_charged)| { format!("{}: {}", opcode, u64::from(gas_charged.clone())) })
+                .collect::<Vec<String>>()
+                .join("\n")
+        }
+    };
+
+    println!("--- OPCODE GAS USAGE ---\n{debug_opcode_gas}");
+
     debug!(op = "execute_tx", phase = "end", "execution");
     Ok((
         result,

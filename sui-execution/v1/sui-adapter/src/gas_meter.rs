@@ -71,12 +71,12 @@ impl GasMeter for SuiGasMeter<'_> {
     fn charge_simple_instr(&mut self, instr: SimpleInstruction) -> PartialVMResult<()> {
         let (pops, pushes, pop_size, push_size) = get_simple_instruction_stack_change(instr);
         self.0
-            .charge(1, pushes, pops, push_size.into(), pop_size.into())
+            .charge(1, pushes, pops, push_size.into(), pop_size.into(), "".to_string())
     }
 
     fn charge_pop(&mut self, popped_val: impl ValueView) -> PartialVMResult<()> {
         self.0
-            .charge(1, 0, 1, 0, abstract_memory_size(self.0, popped_val).into())
+            .charge(1, 0, 1, 0, abstract_memory_size(self.0, popped_val).into(), "".to_string())
     }
 
     fn charge_native_function(
@@ -107,14 +107,14 @@ impl GasMeter for SuiGasMeter<'_> {
             // for the native function, and will be charged and contribute to the overall cost tier of
             // the transaction accordingly.
             self.0
-                .charge(amount.into(), pushes, 0, size_increase.into(), 0)
+                .charge(amount.into(), pushes, 0, size_increase.into(), 0, "".to_string())
         } else {
             // Charge for the stack operations. We don't count this as an "instruction" since we
             // already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
-            self.0.charge(0, pushes, 0, size_increase.into(), 0)?;
+            self.0.charge(0, pushes, 0, size_increase.into(), 0, "".to_string())?;
             // Now charge the gas that the native function told us to charge.
-            self.0.deduct_gas(amount)
+            self.0.deduct_gas(amount, "".to_string())
         }
     }
 
@@ -133,7 +133,7 @@ impl GasMeter for SuiGasMeter<'_> {
         // Track that this is going to be popping from the operand stack. We also increment the
         // instruction count as we need to account for the `Call` bytecode that initiated this
         // native call.
-        self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
+        self.0.charge(1, 0, pops, 0, stack_reduction_size.into(), "".to_string())
     }
 
     fn charge_call(
@@ -150,7 +150,7 @@ impl GasMeter for SuiGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(self.0, elem)
         });
-        self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
+        self.0.charge(1, 0, pops, 0, stack_reduction_size.into(), "".to_string())
     }
 
     fn charge_call_generic(
@@ -169,12 +169,12 @@ impl GasMeter for SuiGasMeter<'_> {
         });
         // Charge for the pops, no pushes, and account for the stack size decrease. Also track the
         // `CallGeneric` instruction we must have encountered for this.
-        self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
+        self.0.charge(1, 0, pops, 0, stack_reduction_size.into(), "".to_string())
     }
 
     fn charge_ld_const(&mut self, size: NumBytes) -> PartialVMResult<()> {
         // Charge for the load from the locals onto the stack.
-        self.0.charge(1, 1, 0, u64::from(size), 0)
+        self.0.charge(1, 1, 0, u64::from(size), 0, "".to_string())
     }
 
     fn charge_ld_const_after_deserialization(
@@ -188,7 +188,7 @@ impl GasMeter for SuiGasMeter<'_> {
     fn charge_copy_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
         // Charge for the copy of the local onto the stack.
         self.0
-            .charge(1, 1, 0, abstract_memory_size(self.0, val).into(), 0)
+            .charge(1, 1, 0, abstract_memory_size(self.0, val).into(), 0, "".to_string())
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
@@ -196,7 +196,7 @@ impl GasMeter for SuiGasMeter<'_> {
         // aren't tracking the local size (at least not yet). If we were, this should be a net-zero
         // operation in terms of memory usage.
         self.0
-            .charge(1, 1, 0, abstract_memory_size(self.0, val).into(), 0)
+            .charge(1, 1, 0, abstract_memory_size(self.0, val).into(), 0, "".to_string())
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
@@ -204,7 +204,7 @@ impl GasMeter for SuiGasMeter<'_> {
         // also accounting for the size of the locals that this would be a net-zero operation in
         // terms of memory.
         self.0
-            .charge(1, 0, 1, 0, abstract_memory_size(self.0, val).into())
+            .charge(1, 0, 1, 0, abstract_memory_size(self.0, val).into(), "".to_string())
     }
 
     fn charge_pack(
@@ -216,7 +216,7 @@ impl GasMeter for SuiGasMeter<'_> {
         let num_fields = args.len() as u64;
         // The actual amount of memory on the stack is staying the same with the addition of some
         // extra size for the struct, so the size doesn't really change much.
-        self.0.charge(1, 1, num_fields, STRUCT_SIZE.into(), 0)
+        self.0.charge(1, 1, num_fields, STRUCT_SIZE.into(), 0, "".to_string())
     }
 
     fn charge_unpack(
@@ -226,13 +226,13 @@ impl GasMeter for SuiGasMeter<'_> {
     ) -> PartialVMResult<()> {
         // We perform `num_fields` number of pushes.
         let num_fields = args.len() as u64;
-        self.0.charge(1, num_fields, 1, 0, STRUCT_SIZE.into())
+        self.0.charge(1, num_fields, 1, 0, STRUCT_SIZE.into(), "".to_string())
     }
 
     fn charge_variant_switch(&mut self, val: impl ValueView) -> PartialVMResult<()> {
         // We perform a single pop of a value from the stack.
         self.0
-            .charge(1, 0, 1, 0, abstract_memory_size(self.0, val).into())
+            .charge(1, 0, 1, 0, abstract_memory_size(self.0, val).into(), "".to_string())
     }
 
     fn charge_read_ref(&mut self, ref_val: impl ValueView) -> PartialVMResult<()> {
@@ -245,7 +245,7 @@ impl GasMeter for SuiGasMeter<'_> {
             1,
             abstract_memory_size(self.0, ref_val).into(),
             REFERENCE_SIZE.into(),
-        )
+            "".to_string())
     }
 
     fn charge_write_ref(
@@ -262,6 +262,7 @@ impl GasMeter for SuiGasMeter<'_> {
             2,
             abstract_memory_size(self.0, new_val).into(),
             abstract_memory_size(self.0, old_val).into(),
+            "".to_string()
         )
     }
 
@@ -273,13 +274,14 @@ impl GasMeter for SuiGasMeter<'_> {
             2,
             (Type::Bool.size() + size_reduction).into(),
             size_reduction.into(),
+            "".to_string()
         )
     }
 
     fn charge_neq(&mut self, lhs: impl ValueView, rhs: impl ValueView) -> PartialVMResult<()> {
         let size_reduction = abstract_memory_size(self.0, lhs) + abstract_memory_size(self.0, rhs);
         self.0
-            .charge(1, 1, 2, Type::Bool.size().into(), size_reduction.into())
+            .charge(1, 1, 2, Type::Bool.size().into(), size_reduction.into(), "".to_string())
     }
 
     fn charge_vec_pack<'a>(
@@ -291,12 +293,12 @@ impl GasMeter for SuiGasMeter<'_> {
         let num_args = args.len() as u64;
         // The amount of data on the stack stays constant except we have some extra metadata for
         // the vector to hold the length of the vector.
-        self.0.charge(1, 1, num_args, VEC_SIZE.into(), 0)
+        self.0.charge(1, 1, num_args, VEC_SIZE.into(), 0, "".to_string())
     }
 
     fn charge_vec_len(&mut self, _ty: impl TypeView) -> PartialVMResult<()> {
         self.0
-            .charge(1, 1, 1, Type::U64.size().into(), REFERENCE_SIZE.into())
+            .charge(1, 1, 1, Type::U64.size().into(), REFERENCE_SIZE.into(), "".to_string())
     }
 
     fn charge_vec_borrow(
@@ -311,6 +313,7 @@ impl GasMeter for SuiGasMeter<'_> {
             2,
             REFERENCE_SIZE.into(),
             (REFERENCE_SIZE + Type::U64.size()).into(),
+            "".to_string()
         )
     }
 
@@ -320,7 +323,7 @@ impl GasMeter for SuiGasMeter<'_> {
         _val: impl ValueView,
     ) -> PartialVMResult<()> {
         // The value was already on the stack, so we aren't increasing the number of bytes on the stack.
-        self.0.charge(1, 0, 2, 0, REFERENCE_SIZE.into())
+        self.0.charge(1, 0, 2, 0, REFERENCE_SIZE.into(), "".to_string())
     }
 
     fn charge_vec_pop_back(
@@ -328,7 +331,7 @@ impl GasMeter for SuiGasMeter<'_> {
         _ty: impl TypeView,
         _val: Option<impl ValueView>,
     ) -> PartialVMResult<()> {
-        self.0.charge(1, 1, 1, 0, REFERENCE_SIZE.into())
+        self.0.charge(1, 1, 1, 0, REFERENCE_SIZE.into(), "".to_string())
     }
 
     fn charge_vec_unpack(
@@ -340,12 +343,12 @@ impl GasMeter for SuiGasMeter<'_> {
         // Charge for the pushes
         let pushes = u64::from(expect_num_elements);
         // The stack size stays pretty much the same modulo the additional vector size
-        self.0.charge(1, pushes, 1, 0, VEC_SIZE.into())
+        self.0.charge(1, pushes, 1, 0, VEC_SIZE.into(), "".to_string())
     }
 
     fn charge_vec_swap(&mut self, _ty: impl TypeView) -> PartialVMResult<()> {
         let size_decrease = REFERENCE_SIZE + Type::U64.size() + Type::U64.size();
-        self.0.charge(1, 1, 1, 0, size_decrease.into())
+        self.0.charge(1, 1, 1, 0, size_decrease.into(), "".to_string())
     }
 
     fn charge_drop_frame(

@@ -62,7 +62,7 @@ pub mod checked {
     pub enum SuiGasStatus {
         // V1 does not exists any longer as it was a pre mainnet version.
         // So we start the enum from V2
-        V2(SuiGasStatusV2),
+        V2(pub SuiGasStatusV2),
     }
 
     impl SuiGasStatus {

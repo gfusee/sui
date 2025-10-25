@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 
-use move_core_types::gas_algebra::{AbstractMemorySize, InternalGas};
+use move_core_types::gas_algebra::{AbstractMemorySize, GasQuantity, InternalGas, InternalGasUnit};
 
 use move_core_types::vm_status::StatusCode;
 use once_cell::sync::Lazy;
@@ -70,6 +70,8 @@ pub struct GasStatus {
     instructions_current_tier_mult: u64,
 
     pub num_native_calls: u64,
+
+    pub charged_gas_for_opcode: HashMap<String, InternalGas>
 }
 
 impl GasStatus {
@@ -106,6 +108,7 @@ impl GasStatus {
             stack_size_next_tier_start,
             instructions_next_tier_start,
             num_native_calls: 0,
+            charged_gas_for_opcode: HashMap::new()
         }
     }
 
@@ -133,6 +136,7 @@ impl GasStatus {
             stack_size_next_tier_start: None,
             instructions_next_tier_start: None,
             num_native_calls: 0,
+            charged_gas_for_opcode: HashMap::new()
         }
     }
 
@@ -235,25 +239,35 @@ impl GasStatus {
         pops: u64,
         incr_size: u64,
         _decr_size: u64,
+        opcode: String,
     ) -> PartialVMResult<()> {
         self.push_stack(pushes)?;
         self.increase_instruction_count(num_instructions)?;
         self.increase_stack_size(incr_size)?;
 
+        let gas = GasCost::new(
+            self.instructions_current_tier_mult
+                .checked_mul(num_instructions)
+                .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
+            self.stack_size_current_tier_mult
+                .checked_mul(incr_size)
+                .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
+            self.stack_height_current_tier_mult
+                .checked_mul(pushes)
+                .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
+        )
+            .total_internal();
+
         self.deduct_gas(
-            GasCost::new(
-                self.instructions_current_tier_mult
-                    .checked_mul(num_instructions)
-                    .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
-                self.stack_size_current_tier_mult
-                    .checked_mul(incr_size)
-                    .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
-                self.stack_height_current_tier_mult
-                    .checked_mul(pushes)
-                    .ok_or_else(|| PartialVMError::new(StatusCode::ARITHMETIC_OVERFLOW))?,
-            )
-            .total_internal(),
+            gas,
+            opcode.clone()
         )?;
+
+        let charged_gas = self.charged_gas_for_opcode
+            .entry(opcode)
+            .or_insert(InternalGas::new(0));
+
+        *charged_gas += gas;
 
         // self.decrease_stack_size(decr_size);
         self.pop_stack(pops);
@@ -271,13 +285,21 @@ impl GasStatus {
     }
 
     /// Charge a given amount of gas and fail if not enough gas units are left.
-    pub fn deduct_gas(&mut self, amount: InternalGas) -> PartialVMResult<()> {
+    pub fn deduct_gas(&mut self, amount: InternalGas, opcode: String) -> PartialVMResult<()> {
         if !self.charge {
             return Ok(());
         }
 
         match self.gas_left.checked_sub(amount) {
             Some(gas_left) => {
+                let charged_gas = self.charged_gas_for_opcode
+                    .entry(opcode)
+                    .or_insert(InternalGas::new(0));
+
+                match charged_gas.checked_sub(amount) {
+                    None => {}
+                    Some(result) => *charged_gas = result
+                }
                 self.gas_left = gas_left;
                 Ok(())
             }
@@ -293,8 +315,8 @@ impl GasStatus {
     }
 
     // Deduct the amount provided with no conversion, as if it was InternalGasUnit
-    fn deduct_units(&mut self, amount: u64) -> PartialVMResult<()> {
-        self.deduct_gas(InternalGas::new(amount))
+    fn deduct_units(&mut self, amount: u64, opcode: String) -> PartialVMResult<()> {
+        self.deduct_gas(InternalGas::new(amount), opcode)
     }
 
     pub fn set_metering(&mut self, enabled: bool) {
@@ -319,7 +341,7 @@ impl GasStatus {
         } else {
             size as u64 * cost_per_byte
         };
-        self.deduct_units(computation_cost)
+        self.deduct_units(computation_cost, "ChargeBytes (not accurate)".to_string())
     }
 
     pub fn gas_price(&self) -> u64 {

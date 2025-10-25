@@ -97,7 +97,7 @@ impl<'pc, 'gas> TranslationMeter<'pc, 'gas> {
         let scaled_charge = self.calculate_point_charge(amount);
         self.charger
             .move_gas_status_mut()
-            .deduct_gas(scaled_charge.into())
+            .deduct_gas(scaled_charge.into(), "".to_string())
             .map_err(Self::gas_error)
     }
 
