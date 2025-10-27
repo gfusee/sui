@@ -71,7 +71,7 @@ impl GasMeter for SuiGasMeter<'_> {
     fn charge_simple_instr(&mut self, instr: SimpleInstruction) -> PartialVMResult<()> {
         let (pops, pushes, pop_size, push_size) = get_simple_instruction_stack_change(instr);
         self.0
-            .charge(1, pushes, pops, push_size.into(), pop_size.into(), "Simple Instruction".to_string())
+            .charge(1, pushes, pops, push_size.into(), pop_size.into(), format!("Simple Instruction {instr:?}"))
     }
 
     fn charge_pop(&mut self, popped_val: impl ValueView) -> PartialVMResult<()> {

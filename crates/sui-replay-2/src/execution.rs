@@ -175,11 +175,33 @@ pub fn execute_transaction_to_effects(
 
     let debug_opcode_gas = match gas_status {
         SuiGasStatus::V2(ref gas_status) => {
-            gas_status
+            let mut gas_usage_strings = gas_status
                 .gas_status
                 .charged_gas_for_opcode
                 .iter()
-                .map(|(opcode, gas_charged)| { format!("{}: {}", opcode, u64::from(gas_charged.clone())) })
+                .map(|(opcode, (gas_charged, instruction_count))| {
+                    let gas_charged = u64::from(gas_charged.clone());
+                    let u64_string = gas_charged.to_string();
+                    let mut result = String::new();
+                    let len = u64_string.len();
+                    for (i, c) in u64_string.chars().enumerate() {
+                        result.push(c);
+                        let pos = len - i - 1;
+                        if pos != 0 && pos % 3 == 0 {
+                            result.push(',');
+                        }
+                    }
+
+                    (format!("{opcode}: gas = {result} | count = {instruction_count}"), gas_charged)
+                })
+                .collect::<Vec<(String, u64)>>();
+
+            gas_usage_strings
+                .sort_by(|a, b| a.1.cmp(&b.1));
+
+            gas_usage_strings
+                .into_iter()
+                .map(|e| e.0)
                 .collect::<Vec<String>>()
                 .join("\n")
         }

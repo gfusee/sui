@@ -71,7 +71,7 @@ pub struct GasStatus {
 
     pub num_native_calls: u64,
 
-    pub charged_gas_for_opcode: HashMap<String, InternalGas>
+    pub charged_gas_for_opcode: HashMap<String, (InternalGas, u64)>
 }
 
 impl GasStatus {
@@ -288,9 +288,10 @@ impl GasStatus {
             Some(gas_left) => {
                 let charged_gas = self.charged_gas_for_opcode
                     .entry(opcode)
-                    .or_insert(InternalGas::new(0));
+                    .or_insert((InternalGas::new(0), 0));
 
-                *charged_gas += amount;
+                charged_gas.0 += amount;
+                charged_gas.1 += 1;
 
                 self.gas_left = gas_left;
                 Ok(())
