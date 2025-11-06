@@ -1,0 +1,39 @@
+[package]
+name = "tonic"
+version = "0.14.2"
+edition = "2021"
+description = "WASM-oriented stub of tonic used for sui wasm builds"
+license = "Apache-2.0"
+publish = false
+
+[features]
+default = []
+transport = []
+tls-webpki-roots = []
+zstd = []
+tls = []
+tls-roots = []
+tls-native-roots = []
+tls-webpki-roots-ring = []
+gzip = []
+compression = []
+codegen = []
+prost = []
+full = []
+router = []
+channel = []
+tls-ring = []
+deflate = []
+server = []
+tls-aws-lc = []
+tls-connect-info = []
+_tls-any = []
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+bytes = "1"
+http = "1"
+http-body = "1"
+tower-service = "0.3"
