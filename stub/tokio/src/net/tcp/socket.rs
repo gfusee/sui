@@ -2,6 +2,7 @@ use crate::net::{TcpListener, TcpStream};
 
 use std::fmt;
 use std::io;
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 
 #[cfg(unix)]
@@ -85,12 +86,18 @@ cfg_net! {
     /// [`AsRawSocket`]: https://doc.rust-lang.org/std/os/windows/io/trait.AsRawSocket.html
     /// [`socket2`]: https://docs.rs/socket2/
     #[cfg_attr(docsrs, doc(alias = "connect_std"))]
-    pub struct TcpSocket {
-        inner: socket2::Socket,
-    }
+    pub struct TcpSocket {}
 }
 
 impl TcpSocket {
+    #[inline]
+    fn unsupported<T>() -> io::Result<T> {
+        Err(io::Error::new(
+            ErrorKind::Unsupported,
+            "should not be called",
+        ))
+    }
+
     /// Creates a new socket configured for IPv4.
     ///
     /// Calls `socket(2)` with `AF_INET` and `SOCK_STREAM`.
@@ -121,7 +128,7 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn new_v4() -> io::Result<TcpSocket> {
-        TcpSocket::new(socket2::Domain::IPV4)
+        Self::unsupported()
     }
 
     /// Creates a new socket configured for IPv6.
@@ -154,45 +161,18 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn new_v6() -> io::Result<TcpSocket> {
-        TcpSocket::new(socket2::Domain::IPV6)
-    }
-
-    fn new(domain: socket2::Domain) -> io::Result<TcpSocket> {
-        let ty = socket2::Type::STREAM;
-        #[cfg(any(
-            target_os = "android",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "fuchsia",
-            target_os = "illumos",
-            target_os = "linux",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ))]
-        let ty = ty.nonblocking();
-        let inner = socket2::Socket::new(domain, ty, Some(socket2::Protocol::TCP))?;
-        #[cfg(not(any(
-            target_os = "android",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "fuchsia",
-            target_os = "illumos",
-            target_os = "linux",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        )))]
-        inner.set_nonblocking(true)?;
-        Ok(TcpSocket { inner })
+        Self::unsupported()
     }
 
     /// Sets value for the `SO_KEEPALIVE` option on this socket.
     pub fn set_keepalive(&self, keepalive: bool) -> io::Result<()> {
-        self.inner.set_keepalive(keepalive)
+        let _ = keepalive;
+        Self::unsupported()
     }
 
     /// Gets the value of the `SO_KEEPALIVE` option on this socket.
     pub fn keepalive(&self) -> io::Result<bool> {
-        self.inner.keepalive()
+        Self::unsupported()
     }
 
     /// Allows the socket to bind to an in-use address.
@@ -222,7 +202,8 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn set_reuseaddr(&self, reuseaddr: bool) -> io::Result<()> {
-        self.inner.set_reuse_address(reuseaddr)
+        let _ = reuseaddr;
+        Self::unsupported()
     }
 
     /// Retrieves the value set for `SO_REUSEADDR` on this socket.
@@ -248,7 +229,7 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn reuseaddr(&self) -> io::Result<bool> {
-        self.inner.reuse_address()
+        Self::unsupported()
     }
 
     /// Allows the socket to bind to an in-use port. Only available for unix systems
@@ -292,7 +273,8 @@ impl TcpSocket {
         )))
     )]
     pub fn set_reuseport(&self, reuseport: bool) -> io::Result<()> {
-        self.inner.set_reuse_port(reuseport)
+        let _ = reuseport;
+        Self::unsupported()
     }
 
     /// Allows the socket to bind to an in-use port. Only available for unix systems
@@ -337,14 +319,15 @@ impl TcpSocket {
         )))
     )]
     pub fn reuseport(&self) -> io::Result<bool> {
-        self.inner.reuse_port()
+        Self::unsupported()
     }
 
     /// Sets the size of the TCP send buffer on this socket.
     ///
     /// On most operating systems, this sets the `SO_SNDBUF` socket option.
     pub fn set_send_buffer_size(&self, size: u32) -> io::Result<()> {
-        self.inner.set_send_buffer_size(size as usize)
+        let _ = size;
+        Self::unsupported()
     }
 
     /// Returns the size of the TCP send buffer for this socket.
@@ -371,14 +354,15 @@ impl TcpSocket {
     ///
     /// [`set_send_buffer_size`]: #method.set_send_buffer_size
     pub fn send_buffer_size(&self) -> io::Result<u32> {
-        self.inner.send_buffer_size().map(|n| n as u32)
+        Self::unsupported()
     }
 
     /// Sets the size of the TCP receive buffer on this socket.
     ///
     /// On most operating systems, this sets the `SO_RCVBUF` socket option.
     pub fn set_recv_buffer_size(&self, size: u32) -> io::Result<()> {
-        self.inner.set_recv_buffer_size(size as usize)
+        let _ = size;
+        Self::unsupported()
     }
 
     /// Returns the size of the TCP receive buffer for this socket.
@@ -405,7 +389,7 @@ impl TcpSocket {
     ///
     /// [`set_recv_buffer_size`]: #method.set_recv_buffer_size
     pub fn recv_buffer_size(&self) -> io::Result<u32> {
-        self.inner.recv_buffer_size().map(|n| n as u32)
+        Self::unsupported()
     }
 
     /// Sets the linger duration of this socket by setting the `SO_LINGER` option.
@@ -417,7 +401,8 @@ impl TcpSocket {
     /// If `SO_LINGER` is not specified, and the socket is closed, the system handles the call in a
     /// way that allows the process to continue as quickly as possible.
     pub fn set_linger(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.inner.set_linger(dur)
+        let _ = dur;
+        Self::unsupported()
     }
 
     /// Reads the linger duration for this socket by getting the `SO_LINGER`
@@ -427,7 +412,7 @@ impl TcpSocket {
     ///
     /// [`set_linger`]: TcpSocket::set_linger
     pub fn linger(&self) -> io::Result<Option<Duration>> {
-        self.inner.linger()
+        Self::unsupported()
     }
 
     /// Sets the value of the `TCP_NODELAY` option on this socket.
@@ -450,7 +435,8 @@ impl TcpSocket {
     /// # }
     /// ```
     pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
-        self.inner.set_nodelay(nodelay)
+        let _ = nodelay;
+        Self::unsupported()
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
@@ -472,7 +458,7 @@ impl TcpSocket {
     /// # }
     /// ```
     pub fn nodelay(&self) -> io::Result<bool> {
-        self.inner.nodelay()
+        Self::unsupported()
     }
 
     /// Gets the value of the `IP_TOS` option for this socket.
@@ -502,7 +488,7 @@ impl TcpSocket {
         ))))
     )]
     pub fn tos(&self) -> io::Result<u32> {
-        self.inner.tos()
+        io::Result::Err(io::Error::new(ErrorKind::Unsupported, "should not be called"))
     }
 
     /// Sets the value for the `IP_TOS` option on this socket.
@@ -531,7 +517,7 @@ impl TcpSocket {
         ))))
     )]
     pub fn set_tos(&self, tos: u32) -> io::Result<()> {
-        self.inner.set_tos(tos)
+        io::Result::Err(io::Error::new(ErrorKind::Unsupported, "should not be called"))
     }
 
     /// Gets the value for the `SO_BINDTODEVICE` option on this socket
@@ -543,7 +529,7 @@ impl TcpSocket {
         doc(cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux",)))
     )]
     pub fn device(&self) -> io::Result<Option<Vec<u8>>> {
-        self.inner.device()
+        Self::unsupported()
     }
 
     /// Sets the value for the `SO_BINDTODEVICE` option on this socket
@@ -559,7 +545,8 @@ impl TcpSocket {
         doc(cfg(all(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))))
     )]
     pub fn bind_device(&self, interface: Option<&[u8]>) -> io::Result<()> {
-        self.inner.bind_device(interface)
+        let _ = interface;
+        Self::unsupported()
     }
 
     /// Gets the local address of this socket.
@@ -585,12 +572,12 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.inner.local_addr().and_then(convert_address)
+        Self::unsupported()
     }
 
     /// Returns the value of the `SO_ERROR` option.
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.inner.take_error()
+        Self::unsupported()
     }
 
     /// Binds the socket to the given address.
@@ -622,7 +609,8 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn bind(&self, addr: SocketAddr) -> io::Result<()> {
-        self.inner.bind(&addr.into())
+        let _ = addr;
+        Self::unsupported()
     }
 
     /// Establishes a TCP connection with a peer at the specified socket address.
@@ -658,33 +646,7 @@ impl TcpSocket {
     /// }
     /// ```
     pub async fn connect(self, addr: SocketAddr) -> io::Result<TcpStream> {
-        if let Err(err) = self.inner.connect(&addr.into()) {
-            #[cfg(unix)]
-            if err.raw_os_error() != Some(libc::EINPROGRESS) {
-                return Err(err);
-            }
-            #[cfg(windows)]
-            if err.kind() != io::ErrorKind::WouldBlock {
-                return Err(err);
-            }
-        }
-        #[cfg(unix)]
-        let mio = {
-            use std::os::unix::io::{FromRawFd, IntoRawFd};
-
-            let raw_fd = self.inner.into_raw_fd();
-            unsafe { mio::net::TcpStream::from_raw_fd(raw_fd) }
-        };
-
-        #[cfg(windows)]
-        let mio = {
-            use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-
-            let raw_socket = self.inner.into_raw_socket();
-            unsafe { mio::net::TcpStream::from_raw_socket(raw_socket) }
-        };
-
-        TcpStream::connect_mio(mio).await
+        io::Result::Err(io::Error::new(ErrorKind::Unsupported, "should not be called"))
     }
 
     /// Converts the socket into a `TcpListener`.
@@ -723,24 +685,7 @@ impl TcpSocket {
     /// }
     /// ```
     pub fn listen(self, backlog: u32) -> io::Result<TcpListener> {
-        self.inner.listen(backlog as i32)?;
-        #[cfg(unix)]
-        let mio = {
-            use std::os::unix::io::{FromRawFd, IntoRawFd};
-
-            let raw_fd = self.inner.into_raw_fd();
-            unsafe { mio::net::TcpListener::from_raw_fd(raw_fd) }
-        };
-
-        #[cfg(windows)]
-        let mio = {
-            use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-
-            let raw_socket = self.inner.into_raw_socket();
-            unsafe { mio::net::TcpListener::from_raw_socket(raw_socket) }
-        };
-
-        TcpListener::new(mio)
+        io::Result::Err(io::Error::new(ErrorKind::Unsupported, "should not be called"))
     }
 
     /// Converts a [`std::net::TcpStream`] into a `TcpSocket`. The provided
@@ -777,22 +722,8 @@ impl TcpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub fn from_std_stream(std_stream: std::net::TcpStream) -> TcpSocket {
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::{FromRawFd, IntoRawFd};
-
-            let raw_fd = std_stream.into_raw_fd();
-            unsafe { TcpSocket::from_raw_fd(raw_fd) }
-        }
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-
-            let raw_socket = std_stream.into_raw_socket();
-            unsafe { TcpSocket::from_raw_socket(raw_socket) }
-        }
+    pub fn from_std_stream(_std_stream: std::net::TcpStream) -> TcpSocket {
+        TcpSocket {}
     }
 }
 
@@ -808,7 +739,7 @@ fn convert_address(address: socket2::SockAddr) -> io::Result<SocketAddr> {
 
 impl fmt::Debug for TcpSocket {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(fmt)
+        fmt.write_str("TcpSocket { unsupported }")
     }
 }
 
@@ -818,13 +749,13 @@ impl fmt::Debug for TcpSocket {
 cfg_unix! {
     impl AsRawFd for TcpSocket {
         fn as_raw_fd(&self) -> RawFd {
-            self.inner.as_raw_fd()
+            panic!("TcpSocket::as_raw_fd should not be called")
         }
     }
 
     impl AsFd for TcpSocket {
         fn as_fd(&self) -> BorrowedFd<'_> {
-            unsafe { BorrowedFd::borrow_raw(self.as_raw_fd()) }
+            panic!("TcpSocket::as_fd should not be called")
         }
     }
 
@@ -836,14 +767,14 @@ cfg_unix! {
         /// The caller is responsible for ensuring that the socket is in
         /// non-blocking mode.
         unsafe fn from_raw_fd(fd: RawFd) -> TcpSocket {
-            let inner = socket2::Socket::from_raw_fd(fd);
-            TcpSocket { inner }
+            let _ = fd;
+            TcpSocket {}
         }
     }
 
     impl IntoRawFd for TcpSocket {
         fn into_raw_fd(self) -> RawFd {
-            self.inner.into_raw_fd()
+            panic!("TcpSocket::into_raw_fd should not be called")
         }
     }
 }
@@ -851,19 +782,19 @@ cfg_unix! {
 cfg_windows! {
     impl IntoRawSocket for TcpSocket {
         fn into_raw_socket(self) -> RawSocket {
-            self.inner.into_raw_socket()
+            panic!("TcpSocket::into_raw_socket should not be called")
         }
     }
 
     impl AsRawSocket for TcpSocket {
         fn as_raw_socket(&self) -> RawSocket {
-            self.inner.as_raw_socket()
+            panic!("TcpSocket::as_raw_socket should not be called")
         }
     }
 
     impl AsSocket for TcpSocket {
         fn as_socket(&self) -> BorrowedSocket<'_> {
-            unsafe { BorrowedSocket::borrow_raw(self.as_raw_socket()) }
+            panic!("TcpSocket::as_socket should not be called")
         }
     }
 
@@ -875,8 +806,8 @@ cfg_windows! {
         /// The caller is responsible for ensuring that the socket is in
         /// non-blocking mode.
         unsafe fn from_raw_socket(socket: RawSocket) -> TcpSocket {
-            let inner = socket2::Socket::from_raw_socket(socket);
-            TcpSocket { inner }
+            let _ = socket;
+            TcpSocket {}
         }
     }
 }

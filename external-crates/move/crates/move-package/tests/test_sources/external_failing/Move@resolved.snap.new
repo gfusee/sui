@@ -1,0 +1,5 @@
+---
+source: crates/move-package/tests/test_runner.rs
+assertion_line: 66
+---
+Failed to resolve dependencies for package 'Root': '../resolvers/failing.sh' failed to resolve dev-dependencies for dependency 'A' of package 'Root'. Exited with code: 1

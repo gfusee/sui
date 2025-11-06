@@ -1,6 +1,6 @@
 [package]
 name = "tonic"
-version = "0.14.2"
+version = "0.12.3"
 edition = "2021"
 description = "WASM-oriented stub of tonic used for sui wasm builds"
 license = "Apache-2.0"

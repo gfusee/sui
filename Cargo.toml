@@ -280,7 +280,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
-antithesis_sdk = "0.2.5"
+antithesis_sdk = "0.2.6"
 anyhow = "1.0.71"
 arrow = "54"
 arrow-array = "54"
@@ -391,7 +391,7 @@ http = "1"
 http-body = "1"
 humantime = "2.1.0"
 hyper = "1"
-hyper-util = "0.1.6"
+hyper-util = "0.1.17"
 hyper-rustls = { version = "0.27", default-features = false, features = [
   "webpki-roots",
   "http1",
@@ -799,7 +799,21 @@ async-graphql = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.
 async-graphql-axum = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.1-react-18-graphiql-4" }
 async-graphql-value = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.1-react-18-graphiql-4" }
 tonic = { path = "stub/tonic" }
+tonic-rustls = { path = "stub/tonic-rustls" }
 socket2 = { path = "stub/socket2" }
 zstd = { path = "stub/zstd" }
 zstd-sys = { path = "stub/zstd-sys" }
 tokio = { path = "stub/tokio" }
+mysten-network = { path = "stub/mysten-network" }
+hyper-util = { path = "stub/hyper-util" }
+quinn-udp = { path = "stub/quinn-udp" }
+quinn = { path = "stub/quinn" }
+tokio-tungstenite = { path = "stub/tokio-tungstenite" }
+antithesis_sdk = { path = "stub/antithesis_sdk" }
+jsonrpsee-core = { path = "stub/jsonrpsee-core" }
+
+[patch."https://github.com/mystenlabs/anemo.git"]
+anemo = { path = "stub/anemo/crates/anemo" }
+anemo-build = { path = "stub/anemo/crates/anemo-build" }
+anemo-cli = { path = "stub/anemo/crates/anemo-cli" }
+anemo-tower = { path = "stub/anemo/crates/anemo-tower" }

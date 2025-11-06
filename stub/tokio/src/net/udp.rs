@@ -1,11 +1,11 @@
-use crate::io::{Interest, PollEvented, ReadBuf, Ready};
-use crate::net::{to_socket_addrs, ToSocketAddrs};
-use crate::util::check_socket_for_blocking;
+use crate::io::{Interest, ReadBuf, Ready};
+use crate::net::ToSocketAddrs;
 
 use std::fmt;
 use std::io;
+use std::io::ErrorKind;
 use std::net::{self, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll};
 
 cfg_io_util! {
     use bytes::BufMut;
@@ -119,12 +119,18 @@ cfg_net! {
     /// }
     /// ```
     ///
-    pub struct UdpSocket {
-        io: PollEvented<mio::net::UdpSocket>,
-    }
+    pub struct UdpSocket {}
 }
 
 impl UdpSocket {
+    #[inline]
+    fn unsupported<T>() -> io::Result<T> {
+        Err(io::Error::new(
+            ErrorKind::Unsupported,
+            "should not be called",
+        ))
+    }
+
     /// This function will create a new UDP socket and attempt to bind it to
     /// the `addr` provided.
     ///
@@ -147,34 +153,12 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<UdpSocket> {
-        let addrs = to_socket_addrs(addr).await?;
-        let mut last_err = None;
-
-        for addr in addrs {
-            match UdpSocket::bind_addr(addr) {
-                Ok(socket) => return Ok(socket),
-                Err(e) => last_err = Some(e),
-            }
-        }
-
-        Err(last_err.unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "could not resolve to any address",
-            )
-        }))
+    pub async fn bind<A: ToSocketAddrs>(_addr: A) -> io::Result<UdpSocket> {
+        Self::unsupported()
     }
 
-    fn bind_addr(addr: SocketAddr) -> io::Result<UdpSocket> {
-        let sys = mio::net::UdpSocket::bind(addr)?;
-        UdpSocket::new(sys)
-    }
-
-    #[track_caller]
-    fn new(socket: mio::net::UdpSocket) -> io::Result<UdpSocket> {
-        let io = PollEvented::new(socket)?;
-        Ok(UdpSocket { io })
+    fn bind_addr(_addr: SocketAddr) -> io::Result<UdpSocket> {
+        Self::unsupported()
     }
 
     /// Creates new `UdpSocket` from a previously bound `std::net::UdpSocket`.
@@ -224,11 +208,8 @@ impl UdpSocket {
     /// # }
     /// ```
     #[track_caller]
-    pub fn from_std(socket: net::UdpSocket) -> io::Result<UdpSocket> {
-        check_socket_for_blocking(&socket)?;
-
-        let io = mio::net::UdpSocket::from_std(socket);
-        UdpSocket::new(io)
+    pub fn from_std(_socket: net::UdpSocket) -> io::Result<UdpSocket> {
+        Self::unsupported()
     }
 
     /// Turns a [`tokio::net::UdpSocket`] into a [`std::net::UdpSocket`].
@@ -254,27 +235,7 @@ impl UdpSocket {
     /// [`std::net::UdpSocket`]: std::net::UdpSocket
     /// [`set_nonblocking`]: fn@std::net::UdpSocket::set_nonblocking
     pub fn into_std(self) -> io::Result<std::net::UdpSocket> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::{FromRawFd, IntoRawFd};
-            self.io
-                .into_inner()
-                .map(IntoRawFd::into_raw_fd)
-                .map(|raw_fd| unsafe { std::net::UdpSocket::from_raw_fd(raw_fd) })
-        }
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-            self.io
-                .into_inner()
-                .map(|io| io.into_raw_socket())
-                .map(|raw_socket| unsafe { std::net::UdpSocket::from_raw_socket(raw_socket) })
-        }
-    }
-
-    fn as_socket(&self) -> socket2::SockRef<'_> {
-        socket2::SockRef::from(self)
+        Self::unsupported()
     }
 
     /// Returns the local address that this socket is bound to.
@@ -295,7 +256,7 @@ impl UdpSocket {
     /// # }
     /// ```
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.io.local_addr()
+        Self::unsupported()
     }
 
     /// Returns the socket address of the remote peer this socket was connected to.
@@ -318,7 +279,7 @@ impl UdpSocket {
     /// # }
     /// ```
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.io.peer_addr()
+        Self::unsupported()
     }
 
     /// Connects the UDP socket setting the default destination for send() and
@@ -345,23 +306,8 @@ impl UdpSocket {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn connect<A: ToSocketAddrs>(&self, addr: A) -> io::Result<()> {
-        let addrs = to_socket_addrs(addr).await?;
-        let mut last_err = None;
-
-        for addr in addrs {
-            match self.io.connect(addr) {
-                Ok(()) => return Ok(()),
-                Err(e) => last_err = Some(e),
-            }
-        }
-
-        Err(last_err.unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "could not resolve to any address",
-            )
-        }))
+    pub async fn connect<A: ToSocketAddrs>(&self, _addr: A) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Waits for any of the requested ready states.
@@ -432,9 +378,8 @@ impl UdpSocket {
     ///     }
     /// }
     /// ```
-    pub async fn ready(&self, interest: Interest) -> io::Result<Ready> {
-        let event = self.io.registration().readiness(interest).await?;
-        Ok(event.ready)
+    pub async fn ready(&self, _interest: Interest) -> io::Result<Ready> {
+        Self::unsupported()
     }
 
     /// Waits for the socket to become writable.
@@ -488,8 +433,7 @@ impl UdpSocket {
     /// }
     /// ```
     pub async fn writable(&self) -> io::Result<()> {
-        self.ready(Interest::WRITABLE).await?;
-        Ok(())
+        Self::unsupported()
     }
 
     /// Polls for write/send readiness.
@@ -521,8 +465,8 @@ impl UdpSocket {
     /// This function may encounter any standard I/O error except `WouldBlock`.
     ///
     /// [`writable`]: method@Self::writable
-    pub fn poll_send_ready(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.io.registration().poll_write_ready(cx).map_ok(|_| ())
+    pub fn poll_send_ready(&self, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Sends data on the socket to the remote address that the socket is
@@ -562,11 +506,8 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn send(&self, buf: &[u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .async_io(Interest::WRITABLE, || self.io.send(buf))
-            .await
+    pub async fn send(&self, _buf: &[u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Attempts to send data on the socket to the remote address to which it
@@ -592,10 +533,12 @@ impl UdpSocket {
     /// This function may encounter any standard I/O error except `WouldBlock`.
     ///
     /// [`connect`]: method@Self::connect
-    pub fn poll_send(&self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-        self.io
-            .registration()
-            .poll_write_io(cx, || self.io.send(buf))
+    pub fn poll_send(
+        &self,
+        _cx: &mut Context<'_>,
+        _buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to send data on the socket to the remote address to which it is
@@ -646,10 +589,8 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub fn try_send(&self, buf: &[u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .try_io(Interest::WRITABLE, || self.io.send(buf))
+    pub fn try_send(&self, _buf: &[u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Waits for the socket to become readable.
@@ -708,8 +649,7 @@ impl UdpSocket {
     /// }
     /// ```
     pub async fn readable(&self) -> io::Result<()> {
-        self.ready(Interest::READABLE).await?;
-        Ok(())
+        Self::unsupported()
     }
 
     /// Polls for read/receive readiness.
@@ -741,8 +681,8 @@ impl UdpSocket {
     /// This function may encounter any standard I/O error except `WouldBlock`.
     ///
     /// [`readable`]: method@Self::readable
-    pub fn poll_recv_ready(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.io.registration().poll_read_ready(cx).map_ok(|_| ())
+    pub fn poll_recv_ready(&self, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Receives a single datagram message on the socket from the remote address
@@ -782,11 +722,8 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .async_io(Interest::READABLE, || self.io.recv(buf))
-            .await
+    pub async fn recv(&self, _buf: &mut [u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Attempts to receive a single datagram message on the socket from the remote
@@ -812,23 +749,12 @@ impl UdpSocket {
     /// This function may encounter any standard I/O error except `WouldBlock`.
     ///
     /// [`connect`]: method@Self::connect
-    pub fn poll_recv(&self, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        #[allow(clippy::blocks_in_conditions)]
-        let n = ready!(self.io.registration().poll_read_io(cx, || {
-            // Safety: will not read the maybe uninitialized bytes.
-            let b = unsafe {
-                &mut *(buf.unfilled_mut() as *mut [std::mem::MaybeUninit<u8>] as *mut [u8])
-            };
-
-            self.io.recv(b)
-        }))?;
-
-        // Safety: We trust `recv` to have filled up `n` bytes in the buffer.
-        unsafe {
-            buf.assume_init(n);
-        }
-        buf.advance(n);
-        Poll::Ready(Ok(()))
+    pub fn poll_recv(
+        &self,
+        _cx: &mut Context<'_>,
+        _buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to receive a single datagram message on the socket from the remote
@@ -881,10 +807,8 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub fn try_recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .try_io(Interest::READABLE, || self.io.recv(buf))
+    pub fn try_recv(&self, _buf: &mut [u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     cfg_io_util! {
@@ -937,22 +861,8 @@ impl UdpSocket {
         ///     Ok(())
         /// }
         /// ```
-        pub fn try_recv_buf<B: BufMut>(&self, buf: &mut B) -> io::Result<usize> {
-            self.io.registration().try_io(Interest::READABLE, || {
-                let dst = buf.chunk_mut();
-                let dst =
-                    unsafe { &mut *(dst as *mut _ as *mut [std::mem::MaybeUninit<u8>] as *mut [u8]) };
-
-                let n = (*self.io).recv(dst)?;
-
-                // Safety: We trust `UdpSocket::recv` to have filled up `n` bytes in the
-                // buffer.
-                unsafe {
-                    buf.advance_mut(n);
-                }
-
-                Ok(n)
-            })
+        pub fn try_recv_buf<B: BufMut>(&self, _buf: &mut B) -> io::Result<usize> {
+            Self::unsupported()
         }
 
         /// Receives a single datagram message on the socket from the remote address
@@ -985,22 +895,8 @@ impl UdpSocket {
         ///     Ok(())
         /// }
         /// ```
-        pub async fn recv_buf<B: BufMut>(&self, buf: &mut B) -> io::Result<usize> {
-            self.io.registration().async_io(Interest::READABLE, || {
-                let dst = buf.chunk_mut();
-                let dst =
-                    unsafe { &mut *(dst as *mut _ as *mut [std::mem::MaybeUninit<u8>] as *mut [u8]) };
-
-                let n = (*self.io).recv(dst)?;
-
-                // Safety: We trust `UdpSocket::recv` to have filled up `n` bytes in the
-                // buffer.
-                unsafe {
-                    buf.advance_mut(n);
-                }
-
-                Ok(n)
-            }).await
+        pub async fn recv_buf<B: BufMut>(&self, _buf: &mut B) -> io::Result<usize> {
+            Self::unsupported()
         }
 
         /// Tries to receive a single datagram message on the socket. On success,
@@ -1060,22 +956,11 @@ impl UdpSocket {
         ///     Ok(())
         /// }
         /// ```
-        pub fn try_recv_buf_from<B: BufMut>(&self, buf: &mut B) -> io::Result<(usize, SocketAddr)> {
-            self.io.registration().try_io(Interest::READABLE, || {
-                let dst = buf.chunk_mut();
-                let dst =
-                    unsafe { &mut *(dst as *mut _ as *mut [std::mem::MaybeUninit<u8>] as *mut [u8]) };
-
-                let (n, addr) = (*self.io).recv_from(dst)?;
-
-                // Safety: We trust `UdpSocket::recv_from` to have filled up `n` bytes in the
-                // buffer.
-                unsafe {
-                    buf.advance_mut(n);
-                }
-
-                Ok((n, addr))
-            })
+        pub fn try_recv_buf_from<B: BufMut>(
+            &self,
+            _buf: &mut B,
+        ) -> io::Result<(usize, SocketAddr)> {
+            Self::unsupported()
         }
 
         /// Receives a single datagram message on the socket, advancing the
@@ -1116,22 +1001,11 @@ impl UdpSocket {
         ///     Ok(())
         /// }
         /// ```
-        pub async fn recv_buf_from<B: BufMut>(&self, buf: &mut B) -> io::Result<(usize, SocketAddr)> {
-            self.io.registration().async_io(Interest::READABLE, || {
-                let dst = buf.chunk_mut();
-                let dst =
-                    unsafe { &mut *(dst as *mut _ as *mut [std::mem::MaybeUninit<u8>] as *mut [u8]) };
-
-                let (n, addr) = (*self.io).recv_from(dst)?;
-
-                // Safety: We trust `UdpSocket::recv_from` to have filled up `n` bytes in the
-                // buffer.
-                unsafe {
-                    buf.advance_mut(n);
-                }
-
-                Ok((n,addr))
-            }).await
+        pub async fn recv_buf_from<B: BufMut>(
+            &self,
+            _buf: &mut B,
+        ) -> io::Result<(usize, SocketAddr)> {
+            Self::unsupported()
         }
     }
 
@@ -1171,16 +1045,12 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn send_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: A) -> io::Result<usize> {
-        let mut addrs = to_socket_addrs(addr).await?;
-
-        match addrs.next() {
-            Some(target) => self.send_to_addr(buf, target).await,
-            None => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "no addresses to send data to",
-            )),
-        }
+    pub async fn send_to<A: ToSocketAddrs>(
+        &self,
+        _buf: &[u8],
+        _addr: A,
+    ) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Attempts to send data on the socket to a given address.
@@ -1202,13 +1072,11 @@ impl UdpSocket {
     /// This function may encounter any standard I/O error except `WouldBlock`.
     pub fn poll_send_to(
         &self,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-        target: SocketAddr,
+        _cx: &mut Context<'_>,
+        _buf: &[u8],
+        _target: SocketAddr,
     ) -> Poll<io::Result<usize>> {
-        self.io
-            .registration()
-            .poll_write_io(cx, || self.io.send_to(buf, target))
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to send data on the socket to the given address, but if the send is
@@ -1258,17 +1126,16 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub fn try_send_to(&self, buf: &[u8], target: SocketAddr) -> io::Result<usize> {
-        self.io
-            .registration()
-            .try_io(Interest::WRITABLE, || self.io.send_to(buf, target))
+    pub fn try_send_to(&self, _buf: &[u8], _target: SocketAddr) -> io::Result<usize> {
+        Self::unsupported()
     }
 
-    async fn send_to_addr(&self, buf: &[u8], target: SocketAddr) -> io::Result<usize> {
-        self.io
-            .registration()
-            .async_io(Interest::WRITABLE, || self.io.send_to(buf, target))
-            .await
+    async fn send_to_addr(
+        &self,
+        _buf: &[u8],
+        _target: SocketAddr,
+    ) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Receives a single datagram message on the socket. On success, returns
@@ -1312,11 +1179,11 @@ impl UdpSocket {
     /// It is important to be aware of this when designing your application-level protocol.
     ///
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub async fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.io
-            .registration()
-            .async_io(Interest::READABLE, || self.io.recv_from(buf))
-            .await
+    pub async fn recv_from(
+        &self,
+        _buf: &mut [u8],
+    ) -> io::Result<(usize, SocketAddr)> {
+        Self::unsupported()
     }
 
     /// Attempts to receive a single datagram on the socket.
@@ -1347,25 +1214,10 @@ impl UdpSocket {
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
     pub fn poll_recv_from(
         &self,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        _cx: &mut Context<'_>,
+        _buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<SocketAddr>> {
-        #[allow(clippy::blocks_in_conditions)]
-        let (n, addr) = ready!(self.io.registration().poll_read_io(cx, || {
-            // Safety: will not read the maybe uninitialized bytes.
-            let b = unsafe {
-                &mut *(buf.unfilled_mut() as *mut [std::mem::MaybeUninit<u8>] as *mut [u8])
-            };
-
-            self.io.recv_from(b)
-        }))?;
-
-        // Safety: We trust `recv` to have filled up `n` bytes in the buffer.
-        unsafe {
-            buf.assume_init(n);
-        }
-        buf.advance(n);
-        Poll::Ready(Ok(addr))
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to receive a single datagram message on the socket. On success,
@@ -1426,10 +1278,11 @@ impl UdpSocket {
     ///     Ok(())
     /// }
     /// ```
-    pub fn try_recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.io
-            .registration()
-            .try_io(Interest::READABLE, || self.io.recv_from(buf))
+    pub fn try_recv_from(
+        &self,
+        _buf: &mut [u8],
+    ) -> io::Result<(usize, SocketAddr)> {
+        Self::unsupported()
     }
 
     /// Tries to read or write from the socket using a user-provided IO operation.
@@ -1466,12 +1319,10 @@ impl UdpSocket {
     /// [`ready()`]: UdpSocket::ready()
     pub fn try_io<R>(
         &self,
-        interest: Interest,
-        f: impl FnOnce() -> io::Result<R>,
+        _interest: Interest,
+        _f: impl FnOnce() -> io::Result<R>,
     ) -> io::Result<R> {
-        self.io
-            .registration()
-            .try_io(interest, || self.io.try_io(f))
+        Self::unsupported()
     }
 
     /// Reads or writes from the socket using a user-provided IO operation.
@@ -1501,13 +1352,10 @@ impl UdpSocket {
     /// if it is called with a combined interest.
     pub async fn async_io<R>(
         &self,
-        interest: Interest,
-        mut f: impl FnMut() -> io::Result<R>,
+        _interest: Interest,
+        _f: impl FnMut() -> io::Result<R>,
     ) -> io::Result<R> {
-        self.io
-            .registration()
-            .async_io(interest, || self.io.try_io(&mut f))
-            .await
+        Self::unsupported()
     }
 
     /// Receives a single datagram from the connected address without removing it from the queue.
@@ -1553,11 +1401,8 @@ impl UdpSocket {
     ///
     /// [`peek_sender`]: method@Self::peek_sender
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub async fn peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .async_io(Interest::READABLE, || self.io.peek(buf))
-            .await
+    pub async fn peek(&self, _buf: &mut [u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Receives data from the connected address, without removing it from the input queue.
@@ -1600,23 +1445,12 @@ impl UdpSocket {
     ///
     /// [`poll_peek_sender`]: method@Self::poll_peek_sender
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub fn poll_peek(&self, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        #[allow(clippy::blocks_in_conditions)]
-        let n = ready!(self.io.registration().poll_read_io(cx, || {
-            // Safety: will not read the maybe uninitialized bytes.
-            let b = unsafe {
-                &mut *(buf.unfilled_mut() as *mut [std::mem::MaybeUninit<u8>] as *mut [u8])
-            };
-
-            self.io.peek(b)
-        }))?;
-
-        // Safety: We trust `recv` to have filled up `n` bytes in the buffer.
-        unsafe {
-            buf.assume_init(n);
-        }
-        buf.advance(n);
-        Poll::Ready(Ok(()))
+    pub fn poll_peek(
+        &self,
+        _cx: &mut Context<'_>,
+        _buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to receive data on the connected address without removing it from the input queue.
@@ -1646,10 +1480,8 @@ impl UdpSocket {
     ///
     /// [`try_peek_sender`]: method@Self::try_peek_sender
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub fn try_peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io
-            .registration()
-            .try_io(Interest::READABLE, || self.io.peek(buf))
+    pub fn try_peek(&self, _buf: &mut [u8]) -> io::Result<usize> {
+        Self::unsupported()
     }
 
     /// Receives data from the socket, without removing it from the input queue.
@@ -1696,11 +1528,11 @@ impl UdpSocket {
     ///
     /// [`peek_sender`]: method@Self::peek_sender
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub async fn peek_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.io
-            .registration()
-            .async_io(Interest::READABLE, || self.io.peek_from(buf))
-            .await
+    pub async fn peek_from(
+        &self,
+        _buf: &mut [u8],
+    ) -> io::Result<(usize, SocketAddr)> {
+        Self::unsupported()
     }
 
     /// Receives data from the socket, without removing it from the input queue.
@@ -1745,25 +1577,10 @@ impl UdpSocket {
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
     pub fn poll_peek_from(
         &self,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        _cx: &mut Context<'_>,
+        _buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<SocketAddr>> {
-        #[allow(clippy::blocks_in_conditions)]
-        let (n, addr) = ready!(self.io.registration().poll_read_io(cx, || {
-            // Safety: will not read the maybe uninitialized bytes.
-            let b = unsafe {
-                &mut *(buf.unfilled_mut() as *mut [std::mem::MaybeUninit<u8>] as *mut [u8])
-            };
-
-            self.io.peek_from(b)
-        }))?;
-
-        // Safety: We trust `recv` to have filled up `n` bytes in the buffer.
-        unsafe {
-            buf.assume_init(n);
-        }
-        buf.advance(n);
-        Poll::Ready(Ok(addr))
+        Poll::Ready(Self::unsupported())
     }
 
     /// Tries to receive data on the socket without removing it from the input queue.
@@ -1794,10 +1611,11 @@ impl UdpSocket {
     ///
     /// [`try_peek_sender`]: method@Self::try_peek_sender
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub fn try_peek_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.io
-            .registration()
-            .try_io(Interest::READABLE, || self.io.peek_from(buf))
+    pub fn try_peek_from(
+        &self,
+        _buf: &mut [u8],
+    ) -> io::Result<(usize, SocketAddr)> {
+        Self::unsupported()
     }
 
     /// Retrieve the sender of the data at the head of the input queue, waiting if empty.
@@ -1814,10 +1632,7 @@ impl UdpSocket {
     /// [`peek_from`]: method@Self::peek_from
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
     pub async fn peek_sender(&self) -> io::Result<SocketAddr> {
-        self.io
-            .registration()
-            .async_io(Interest::READABLE, || self.peek_sender_inner())
-            .await
+        Self::unsupported()
     }
 
     /// Retrieve the sender of the data at the head of the input queue,
@@ -1840,10 +1655,11 @@ impl UdpSocket {
     ///
     /// [`poll_peek_from`]: method@Self::poll_peek_from
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
-    pub fn poll_peek_sender(&self, cx: &mut Context<'_>) -> Poll<io::Result<SocketAddr>> {
-        self.io
-            .registration()
-            .poll_read_io(cx, || self.peek_sender_inner())
+    pub fn poll_peek_sender(
+        &self,
+        _cx: &mut Context<'_>,
+    ) -> Poll<io::Result<SocketAddr>> {
+        Poll::Ready(Self::unsupported())
     }
 
     /// Try to retrieve the sender of the data at the head of the input queue.
@@ -1859,22 +1675,12 @@ impl UdpSocket {
     ///
     /// [packet injection attack]: https://en.wikipedia.org/wiki/Packet_injection
     pub fn try_peek_sender(&self) -> io::Result<SocketAddr> {
-        self.io
-            .registration()
-            .try_io(Interest::READABLE, || self.peek_sender_inner())
+        Self::unsupported()
     }
 
     #[inline]
     fn peek_sender_inner(&self) -> io::Result<SocketAddr> {
-        self.io.try_io(|| {
-            self.as_socket()
-                .peek_sender()?
-                // May be `None` if the platform doesn't populate the sender for some reason.
-                // In testing, that only occurred on macOS if you pass a zero-sized buffer,
-                // but the implementation of `Socket::peek_sender()` covers that.
-                .as_socket()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "sender not available"))
-        })
+        Self::unsupported()
     }
 
     /// Gets the value of the `SO_BROADCAST` option for this socket.
@@ -1883,15 +1689,15 @@ impl UdpSocket {
     ///
     /// [`set_broadcast`]: method@Self::set_broadcast
     pub fn broadcast(&self) -> io::Result<bool> {
-        self.io.broadcast()
+        Self::unsupported()
     }
 
     /// Sets the value of the `SO_BROADCAST` option for this socket.
     ///
     /// When enabled, this socket is allowed to send packets to a broadcast
     /// address.
-    pub fn set_broadcast(&self, on: bool) -> io::Result<()> {
-        self.io.set_broadcast(on)
+    pub fn set_broadcast(&self, _on: bool) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value of the `IP_MULTICAST_LOOP` option for this socket.
@@ -1900,7 +1706,7 @@ impl UdpSocket {
     ///
     /// [`set_multicast_loop_v4`]: method@Self::set_multicast_loop_v4
     pub fn multicast_loop_v4(&self) -> io::Result<bool> {
-        self.io.multicast_loop_v4()
+        Self::unsupported()
     }
 
     /// Sets the value of the `IP_MULTICAST_LOOP` option for this socket.
@@ -1910,8 +1716,8 @@ impl UdpSocket {
     /// # Note
     ///
     /// This may not have any affect on IPv6 sockets.
-    pub fn set_multicast_loop_v4(&self, on: bool) -> io::Result<()> {
-        self.io.set_multicast_loop_v4(on)
+    pub fn set_multicast_loop_v4(&self, _on: bool) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value of the `IP_MULTICAST_TTL` option for this socket.
@@ -1920,7 +1726,7 @@ impl UdpSocket {
     ///
     /// [`set_multicast_ttl_v4`]: method@Self::set_multicast_ttl_v4
     pub fn multicast_ttl_v4(&self) -> io::Result<u32> {
-        self.io.multicast_ttl_v4()
+        Self::unsupported()
     }
 
     /// Sets the value of the `IP_MULTICAST_TTL` option for this socket.
@@ -1932,8 +1738,8 @@ impl UdpSocket {
     /// # Note
     ///
     /// This may not have any affect on IPv6 sockets.
-    pub fn set_multicast_ttl_v4(&self, ttl: u32) -> io::Result<()> {
-        self.io.set_multicast_ttl_v4(ttl)
+    pub fn set_multicast_ttl_v4(&self, _ttl: u32) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value of the `IPV6_MULTICAST_LOOP` option for this socket.
@@ -1942,7 +1748,7 @@ impl UdpSocket {
     ///
     /// [`set_multicast_loop_v6`]: method@Self::set_multicast_loop_v6
     pub fn multicast_loop_v6(&self) -> io::Result<bool> {
-        self.io.multicast_loop_v6()
+        Self::unsupported()
     }
 
     /// Sets the value of the `IPV6_MULTICAST_LOOP` option for this socket.
@@ -1952,8 +1758,8 @@ impl UdpSocket {
     /// # Note
     ///
     /// This may not have any affect on IPv4 sockets.
-    pub fn set_multicast_loop_v6(&self, on: bool) -> io::Result<()> {
-        self.io.set_multicast_loop_v6(on)
+    pub fn set_multicast_loop_v6(&self, _on: bool) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
@@ -1976,7 +1782,7 @@ impl UdpSocket {
     /// # }
     /// ```
     pub fn ttl(&self) -> io::Result<u32> {
-        self.io.ttl()
+        Self::unsupported()
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
@@ -1997,8 +1803,8 @@ impl UdpSocket {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.io.set_ttl(ttl)
+    pub fn set_ttl(&self, _ttl: u32) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value of the `IP_TOS` option for this socket.
@@ -2028,7 +1834,7 @@ impl UdpSocket {
         ))))
     )]
     pub fn tos(&self) -> io::Result<u32> {
-        self.as_socket().tos()
+        Self::unsupported()
     }
 
     /// Sets the value for the `IP_TOS` option on this socket.
@@ -2056,8 +1862,8 @@ impl UdpSocket {
             target_os = "haiku"
         ))))
     )]
-    pub fn set_tos(&self, tos: u32) -> io::Result<()> {
-        self.as_socket().set_tos(tos)
+    pub fn set_tos(&self, _tos: u32) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Gets the value for the `SO_BINDTODEVICE` option on this socket
@@ -2084,8 +1890,8 @@ impl UdpSocket {
         docsrs,
         doc(cfg(all(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))))
     )]
-    pub fn bind_device(&self, interface: Option<&[u8]>) -> io::Result<()> {
-        self.as_socket().bind_device(interface)
+    pub fn bind_device(&self, _interface: Option<&[u8]>) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Executes an operation of the `IP_ADD_MEMBERSHIP` type.
@@ -2095,8 +1901,12 @@ impl UdpSocket {
     /// address of the local interface with which the system should join the
     /// multicast group. If it's equal to `INADDR_ANY` then an appropriate
     /// interface is chosen by the system.
-    pub fn join_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> io::Result<()> {
-        self.io.join_multicast_v4(&multiaddr, &interface)
+    pub fn join_multicast_v4(
+        &self,
+        _multiaddr: Ipv4Addr,
+        _interface: Ipv4Addr,
+    ) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Executes an operation of the `IPV6_ADD_MEMBERSHIP` type.
@@ -2104,8 +1914,12 @@ impl UdpSocket {
     /// This function specifies a new multicast group for this socket to join.
     /// The address must be a valid multicast address, and `interface` is the
     /// index of the interface to join/leave (or 0 to indicate any interface).
-    pub fn join_multicast_v6(&self, multiaddr: &Ipv6Addr, interface: u32) -> io::Result<()> {
-        self.io.join_multicast_v6(multiaddr, interface)
+    pub fn join_multicast_v6(
+        &self,
+        _multiaddr: &Ipv6Addr,
+        _interface: u32,
+    ) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Executes an operation of the `IP_DROP_MEMBERSHIP` type.
@@ -2113,8 +1927,12 @@ impl UdpSocket {
     /// For more information about this option, see [`join_multicast_v4`].
     ///
     /// [`join_multicast_v4`]: method@Self::join_multicast_v4
-    pub fn leave_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> io::Result<()> {
-        self.io.leave_multicast_v4(&multiaddr, &interface)
+    pub fn leave_multicast_v4(
+        &self,
+        _multiaddr: Ipv4Addr,
+        _interface: Ipv4Addr,
+    ) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Executes an operation of the `IPV6_DROP_MEMBERSHIP` type.
@@ -2122,8 +1940,12 @@ impl UdpSocket {
     /// For more information about this option, see [`join_multicast_v6`].
     ///
     /// [`join_multicast_v6`]: method@Self::join_multicast_v6
-    pub fn leave_multicast_v6(&self, multiaddr: &Ipv6Addr, interface: u32) -> io::Result<()> {
-        self.io.leave_multicast_v6(multiaddr, interface)
+    pub fn leave_multicast_v6(
+        &self,
+        _multiaddr: &Ipv6Addr,
+        _interface: u32,
+    ) -> io::Result<()> {
+        Self::unsupported()
     }
 
     /// Returns the value of the `SO_ERROR` option.
@@ -2147,7 +1969,7 @@ impl UdpSocket {
     /// }
     /// ```
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.io.take_error()
+        Self::unsupported()
     }
 }
 
@@ -2165,7 +1987,7 @@ impl TryFrom<std::net::UdpSocket> for UdpSocket {
 
 impl fmt::Debug for UdpSocket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.io.fmt(f)
+        f.write_str("UdpSocket { unsupported }")
     }
 }
 
@@ -2176,13 +1998,13 @@ mod sys {
 
     impl AsRawFd for UdpSocket {
         fn as_raw_fd(&self) -> RawFd {
-            self.io.as_raw_fd()
+            panic!("UdpSocket::as_raw_fd should not be called")
         }
     }
 
     impl AsFd for UdpSocket {
         fn as_fd(&self) -> BorrowedFd<'_> {
-            unsafe { BorrowedFd::borrow_raw(self.as_raw_fd()) }
+            panic!("UdpSocket::as_fd should not be called")
         }
     }
 }
@@ -2193,13 +2015,13 @@ cfg_windows! {
 
     impl AsRawSocket for UdpSocket {
         fn as_raw_socket(&self) -> RawSocket {
-            self.io.as_raw_socket()
+            panic!("UdpSocket::as_raw_socket should not be called")
         }
     }
 
     impl AsSocket for UdpSocket {
         fn as_socket(&self) -> BorrowedSocket<'_> {
-            unsafe { BorrowedSocket::borrow_raw(self.as_raw_socket()) }
+            panic!("UdpSocket::as_socket should not be called")
         }
     }
 }

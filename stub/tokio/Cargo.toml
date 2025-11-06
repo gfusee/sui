@@ -756,6 +756,11 @@ version = "0.2.11"
 version = "~2.5.0"
 optional = true
 
+[dependencies.socket2]
+version = "0.6.1"
+features = ["all"]
+optional = true
+
 [dev-dependencies.async-stream]
 version = "0.3"
 
@@ -809,16 +814,11 @@ features = [
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dev-dependencies.rand]
 version = "0.9"
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies.socket2]
-version = "0.5.5"
-features = ["all"]
-optional = true
-
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies.proptest]
 version = "1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies.socket2]
-version = "0.5.5"
+version = "0.6"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies.tempfile]
 version = "3.1.0"

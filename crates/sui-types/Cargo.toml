@@ -77,8 +77,8 @@ derive_more = { workspace = true, features = [
     "display",
     "from",
 ] }
-proptest.workspace = true
-proptest-derive.workspace = true
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
 better_any.workspace = true
 lru.workspace = true
 
@@ -117,5 +117,5 @@ harness = false
 
 [features]
 default = []
-tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
-fuzzing = ["move-core-types/fuzzing"]
+tracing = ["proptest", "proptest-derive", "move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
+fuzzing = ["proptest", "proptest-derive", "move-core-types/fuzzing"]
