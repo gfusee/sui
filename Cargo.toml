@@ -799,6 +799,7 @@ async-graphql = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.
 async-graphql-axum = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.1-react-18-graphiql-4" }
 async-graphql-value = { git = "https://github.com/amnn/async-graphql", branch = "v7.0.1-react-18-graphiql-4" }
 tonic = { path = "stub/tonic" }
+tonic-0_14_2 = { path = "stub/tonic-0-14-2", package = "tonic" }
 tonic-rustls = { path = "stub/tonic-rustls" }
 socket2 = { path = "stub/socket2" }
 zstd = { path = "stub/zstd" }
@@ -811,6 +812,12 @@ quinn = { path = "stub/quinn" }
 tokio-tungstenite = { path = "stub/tokio-tungstenite" }
 antithesis_sdk = { path = "stub/antithesis_sdk" }
 jsonrpsee-core = { path = "stub/jsonrpsee-core" }
+jsonrpsee-client-transport = { path = "stub/jsonrpsee-client-transport" }
+jsonrpsee-ws-client = { path = "stub/jsonrpsee-ws-client" }
+# object_store = { path = "stub/object_store" }
+named-lock = { path = "stub/named-lock" }
+object_store = { path = "stub/object_store-0-12-4", package = "object_store" }
+whoami = { path = "stub/whoami" }
 
 [patch."https://github.com/mystenlabs/anemo.git"]
 anemo = { path = "stub/anemo/crates/anemo" }

@@ -44,21 +44,6 @@ macro_rules! assert_helper {
         $crate::function!(FUN_NAME);
 
         use $crate::assert::AssertionCatalogInfo;
-        #[$crate::linkme::distributed_slice($crate::assert::ANTITHESIS_CATALOG)]
-        #[linkme(crate = $crate::linkme)] // Refer to our re-exported linkme.
-        static ALWAYS_CATALOG_ITEM: AssertionCatalogInfo = AssertionCatalogInfo {
-            assert_type: $assert_type,
-            display_type: $display_type,
-            condition: false,
-            message: $message,
-            class: ::std::module_path!(),
-            function: &FUN_NAME, /* function: &Lazy<&str> */
-            file: ::std::file!(),
-            begin_line: ::std::line!(),
-            begin_column: ::std::column!(),
-            must_hit: $must_hit,
-            id: $message,
-        };
 
         let ptr_function = Lazy::force(&FUN_NAME);
 

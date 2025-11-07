@@ -510,9 +510,7 @@ pub mod net;
 
 mod loom;
 
-cfg_process! {
-    pub mod process;
-}
+pub mod process;
 
 #[cfg(any(
     feature = "fs",
