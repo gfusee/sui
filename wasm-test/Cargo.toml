@@ -1,0 +1,16 @@
+[package]
+name = "wasm-test"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+sui-execution.workspace = true
+sui-protocol-config.workspace = true
+object_store.workspace = true
+sui-types.workspace = true
+prometheus.workspace = true
+simulacrum.workspace = true
+wasi = "0.14.7+wasi-0.2.4"
+
+[lints]
+workspace = true

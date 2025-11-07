@@ -135,7 +135,7 @@ impl ModuleResolver for LinkedDataStore<'_> {
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         self.load_module(id)
             .map(Some)
-            .map_err(|_| SuiError::from(ExecutionErrorKind::VMVerificationOrDeserializationError))
+            .map_err(|_| SuiError::from(ExecutionErrorKind::CertificateDenied))
     }
 }
 
