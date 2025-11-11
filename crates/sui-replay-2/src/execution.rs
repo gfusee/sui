@@ -181,29 +181,33 @@ pub fn execute_transaction_to_effects(
                 .iter()
                 .map(|(opcode, (gas_charged, instruction_count))| {
                     let gas_charged = u64::from(gas_charged.clone());
-                    let u64_string = gas_charged.to_string();
-                    let mut result = String::new();
-                    let len = u64_string.len();
-                    for (i, c) in u64_string.chars().enumerate() {
-                        result.push(c);
-                        let pos = len - i - 1;
-                        if pos != 0 && pos % 3 == 0 {
-                            result.push(',');
-                        }
-                    }
+                    let gas_charged_string = u64_to_human_string(gas_charged);
 
-                    (format!("{opcode}: gas = {result} | count = {instruction_count}"), gas_charged)
+                    let instruction_count_string = u64_to_human_string(*instruction_count);
+
+                    (format!("{opcode}: gas = {gas_charged_string} | count = {instruction_count_string}"), gas_charged)
                 })
                 .collect::<Vec<(String, u64)>>();
 
             gas_usage_strings
                 .sort_by(|a, b| a.1.cmp(&b.1));
 
-            gas_usage_strings
+            let mut result = gas_usage_strings
                 .into_iter()
                 .map(|e| e.0)
                 .collect::<Vec<String>>()
-                .join("\n")
+                .join("\n");
+
+            result += "\n";
+            result += "\n";
+            result += &format!("\n-> Multiplier for instructions: {}", u64_to_human_string(gas_status.gas_status.instructions_current_tier_mult));
+            result += &format!("\n-> Multiplier for stack height: {}", u64_to_human_string(gas_status.gas_status.stack_height_current_tier_mult));
+            result += &format!("\n-> Multiplier for stack size: {}", u64_to_human_string(gas_status.gas_status.stack_size_current_tier_mult));
+            result += "\n";
+            result += "\n";
+            result += "\n";
+
+            result
         }
     };
 
@@ -453,4 +457,19 @@ impl ModuleResolver for ReplayStore<'_> {
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         unreachable!("unexpected ModuleResolver::get_module({})", id)
     }
+}
+
+fn u64_to_human_string(value: u64) -> String {
+    let u64_string = value.to_string();
+    let mut result = String::new();
+    let len = u64_string.len();
+    for (i, c) in u64_string.chars().enumerate() {
+        result.push(c);
+        let pos = len - i - 1;
+        if pos != 0 && pos % 3 == 0 {
+            result.push(',');
+        }
+    }
+
+    result
 }
