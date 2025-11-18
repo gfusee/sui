@@ -38,7 +38,7 @@ use sui_types::multiaddr::Multiaddr;
 use tracing::info;
 
 // Default max number of concurrent requests served
-pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
+pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 200000;
 
 /// Default gas price of 100 Mist
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = sui_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;

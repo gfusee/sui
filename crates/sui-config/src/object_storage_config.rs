@@ -120,8 +120,7 @@ impl ObjectStoreConfig {
                 "Failed to create local directory: {}",
                 path.display()
             ))?;
-            let store = object_store::local::LocalFileSystem::new_with_prefix(path)
-                .context(anyhow!("Failed to create local object store"))?;
+            let store = object_store::memory::InMemory::new();
             Ok(Arc::new(store))
         } else {
             Err(anyhow!("No directory provided for local fs storage"))

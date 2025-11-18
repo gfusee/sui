@@ -1,0 +1,40 @@
+package wasm-test:main;
+
+world init {
+    export init: func();
+}
+
+world execute {
+    record transaction-effects {
+        executed-epoch: u64,
+        status: transaction-status,
+        object-changes: list<transaction-object-change>
+    }
+
+    variant transaction-status {
+        success,
+        failure(transaction-status-failure)
+    }
+
+    record transaction-status-failure {
+        error: string,
+        command: option<u32>
+    }
+
+    variant id-operation {
+        none,
+        created,
+        deleted,
+    }
+
+    record transaction-object-change {
+        id: list<u8>,
+        input-version: option<u64>,
+        input-digest: option<list<u8>>,
+        output-version: option<u64>,
+        output-digest: option<list<u8>>,
+        id-operation: id-operation,
+    }
+
+    export execute: func(transaction-kind: list<u8>) -> transaction-effects;
+}

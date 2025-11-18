@@ -1,0 +1,6 @@
+---
+source: crates/move-package/tests/test_runner.rs
+assertion_line: 66
+---
+[1;32mRESOLVING DEV-DEPENDENCIES IN[0m A [1;32mFROM[0m Root [1;32mWITH[0m ../resolvers/failing.sh
+Failed to resolve dev-dependencies for A
