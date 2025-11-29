@@ -109,3 +109,80 @@ world client {
     export get-object: func(id: list<u8>) -> option<sui-object>;
     export faucet: func(recipient: list<u8>, amount: u64) -> sui-object;
 }
+
+world move-package {
+    // abilities
+    enum ability { copy, drop, store, key }
+    record ability-set { abilities: list<ability> }
+
+    record normalized-struct-type {
+        address: string,
+        module: string,
+        name: string,
+        type-arguments: list<list<u8>>,
+    }
+
+    record normalized-struct-type-parameter {
+        constraints: ability-set,
+        is-phantom: bool,
+    }
+
+    record normalized-struct {
+        abilities: ability-set,
+        type-parameters: list<normalized-struct-type-parameter>,
+        fields: list<list<u8>>,
+    }
+
+    record normalized-enum {
+        abilities: ability-set,
+        type-parameters: list<normalized-struct-type-parameter>,
+        variants: list<normalized-enum-variant>,
+    }
+
+    record normalized-enum-variant {
+        name: string,
+        fields: list<list<u8>>,
+    }
+
+    enum normalized-visibility { private, public, friend }
+
+    record normalized-function {
+        visibility: normalized-visibility,
+        is-entry: bool,
+        type-parameters: list<ability-set>,
+        parameters: list<list<u8>>,
+        return: list<list<u8>>,
+    }
+
+    record normalized-module-id {
+        address: string,
+        name: string,
+    }
+
+    record normalized-module {
+        file-format-version: u32,
+        address: string,
+        name: string,
+        friends: list<normalized-module-id>,
+        structs: list<normalized-module-pair>,
+        enums: list<normalized-module-enum-pair>,
+        exposed-functions: list<normalized-module-function-pair>,
+    }
+
+    record normalized-module-pair {
+        name: string,
+        data: normalized-struct,
+    }
+
+    record normalized-module-enum-pair {
+        name: string,
+        data: normalized-enum,
+    }
+
+    record normalized-module-function-pair {
+        name: string,
+        data: normalized-function,
+    }
+
+    export get-normalized-package: func(modules: list<list<u8>>) -> list<normalized-module>;
+}

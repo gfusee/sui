@@ -19250,6 +19250,7 @@ dependencies = [
  "move-core-types",
  "object_store",
  "prometheus",
+ "serde",
  "sui-execution",
  "sui-protocol-config",
  "sui-types",

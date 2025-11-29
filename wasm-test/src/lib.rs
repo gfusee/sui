@@ -1,6 +1,8 @@
 mod world;
 mod execute;
 mod client;
+mod package;
+mod sui_move_json_rpc;
 
 use base64::Engine;
 use std::str::FromStr;
