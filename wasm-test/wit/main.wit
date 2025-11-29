@@ -36,5 +36,76 @@ world execute {
         id-operation: id-operation,
     }
 
-    export execute: func(transaction-kind: list<u8>) -> transaction-effects;
+    export execute: func(transaction: list<u8>) -> transaction-effects;
+}
+
+world client {
+    record shared-ownership {
+        initial-shared-version: u64,
+    }
+
+    record consensus-ownership {
+        start-version: u64,
+        owner: list<u8>,
+    }
+
+    variant ownership {
+        address-owner(list<u8>),
+        object-owner(list<u8>),
+        shared(shared-ownership),
+        immutable,
+        consensus(consensus-ownership),
+    }
+
+    record move-object-data {
+        type-bcs: list<u8>,
+        type-repr: string,
+        has-public-transfer: bool,
+        version: u64,
+        contents: list<u8>,
+    }
+
+    record module-bytes {
+        name: string,
+        bytes: list<u8>,
+    }
+
+    record package-type-origin {
+        module-name: string,
+        datatype-name: string,
+        package-id: list<u8>,
+    }
+
+    record package-link {
+        original-package-id: list<u8>,
+        upgraded-id: list<u8>,
+        upgraded-version: u64,
+    }
+
+    record package-object-data {
+        id: list<u8>,
+        version: u64,
+        modules: list<module-bytes>,
+        type-origin-table: list<package-type-origin>,
+        linkage-table: list<package-link>,
+    }
+
+    variant object-data {
+        move-object(move-object-data),
+        move-package(package-object-data),
+    }
+
+    record sui-object {
+        id: list<u8>,
+        version: u64,
+        digest: list<u8>,
+        data: object-data,
+        owner: ownership,
+        previous-transaction: list<u8>,
+        storage-rebate: u64,
+    }
+
+    export get-objects-for-address: func(address: list<u8>) -> list<sui-object>;
+    export get-object: func(id: list<u8>) -> option<sui-object>;
+    export faucet: func(recipient: list<u8>, amount: u64) -> sui-object;
 }

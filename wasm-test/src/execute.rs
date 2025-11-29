@@ -6,7 +6,7 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use sui_types::effects::TransactionEffectsAPI;
 use sui_types::gas::SuiGasStatus;
 use sui_types::object::Object;
-use sui_types::transaction::{CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction, TransactionKind};
+use sui_types::transaction::{CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction, Transaction, TransactionData, TransactionKind};
 
 wit_bindgen::generate!({
     world: "execute",
@@ -16,36 +16,39 @@ export!(Execute);
 pub struct Execute;
 
 impl Guest for Execute {
-    fn execute(transaction_kind: Vec<u8>) -> TransactionEffects {
-        WORLD.with(|world| execute_with_world(&world.get().expect("not initialized").borrow(), transaction_kind))
+    fn execute(transaction: Vec<u8>) -> TransactionEffects {
+        WORLD.with(|world| {
+            let mut world_ref = world.get().expect("not initialized").borrow_mut();
+            execute_with_world(&mut world_ref, transaction)
+        })
     }
 }
 
-fn execute_with_world(world: &World, transaction_kind: Vec<u8>) -> TransactionEffects {
-    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(100000000000u64, SuiAddress::default());
-    let gas_coin_ref = gas_coin.compute_object_reference();
-
-    let gas_budget = 1000000000;
-    let gas_price = 10;
-    let gas_data = GasData {
-        payment: vec![gas_coin_ref],
-        owner: Default::default(),
-        price: gas_price,
-        budget: gas_budget,
-    };
-    let gas_status = SuiGasStatus::new(
-        gas_budget,
-        gas_price,
-        gas_price,
-        &world.protocol_config
-    ).unwrap();
-
-    let transaction_kind = bcs::from_bytes::<TransactionKind>(&transaction_kind).unwrap();
+fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEffects {
+    let transaction = bcs::from_bytes::<TransactionData>(&transaction).unwrap();
+    let (transaction_kind, sender, gas_data) = transaction.execution_parts();
     let TransactionKind::ProgrammableTransaction(ptb) = transaction_kind else {
         panic!("Only PTBs are supported.")
     };
 
-    let result = world.executor.execute_transaction_to_effects(
+    let gas_status = SuiGasStatus::new(
+        gas_data.budget,
+        gas_data.price,
+        gas_data.price,
+        &world.protocol_config
+    ).unwrap();
+
+    let gas_object_read_results = gas_data.payment
+        .iter()
+        .map(|gas| {
+            let gas_object = world.store.get_object(&gas.0).unwrap();
+            ObjectReadResult::new_from_gas_object(gas_object)
+        })
+        .collect();
+
+    let gas_checked_inputs = CheckedInputObjects::new_for_replay(InputObjects::new(gas_object_read_results));
+
+    let (inner_temp_store, _, effects, _, _) = world.executor.execute_transaction_to_effects(
         &world.store,
         &world.protocol_config,
         world.metrics.clone(),
@@ -53,7 +56,7 @@ fn execute_with_world(world: &World, transaction_kind: Vec<u8>) -> TransactionEf
         Ok(()),
         &100,
         1000000,
-        CheckedInputObjects::new_for_replay(InputObjects::new(vec![ObjectReadResult::new_from_gas_object(&gas_coin)])),
+        gas_checked_inputs,
         gas_data,
         gas_status,
         TransactionKind::ProgrammableTransaction(ptb),
@@ -62,7 +65,24 @@ fn execute_with_world(world: &World, transaction_kind: Vec<u8>) -> TransactionEf
         &mut None
     );
 
-    let status = match result.2.status() {
+    let should_commit = matches!(
+        effects.status(),
+        sui_types::execution_status::ExecutionStatus::Success
+    );
+
+    if should_commit {
+        effects
+            .deleted()
+            .into_iter()
+            .chain(effects.unwrapped_then_deleted())
+            .chain(effects.wrapped())
+            .for_each(|(object_id, _, _)| {
+                world.store.remove_object(object_id);
+            });
+        world.store.finish(inner_temp_store.written);
+    }
+
+    let status = match effects.status() {
         sui_types::execution_status::ExecutionStatus::Success => TransactionStatus::Success,
         sui_types::execution_status::ExecutionStatus::Failure { error, command } => TransactionStatus::Failure(
             TransactionStatusFailure {
@@ -72,7 +92,7 @@ fn execute_with_world(world: &World, transaction_kind: Vec<u8>) -> TransactionEf
         )
     };
 
-    let object_changes = result.2.object_changes()
+    let object_changes = effects.object_changes()
         .into_iter()
         .map(|object_change| {
             let id_operation = match object_change.id_operation {
@@ -93,7 +113,7 @@ fn execute_with_world(world: &World, transaction_kind: Vec<u8>) -> TransactionEf
         .collect();
 
     TransactionEffects {
-        executed_epoch: result.2.executed_epoch().into(),
+        executed_epoch: effects.executed_epoch().into(),
         status,
         object_changes
     }

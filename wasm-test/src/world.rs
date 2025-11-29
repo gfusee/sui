@@ -41,9 +41,6 @@ export!(Init);
 
 impl Guest for Init {
     fn init() -> () {
-        let mut out = get_stdout();
-        out.write(b"Hello from WASI Preview 2!\n").unwrap();
-
         let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Mainnet);
 
         let executor = sui_execution::executor(&protocol_config, false).expect("Failed to init sui execution context");

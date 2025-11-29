@@ -1,5 +1,6 @@
 mod world;
 mod execute;
+mod client;
 
 use base64::Engine;
 use std::str::FromStr;
