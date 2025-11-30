@@ -89,7 +89,12 @@ fn to_normalized_struct(value: SuiMoveNormalizedStruct) -> NormalizedStruct {
         fields: value
             .fields
             .into_iter()
-            .map(|field| bcs::to_bytes(&field).unwrap())
+            .map(|field| {
+                NormalizedField {
+                    name: field.name,
+                    move_type: bcs::to_bytes(&field.type_).unwrap()
+                }
+            })
             .collect(),
     }
 }
@@ -112,7 +117,12 @@ fn to_normalized_enum(value: SuiMoveNormalizedEnum) -> NormalizedEnum {
                 name,
                 fields: fields
                     .into_iter()
-                    .map(|field| bcs::to_bytes(&field).unwrap())
+                    .map(|field| {
+                        NormalizedField {
+                            name: field.name,
+                            move_type: bcs::to_bytes(&field.type_).unwrap()
+                        }
+                    })
                     .collect(),
             })
             .collect(),

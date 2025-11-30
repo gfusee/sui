@@ -122,6 +122,11 @@ world move-package {
         type-arguments: list<list<u8>>,
     }
 
+    record normalized-field {
+        name: string,
+        move-type: list<u8>,
+    }
+
     record normalized-struct-type-parameter {
         constraints: ability-set,
         is-phantom: bool,
@@ -130,7 +135,7 @@ world move-package {
     record normalized-struct {
         abilities: ability-set,
         type-parameters: list<normalized-struct-type-parameter>,
-        fields: list<list<u8>>,
+        fields: list<normalized-field>,
     }
 
     record normalized-enum {
@@ -141,7 +146,7 @@ world move-package {
 
     record normalized-enum-variant {
         name: string,
-        fields: list<list<u8>>,
+        fields: list<normalized-field>,
     }
 
     enum normalized-visibility { private, public, friend }
