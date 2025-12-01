@@ -13,7 +13,7 @@ use std::{
     str::FromStr,
 };
 use toml::Value as TV;
-
+use wasi_utils::fs::read_to_string;
 use super::layout::SourcePackageLayout;
 
 const EMPTY_ADDR_STR: &str = "_";
@@ -41,7 +41,7 @@ const REQUIRED_FIELDS: &[&str] = &[PACKAGE_NAME];
 
 pub fn parse_move_manifest_from_file(path: &Path) -> Result<PM::SourceManifest> {
     let toml_path = resolve_move_manifest_path(path);
-    let file_contents = std::fs::read_to_string(toml_path)
+    let file_contents = read_to_string(toml_path)
         .with_context(|| format!("Unable to find package manifest at {:?}", path))?;
     parse_source_manifest(parse_move_manifest_string(file_contents)?)
 }

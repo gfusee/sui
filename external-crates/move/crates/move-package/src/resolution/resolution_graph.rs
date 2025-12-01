@@ -34,7 +34,7 @@ use crate::{
         },
     },
 };
-
+use wasi_utils::fs::read_to_string;
 use super::{
     dependency_cache::DependencyCache, dependency_graph as DG, digest::compute_digest, local_path,
     resolving_table::ResolvingTable,
@@ -330,7 +330,7 @@ impl ResolvedGraph {
                     .unwrap()
                     .iter()
                     .map(|fname| {
-                        let contents = fs::read_to_string(fname.as_str()).unwrap();
+                        let contents = read_to_string(fname.as_str()).unwrap();
                         let fhash = FileHash::new(&contents);
                         (fhash, (*fname, contents))
                     })

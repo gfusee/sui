@@ -39,6 +39,7 @@ move-bytecode-utils.workspace = true
 move-model-2.workspace = true
 
 whoami.workspace = true
+wasi-utils.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true

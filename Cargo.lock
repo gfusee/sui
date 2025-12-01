@@ -8476,6 +8476,7 @@ dependencies = [
  "treeline",
  "vfs",
  "walkdir",
+ "wasi-utils",
  "whoami",
 ]
 
@@ -19133,6 +19134,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasi-utils"
+version = "1.61.0"
+dependencies = [
+ "wasi 0.14.7+wasi-0.2.4",
+]
+
+[[package]]
 name = "wasip2"
 version = "1.0.1+wasi-0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -19247,11 +19255,14 @@ dependencies = [
  "base64 0.21.7",
  "bcs",
  "move-binary-format",
+ "move-compiler",
  "move-core-types",
+ "move-package",
  "object_store",
  "prometheus",
  "serde",
  "sui-execution",
+ "sui-move-build",
  "sui-protocol-config",
  "sui-types",
  "wasi 0.14.7+wasi-0.2.4",

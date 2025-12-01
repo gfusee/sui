@@ -1,4 +1,4 @@
-use crate::world::{World, WORLD};
+use crate::world::{WORLD, World};
 use base64::Engine;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -6,7 +6,10 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use sui_types::effects::TransactionEffectsAPI;
 use sui_types::gas::SuiGasStatus;
 use sui_types::object::Object;
-use sui_types::transaction::{CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction, Transaction, TransactionData, TransactionKind};
+use sui_types::transaction::{
+    CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction,
+    Transaction, TransactionData, TransactionKind,
+};
 
 wit_bindgen::generate!({
     world: "execute",
@@ -35,10 +38,12 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
         gas_data.budget,
         gas_data.price,
         gas_data.price,
-        &world.protocol_config
-    ).unwrap();
+        &world.protocol_config,
+    )
+    .unwrap();
 
-    let gas_object_read_results = gas_data.payment
+    let gas_object_read_results = gas_data
+        .payment
         .iter()
         .map(|gas| {
             let gas_object = world.store.get_object(&gas.0).unwrap();
@@ -46,7 +51,8 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
         })
         .collect();
 
-    let gas_checked_inputs = CheckedInputObjects::new_for_replay(InputObjects::new(gas_object_read_results));
+    let gas_checked_inputs =
+        CheckedInputObjects::new_for_replay(InputObjects::new(gas_object_read_results));
 
     let (inner_temp_store, _, effects, _, _) = world.executor.execute_transaction_to_effects(
         &world.store,
@@ -62,7 +68,7 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
         TransactionKind::ProgrammableTransaction(ptb),
         SuiAddress::default(),
         TransactionDigest::random(),
-        &mut None
+        &mut None,
     );
 
     let should_commit = matches!(
@@ -84,15 +90,16 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
 
     let status = match effects.status() {
         sui_types::execution_status::ExecutionStatus::Success => TransactionStatus::Success,
-        sui_types::execution_status::ExecutionStatus::Failure { error, command } => TransactionStatus::Failure(
-            TransactionStatusFailure {
+        sui_types::execution_status::ExecutionStatus::Failure { error, command } => {
+            TransactionStatus::Failure(TransactionStatusFailure {
                 error: error.to_string(),
-                command: command.map(|c| usize::from(c) as u32)
-            }
-        )
+                command: command.map(|c| usize::from(c) as u32),
+            })
+        }
     };
 
-    let object_changes = effects.object_changes()
+    let object_changes = effects
+        .object_changes()
         .into_iter()
         .map(|object_change| {
             let id_operation = match object_change.id_operation {
@@ -107,7 +114,7 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
                 input_digest: object_change.input_digest.map(|d| d.inner().to_vec()),
                 output_version: object_change.output_version.map(Into::into),
                 output_digest: object_change.output_digest.map(|d| d.inner().to_vec()),
-                id_operation
+                id_operation,
             }
         })
         .collect();
@@ -115,6 +122,6 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
     TransactionEffects {
         executed_epoch: effects.executed_epoch().into(),
         status,
-        object_changes
+        object_changes,
     }
 }

@@ -46,6 +46,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use vfs::VfsPath;
+use wasi_utils::fs::read_to_string;
 
 #[derive(Debug, Clone)]
 pub enum CompilationCachingStatus {
@@ -186,7 +187,7 @@ impl OnDiskCompiledPackage {
             .iter()
             .chain(deps_compiled_units.iter().map(|(_, unit)| unit))
         {
-            let contents = Arc::from(std::fs::read_to_string(&unit.source_path)?);
+            let contents = Arc::from(read_to_string(&unit.source_path)?);
             file_map.add(
                 FileHash::new(&contents),
                 FileName::from(unit.source_path.to_string_lossy().to_string()),
@@ -205,7 +206,7 @@ impl OnDiskCompiledPackage {
                 })?
                 .into_iter()
                 .map(|path| {
-                    let contents = std::fs::read_to_string(&path).unwrap();
+                    let contents = read_to_string(&path).unwrap();
                     (path, contents)
                 })
                 .collect(),
@@ -355,7 +356,7 @@ impl OnDiskCompiledPackage {
                 .path()
                 .join(&file_path)
                 .with_extension(MOVE_EXTENSION),
-            std::fs::read_to_string(&compiled_unit.source_path)?.as_bytes(),
+            read_to_string(&compiled_unit.source_path)?.as_bytes(),
         )
     }
 

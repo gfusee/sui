@@ -14,6 +14,7 @@ use tempfile::NamedTempFile;
 pub mod schema;
 
 use crate::compilation::package_layout::CompiledPackageLayout;
+use wasi_utils::fs::read_to_string;
 
 /// Representation of a machine-generated, human-readable text file that is generated as part of the
 /// build, with the following properties:
@@ -73,7 +74,7 @@ impl LockFile {
             .prefix("Move.lock")
             .tempfile_in(locks_dir)
             .context("Creating lock file")?;
-        let lock_string = std::fs::read_to_string(lock_file)?;
+        let lock_string = read_to_string(lock_file)?;
         lock.write_all(lock_string.as_bytes())?;
         lock.seek(SeekFrom::Start(0))?;
 

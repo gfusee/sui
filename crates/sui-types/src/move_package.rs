@@ -29,6 +29,7 @@ use serde_with::Bytes;
 use serde_with::serde_as;
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
+use std::str::FromStr;
 use sui_protocol_config::ProtocolConfig;
 
 // TODO: robust MovePackage tests
@@ -690,7 +691,17 @@ fn build_linkage_table<'p>(
             );
 
             if existing.is_some() {
+                println!("OH NO!: {original_id} - {}", transitive_dep.id);
                 return Err(ExecutionErrorKind::InvalidLinkage.into());
+            } else {
+                if original_id
+                    == ObjectID::from_str(
+                        "0xd899cf7d2b5db716bd2cf55599fb0d5ee38a3061e7b6bb6eebf73fa5bc4c81ca",
+                    )
+                    .unwrap()
+                {
+                    println!("????: {original_id} - {}", transitive_dep.id);
+                }
             }
         } else {
             if imm_dep {

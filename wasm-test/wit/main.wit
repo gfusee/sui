@@ -191,3 +191,7 @@ world move-package {
 
     export get-normalized-package: func(modules: list<list<u8>>) -> list<normalized-module>;
 }
+
+world build {
+    export build-package: func(path: string, install-dir: string, system-packages-path: string);
+}

@@ -27,7 +27,7 @@ use std::{
 };
 use toml_edit::{DocumentMut, value};
 use vfs::VfsPath;
-
+use wasi_utils::fs::read_to_string;
 use super::{
     compiled_package::{DependencyInfo, ModuleFormat},
     package_layout::CompiledPackageLayout,
@@ -291,7 +291,7 @@ impl<'a> BuildPlan<'a> {
 
     pub fn record_package_edition(&self, edition: Edition) -> anyhow::Result<()> {
         let move_toml_path = resolve_move_manifest_path(&self.root_package_path());
-        let mut toml = std::fs::read_to_string(move_toml_path.clone())?
+        let mut toml = read_to_string(move_toml_path.clone())?
             .parse::<DocumentMut>()
             .expect("Failed to read TOML file to update edition");
         toml[PACKAGE_NAME][EDITION_NAME] = value(edition.to_string());

@@ -28,7 +28,7 @@ use crate::{
         parsed_manifest as PM,
     },
 };
-
+use wasi_utils::fs::read_to_string;
 use super::{
     dependency_cache::DependencyCache,
     digest::{digest_str, hashed_files_digest},
@@ -541,10 +541,10 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
                     .with_context(|| format!("Fetching '{}'", dep_pkg_name))?;
                 let pkg_path = dep_pkg_path.join(local_path(&d.kind));
                 let manifest_string =
-                    std::fs::read_to_string(pkg_path.join(SourcePackageLayout::Manifest.path()))
+                    read_to_string(pkg_path.join(SourcePackageLayout::Manifest.path()))
                         .with_context(|| format!("Parsing manifest for '{}'", dep_pkg_name))?;
                 let lock_string =
-                    std::fs::read_to_string(pkg_path.join(SourcePackageLayout::Lock.path())).ok();
+                    read_to_string(pkg_path.join(SourcePackageLayout::Lock.path())).ok();
                 // resolve name and version
                 let manifest =
                     parse_source_manifest(parse_move_manifest_string(manifest_string.clone())?)?;

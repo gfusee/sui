@@ -1,0 +1,10 @@
+[package]
+name = "wasi-utils"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+wasi.workspace = true
+
+[lints]
+workspace = true

@@ -1,4 +1,4 @@
-use crate::world::{World, WORLD};
+use crate::world::{WORLD, World};
 use std::convert::TryFrom;
 use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::move_package::{MovePackage, TypeOrigin as MoveTypeOrigin, UpgradeInfo};

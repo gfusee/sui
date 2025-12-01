@@ -1,8 +1,7 @@
 use crate::sui_move_json_rpc::{
     SuiMoveAbility, SuiMoveAbilitySet, SuiMoveNormalizedEnum, SuiMoveNormalizedField,
     SuiMoveNormalizedFunction, SuiMoveNormalizedModule, SuiMoveNormalizedStruct,
-    SuiMoveNormalizedStructType, SuiMoveNormalizedType,
-    SuiMoveVisibility,
+    SuiMoveNormalizedStructType, SuiMoveNormalizedType, SuiMoveVisibility,
 };
 use move_binary_format::{binary_config::BinaryConfig, normalized};
 use sui_types::move_package::normalize_modules;
@@ -18,13 +17,8 @@ impl Guest for Package {
     fn get_normalized_package(modules: Vec<Vec<u8>>) -> Vec<NormalizedModule> {
         let mut pool = normalized::RcPool::new();
         let binary_config = BinaryConfig::legacy_with_flags(false, false);
-        let normalized = normalize_modules(
-            &mut pool,
-            modules.iter(),
-            &binary_config,
-            false,
-        )
-        .expect("normalizing modules cannot fail");
+        let normalized = normalize_modules(&mut pool, modules.iter(), &binary_config, false)
+            .expect("normalizing modules cannot fail");
 
         normalized
             .into_iter()
@@ -32,44 +26,42 @@ impl Guest for Package {
                 let normalized_module: SuiMoveNormalizedModule = (&module).into();
                 (name, normalized_module)
             })
-            .map(|(name, module)| {
-                NormalizedModule {
-                    file_format_version: module.file_format_version,
-                    address: module.address,
-                    name,
-                    friends: module
-                        .friends
-                        .into_iter()
-                        .map(|f| NormalizedModuleId {
-                            address: f.address,
-                            name: f.name,
-                        })
-                        .collect(),
-                    structs: module
-                        .structs
-                        .into_iter()
-                        .map(|(name, data)| NormalizedModulePair {
-                            name,
-                            data: to_normalized_struct(data),
-                        })
-                        .collect(),
-                    enums: module
-                        .enums
-                        .into_iter()
-                        .map(|(name, data)| NormalizedModuleEnumPair {
-                            name,
-                            data: to_normalized_enum(data),
-                        })
-                        .collect(),
-                    exposed_functions: module
-                        .exposed_functions
-                        .into_iter()
-                        .map(|(name, data)| NormalizedModuleFunctionPair {
-                            name,
-                            data: to_normalized_function(data),
-                        })
-                        .collect(),
-                }
+            .map(|(name, module)| NormalizedModule {
+                file_format_version: module.file_format_version,
+                address: module.address,
+                name,
+                friends: module
+                    .friends
+                    .into_iter()
+                    .map(|f| NormalizedModuleId {
+                        address: f.address,
+                        name: f.name,
+                    })
+                    .collect(),
+                structs: module
+                    .structs
+                    .into_iter()
+                    .map(|(name, data)| NormalizedModulePair {
+                        name,
+                        data: to_normalized_struct(data),
+                    })
+                    .collect(),
+                enums: module
+                    .enums
+                    .into_iter()
+                    .map(|(name, data)| NormalizedModuleEnumPair {
+                        name,
+                        data: to_normalized_enum(data),
+                    })
+                    .collect(),
+                exposed_functions: module
+                    .exposed_functions
+                    .into_iter()
+                    .map(|(name, data)| NormalizedModuleFunctionPair {
+                        name,
+                        data: to_normalized_function(data),
+                    })
+                    .collect(),
             })
             .collect()
     }
@@ -89,11 +81,9 @@ fn to_normalized_struct(value: SuiMoveNormalizedStruct) -> NormalizedStruct {
         fields: value
             .fields
             .into_iter()
-            .map(|field| {
-                NormalizedField {
-                    name: field.name,
-                    move_type: bcs::to_bytes(&field.type_).unwrap()
-                }
+            .map(|field| NormalizedField {
+                name: field.name,
+                move_type: bcs::to_bytes(&field.type_).unwrap(),
             })
             .collect(),
     }
@@ -117,11 +107,9 @@ fn to_normalized_enum(value: SuiMoveNormalizedEnum) -> NormalizedEnum {
                 name,
                 fields: fields
                     .into_iter()
-                    .map(|field| {
-                        NormalizedField {
-                            name: field.name,
-                            move_type: bcs::to_bytes(&field.type_).unwrap()
-                        }
+                    .map(|field| NormalizedField {
+                        name: field.name,
+                        move_type: bcs::to_bytes(&field.type_).unwrap(),
                     })
                     .collect(),
             })
@@ -147,11 +135,7 @@ fn to_normalized_function(value: SuiMoveNormalizedFunction) -> NormalizedFunctio
             .into_iter()
             .map(to_normalized_type)
             .collect(),
-        return_: value
-            .return_
-            .into_iter()
-            .map(to_normalized_type)
-            .collect(),
+        return_: value.return_.into_iter().map(to_normalized_type).collect(),
     }
 }
 

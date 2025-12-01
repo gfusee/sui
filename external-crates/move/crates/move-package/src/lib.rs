@@ -41,6 +41,7 @@ use crate::{
     package_lock::PackageLock,
 };
 use move_compiler::linters::LintLevel;
+use wasi_utils::fs::read_to_string;
 
 #[derive(Debug, Parser, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Default)]
 #[clap(about)]
@@ -280,8 +281,8 @@ impl BuildConfig {
     pub fn download_deps_for_package<W: Write>(&self, path: &Path, writer: &mut W) -> Result<()> {
         let path = SourcePackageLayout::try_find_root(path)?;
         let manifest_string =
-            std::fs::read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
-        let lock_string = std::fs::read_to_string(path.join(SourcePackageLayout::Lock.path())).ok();
+            read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
+        let lock_string = read_to_string(path.join(SourcePackageLayout::Lock.path())).ok();
         let _mutx = PackageLock::lock(); // held until function returns
 
         resolution::download_dependency_repos(manifest_string, lock_string, self, &path, writer)?;
@@ -299,9 +300,9 @@ impl BuildConfig {
         }
         let path = SourcePackageLayout::try_find_root(path)?;
         let manifest_string =
-            std::fs::read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
+            read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
         let lock_path = path.join(SourcePackageLayout::Lock.path());
-        let lock_string = std::fs::read_to_string(lock_path.clone()).ok();
+        let lock_string = read_to_string(lock_path.clone()).ok();
         let _mutx = PackageLock::lock(); // held until function returns
 
         let install_dir_set = self.install_dir.is_some();
@@ -371,7 +372,7 @@ impl BuildConfig {
 
         // Resolve edition and flavor from `Move.toml` or assign defaults.
         let manifest_string =
-            std::fs::read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
+            read_to_string(path.join(SourcePackageLayout::Manifest.path()))?;
         let toml_manifest = parse_move_manifest_string(manifest_string.clone())?;
         let root_manifest = parse_source_manifest(toml_manifest)?;
         let edition = root_manifest

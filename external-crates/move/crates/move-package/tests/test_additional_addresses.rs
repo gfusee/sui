@@ -25,7 +25,7 @@ fn test_additional_addresses() {
     .collect();
 
     let manifest_string =
-        std::fs::read_to_string(path.join(SourcePackageLayout::Manifest.path())).unwrap();
+        read_to_string(path.join(SourcePackageLayout::Manifest.path())).unwrap();
 
     let mut dep_graph_builder = DG::DependencyGraphBuilder::new(
         /* skip_fetch_latest_git_deps */ true,

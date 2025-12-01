@@ -9,11 +9,11 @@ use move_binary_format::normalized::{
 use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
 use move_core_types::identifier::Identifier;
 use move_core_types::language_storage::StructTag;
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 use std::hash::Hash;
-use serde::Serialize;
 use sui_types::base_types::{ObjectID, SuiAddress};
 
 pub type SuiMoveTypeParameterIndex = u16;
