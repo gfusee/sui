@@ -151,7 +151,7 @@ impl BuildConfig {
         build_config
     }
 
-    fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
+    pub fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
             let mod_addr = u.named_module.address.into_inner();
@@ -309,7 +309,7 @@ pub fn build_from_resolution_graph(
 }
 
 /// Returns the bytecode deps from `resolution_graph` that have no source code
-fn collect_bytecode_deps(
+pub fn collect_bytecode_deps(
     resolution_graph: &ResolvedGraph,
 ) -> SuiResult<Vec<(Symbol, CompiledModule)>> {
     let mut bytecode_deps = vec![];
@@ -346,7 +346,7 @@ fn collect_bytecode_deps(
 }
 
 /// Check that the compiled modules in `package` are valid
-fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> SuiResult<()> {
+pub fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> SuiResult<()> {
     let compiled_modules = package.root_modules_map();
     let verifier_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
         .verifier_config(/* signing_limits */ None);

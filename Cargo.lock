@@ -19252,11 +19252,14 @@ dependencies = [
 name = "wasm-test"
 version = "1.61.0"
 dependencies = [
+ "anyhow",
  "base64 0.21.7",
  "bcs",
  "move-binary-format",
+ "move-command-line-common",
  "move-compiler",
  "move-core-types",
+ "move-ir-types",
  "move-package",
  "object_store",
  "prometheus",

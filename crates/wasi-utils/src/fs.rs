@@ -26,7 +26,6 @@ pub fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
             OpenFlags::empty(),
             DescriptorFlags::READ,
         ) else {
-        println!("failed to open file: {path_str}");
         return Err(io::Error::other("failed to open file"))
     };
 

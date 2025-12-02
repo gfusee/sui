@@ -193,5 +193,65 @@ world move-package {
 }
 
 world build {
-    export build-package: func(path: string, install-dir: string, system-packages-path: string);
+    enum severity {
+        note,
+        warning,
+        nonblocking-error,
+        blocking-error,
+        bug,
+    }
+
+    enum diagnostics-format {
+        text,
+        json,
+    }
+
+    record diagnostic-info {
+        severity: severity,
+        category: u8,
+        code: u8,
+        external-prefix: option<string>,
+        message: string,
+    }
+
+    record location {
+        file-hash: list<u8>,
+        start: u32,
+        end: u32,
+    }
+
+    record diagnostic-label {
+        location: location,
+        message: string,
+    }
+
+    record diagnostic {
+        info: diagnostic-info,
+        primary-label: diagnostic-label,
+        secondary-labels: list<diagnostic-label>,
+        notes: list<string>,
+    }
+
+    record diagnostics {
+        format: diagnostics-format,
+        diagnostics: list<diagnostic>,
+        filtered-source-diagnostics: list<diagnostic>,
+    }
+
+    record build-result {
+        dependency-ids: list<list<u8>>,
+        compiled-modules: list<list<u8>>,
+        warning-diagnostics: diagnostics,
+    }
+
+    record build-error {
+        message: string,
+        diagnostics: diagnostics,
+    }
+
+    export build-package: func(
+        path: string,
+        install-dir: string,
+        system-packages-path: string,
+    ) -> result<build-result, build-error>;
 }

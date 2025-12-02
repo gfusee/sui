@@ -54,25 +54,25 @@ pub struct DiagnosticReporter<'env> {
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
 pub struct Diagnostics {
-    diags: Option<Diagnostics_>,
-    format: DiagnosticsFormat,
+    pub diags: Option<Diagnostics_>,
+    pub format: DiagnosticsFormat,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
-struct Diagnostics_ {
-    diagnostics: Vec<Diagnostic>,
+pub struct Diagnostics_ {
+    pub diagnostics: Vec<Diagnostic>,
     // diagnostics filtered in source code
-    filtered_source_diagnostics: Vec<Diagnostic>,
-    severity_count: BTreeMap<Severity, usize>,
+    pub filtered_source_diagnostics: Vec<Diagnostic>,
+    pub severity_count: BTreeMap<Severity, usize>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug, Hash)]
 #[must_use]
 pub struct Diagnostic {
-    info: DiagnosticInfo,
-    primary_label: (Loc, String),
-    secondary_labels: Vec<(Loc, String)>,
-    notes: Vec<String>,
+    pub info: DiagnosticInfo,
+    pub primary_label: (Loc, String),
+    pub secondary_labels: Vec<(Loc, String)>,
+    pub notes: Vec<String>,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
