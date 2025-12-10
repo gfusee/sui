@@ -116,11 +116,55 @@ world move-package {
     record ability-set { abilities: list<ability> }
 
     // parser definitions (subset of Move AST)
-    enum move-module-member-kind { function, struct, enumeration, constant }
-    record move-module-member {
-        kind: move-module-member-kind,
+    enum move-visibility { public, friend, move-package, internal }
+
+    record move-function {
+        name: string,
+        visibility: move-visibility,
+        is-entry: bool,
+        is-native: bool,
+        parameters: list<string>,
+        returns: list<string>,
+    }
+
+    record move-struct {
+        name: string,
+        is-native: bool,
+        fields: list<string>,
+    }
+
+    record move-enum-variant {
+        name: string,
+        fields: list<string>,
+    }
+
+    record move-enum {
+        name: string,
+        variants: list<move-enum-variant>,
+    }
+
+    record move-constant {
         name: string,
     }
+
+    record move-use-decl {
+        text: string,
+    }
+
+    record move-friend {
+        module: string,
+    }
+
+    variant move-module-member {
+        function(move-function),
+        struct(move-struct),
+        enumeration(move-enum),
+        constant(move-constant),
+        module-use(move-use-decl),
+        friend(move-friend),
+        spec(string),
+    }
+
     record move-module {
         address: option<string>,
         name: string,

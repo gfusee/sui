@@ -9,7 +9,7 @@ use move_command_line_common::files::FileHash;
 use move_compiler::parser::{
     ast::{
         self as ast_defs, Definition as MoveAstDefinition, LeadingNameAccess, LeadingNameAccess_,
-        ModuleMember,
+        ModuleMember, StructFields, Type, VariantFields, Visibility,
     },
     syntax::parse_file_string,
 };
@@ -127,25 +127,45 @@ fn convert_module(module: ast_defs::ModuleDefinition) -> MoveModule {
 
 fn convert_member(member: ModuleMember) -> Option<MoveModuleMember> {
     match member {
-        ModuleMember::Function(f) => Some(MoveModuleMember {
-            kind: MoveModuleMemberKind::Function,
+        ModuleMember::Function(f) => Some(MoveModuleMember::Function(MoveFunction {
             name: name_to_string(&f.name.0),
-        }),
-        ModuleMember::Struct(s) => Some(MoveModuleMember {
-            kind: MoveModuleMemberKind::Struct,
+            visibility: convert_visibility(&f.visibility),
+            is_entry: f.entry.is_some(),
+            is_native: matches!(f.body.value, ast_defs::FunctionBody_::Native),
+            parameters: f
+                .signature
+                .parameters
+                .into_iter()
+                .map(|(_, var, ty)| format!("{}: {}", name_to_string(&var.0), type_to_string(&ty)))
+                .collect(),
+            returns: split_return_types(&f.signature.return_type),
+        })),
+        ModuleMember::Struct(s) => Some(MoveModuleMember::Struct(MoveStruct {
             name: name_to_string(&s.name.0),
-        }),
-        ModuleMember::Enum(e) => Some(MoveModuleMember {
-            kind: MoveModuleMemberKind::Enumeration,
+            is_native: matches!(s.fields, StructFields::Native(_)),
+            fields: struct_fields_to_strings(s.fields),
+        })),
+        ModuleMember::Enum(e) => Some(MoveModuleMember::Enumeration(MoveEnum {
             name: name_to_string(&e.name.0),
-        }),
-        ModuleMember::Constant(c) => Some(MoveModuleMember {
-            kind: MoveModuleMemberKind::Constant,
+            variants: e
+                .variants
+                .into_iter()
+                .map(|v| MoveEnumVariant {
+                    name: name_to_string(&v.name.0),
+                    fields: variant_fields_to_strings(v.fields),
+                })
+                .collect(),
+        })),
+        ModuleMember::Constant(c) => Some(MoveModuleMember::Constant(MoveConstant {
             name: name_to_string(&c.name.0),
-        }),
-        ModuleMember::Use(_)
-        | ModuleMember::Friend(_)
-        | ModuleMember::Spec(_) => None,
+        })),
+        ModuleMember::Use(u) => Some(MoveModuleMember::ModuleUse(MoveUseDecl {
+            text: format!("{:?}", u.use_),
+        })),
+        ModuleMember::Friend(f) => Some(MoveModuleMember::Friend(MoveFriend {
+            module: format!("{:?}", f.friend),
+        })),
+        ModuleMember::Spec(s) => Some(MoveModuleMember::Spec(s.value)),
     }
 }
 
@@ -160,6 +180,56 @@ fn leading_name_to_string(addr: &LeadingNameAccess) -> String {
 
 fn name_to_string(name: &move_compiler::shared::Name) -> String {
     name.value.to_string()
+}
+
+fn convert_visibility(v: &Visibility) -> MoveVisibility {
+    match v {
+        Visibility::Public(_) => MoveVisibility::Public,
+        Visibility::Friend(_) => MoveVisibility::Friend,
+        Visibility::Package(_) => MoveVisibility::MovePackage,
+        Visibility::Internal => MoveVisibility::Internal,
+    }
+}
+
+fn struct_fields_to_strings(fields: StructFields) -> Vec<String> {
+    match fields {
+        StructFields::Named(named) => named
+            .into_iter()
+            .map(|(_, field, ty)| format!("{}: {}", name_to_string(&field.0), type_to_string(&ty)))
+            .collect(),
+        StructFields::Positional(positional) => positional
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (_, ty))| format!("{idx}: {}", type_to_string(&ty)))
+            .collect(),
+        StructFields::Native(_) => vec![],
+    }
+}
+
+fn variant_fields_to_strings(fields: VariantFields) -> Vec<String> {
+    match fields {
+        VariantFields::Named(named) => named
+            .into_iter()
+            .map(|(_, field, ty)| format!("{}: {}", name_to_string(&field.0), type_to_string(&ty)))
+            .collect(),
+        VariantFields::Positional(positional) => positional
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (_, ty))| format!("{idx}: {}", type_to_string(&ty)))
+            .collect(),
+        VariantFields::Empty => vec![],
+    }
+}
+
+fn split_return_types(ty: &Type) -> Vec<String> {
+    match &ty.value {
+        ast_defs::Type_::Multiple(types) => types.iter().map(type_to_string).collect(),
+        _ => vec![type_to_string(ty)],
+    }
+}
+
+fn type_to_string(ty: &Type) -> String {
+    format!("{:?}", ty)
 }
 
 fn to_normalized_struct(value: SuiMoveNormalizedStruct) -> NormalizedStruct {
