@@ -115,6 +115,26 @@ world move-package {
     enum ability { copy, drop, store, key }
     record ability-set { abilities: list<ability> }
 
+    // parser definitions (subset of Move AST)
+    enum move-module-member-kind { function, struct, enumeration, constant }
+    record move-module-member {
+        kind: move-module-member-kind,
+        name: string,
+    }
+    record move-module {
+        address: option<string>,
+        name: string,
+        members: list<move-module-member>,
+    }
+    record move-address {
+        address: string,
+        modules: list<move-module>,
+    }
+    variant move-definition {
+        module(move-module),
+        address(move-address),
+    }
+
     record normalized-struct-type {
         address: string,
         module: string,
@@ -190,6 +210,7 @@ world move-package {
     }
 
     export get-normalized-package: func(modules: list<list<u8>>) -> list<normalized-module>;
+    export get-definitions: func(move-code: string) -> list<move-definition>;
 }
 
 world build {

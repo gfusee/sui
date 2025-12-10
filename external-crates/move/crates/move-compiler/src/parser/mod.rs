@@ -9,7 +9,7 @@ pub(crate) mod filter;
 pub mod keywords;
 pub mod lexer;
 pub(crate) mod mode_attribute_filter;
-pub(crate) mod syntax;
+pub mod syntax;
 mod token_set;
 
 use crate::{
@@ -44,7 +44,7 @@ struct ParsedPackageFile {
 
 /// Parses program's targets and dependencies, both of which are read from different virtual file
 /// systems (vfs and deps_out_vfs, respectively).
-pub(crate) fn parse_program(
+pub fn parse_program(
     compilation_env: &CompilationEnv,
     named_address_maps: NamedAddressMaps,
     mut targets: Vec<IndexedVfsPackagePath>,

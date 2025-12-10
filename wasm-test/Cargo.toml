@@ -25,6 +25,7 @@ base64 = { workspace = true }
 bcs = { workspace = true }
 wit-bindgen = "0.47.0"
 serde = { version = "1.0.228", features = ["derive"] }
+vfs = "0.10.0"
 
 [lints]
 workspace = true

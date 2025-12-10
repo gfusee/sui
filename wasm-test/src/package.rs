@@ -1,9 +1,19 @@
+use std::collections::BTreeMap;
 use crate::sui_move_json_rpc::{
     SuiMoveAbility, SuiMoveAbilitySet, SuiMoveNormalizedEnum, SuiMoveNormalizedField,
     SuiMoveNormalizedFunction, SuiMoveNormalizedModule, SuiMoveNormalizedStruct,
     SuiMoveNormalizedStructType, SuiMoveNormalizedType, SuiMoveVisibility,
 };
 use move_binary_format::{binary_config::BinaryConfig, normalized};
+use move_command_line_common::files::FileHash;
+use move_compiler::parser::{
+    ast::{
+        self as ast_defs, Definition as MoveAstDefinition, LeadingNameAccess, LeadingNameAccess_,
+        ModuleMember,
+    },
+    syntax::parse_file_string,
+};
+use move_compiler::shared::{CompilationEnv, Flags};
 use sui_types::move_package::normalize_modules;
 
 wit_bindgen::generate!({
@@ -65,6 +75,91 @@ impl Guest for Package {
             })
             .collect()
     }
+
+    fn get_definitions(move_code: String) -> Vec<MoveDefinition> {
+        let ast_defs = parse_ast_definitions(&move_code);
+        ast_defs
+            .into_iter()
+            .flat_map(convert_definition)
+            .collect()
+    }
+}
+
+fn parse_ast_definitions(move_code: &str) -> Vec<MoveAstDefinition> {
+    let compilation_env = CompilationEnv::new(
+        Flags::empty(),
+        vec![],
+        vec![],
+        None,
+        BTreeMap::new(),
+        None,
+        None
+    );
+    let file_hash = FileHash::new(move_code);
+
+    parse_file_string(&compilation_env, file_hash, move_code, None)
+        .expect("failed to parse Move code")
+}
+
+fn convert_definition(def: MoveAstDefinition) -> Option<MoveDefinition> {
+    match def {
+        MoveAstDefinition::Module(module) => Some(MoveDefinition::Module(convert_module(module))),
+        MoveAstDefinition::Address(address) => Some(MoveDefinition::Address(MoveAddress {
+            address: leading_name_to_string(&address.addr),
+            modules: address.modules.into_iter().map(convert_module).collect(),
+        })),
+    }
+}
+
+fn convert_module(module: ast_defs::ModuleDefinition) -> MoveModule {
+    let members = module
+        .members
+        .into_iter()
+        .filter_map(convert_member)
+        .collect();
+
+    MoveModule {
+        address: module.address.as_ref().map(leading_name_to_string),
+        name: name_to_string(&module.name.0),
+        members,
+    }
+}
+
+fn convert_member(member: ModuleMember) -> Option<MoveModuleMember> {
+    match member {
+        ModuleMember::Function(f) => Some(MoveModuleMember {
+            kind: MoveModuleMemberKind::Function,
+            name: name_to_string(&f.name.0),
+        }),
+        ModuleMember::Struct(s) => Some(MoveModuleMember {
+            kind: MoveModuleMemberKind::Struct,
+            name: name_to_string(&s.name.0),
+        }),
+        ModuleMember::Enum(e) => Some(MoveModuleMember {
+            kind: MoveModuleMemberKind::Enumeration,
+            name: name_to_string(&e.name.0),
+        }),
+        ModuleMember::Constant(c) => Some(MoveModuleMember {
+            kind: MoveModuleMemberKind::Constant,
+            name: name_to_string(&c.name.0),
+        }),
+        ModuleMember::Use(_)
+        | ModuleMember::Friend(_)
+        | ModuleMember::Spec(_) => None,
+    }
+}
+
+fn leading_name_to_string(addr: &LeadingNameAccess) -> String {
+    match &addr.value {
+        LeadingNameAccess_::AnonymousAddress(num) => format!("{num}"),
+        LeadingNameAccess_::GlobalAddress(name) | LeadingNameAccess_::Name(name) => {
+            name_to_string(&name)
+        }
+    }
+}
+
+fn name_to_string(name: &move_compiler::shared::Name) -> String {
+    name.value.to_string()
 }
 
 fn to_normalized_struct(value: SuiMoveNormalizedStruct) -> NormalizedStruct {

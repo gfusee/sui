@@ -19268,6 +19268,7 @@ dependencies = [
  "sui-move-build",
  "sui-protocol-config",
  "sui-types",
+ "vfs",
  "wasi 0.14.7+wasi-0.2.4",
  "wit-bindgen 0.47.0",
 ]
