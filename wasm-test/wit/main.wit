@@ -127,15 +127,29 @@ world move-package {
         returns: list<string>,
     }
 
+    record move-field { name: string, move-type: string }
+
+    variant move-struct-fields {
+        named(list<move-field>),
+        positional(list<string>),
+        native,
+    }
+
     record move-struct {
         name: string,
         is-native: bool,
-        fields: list<string>,
+        fields: move-struct-fields,
+    }
+
+    variant move-variant-fields {
+        named(list<move-field>),
+        positional(list<string>),
+        empty,
     }
 
     record move-enum-variant {
         name: string,
-        fields: list<string>,
+        fields: move-variant-fields,
     }
 
     record move-enum {

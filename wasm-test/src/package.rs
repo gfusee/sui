@@ -143,7 +143,7 @@ fn convert_member(member: ModuleMember) -> Option<MoveModuleMember> {
         ModuleMember::Struct(s) => Some(MoveModuleMember::Struct(MoveStruct {
             name: name_to_string(&s.name.0),
             is_native: matches!(s.fields, StructFields::Native(_)),
-            fields: struct_fields_to_strings(s.fields),
+            fields: struct_fields_to_wit(s.fields),
         })),
         ModuleMember::Enum(e) => Some(MoveModuleMember::Enumeration(MoveEnum {
             name: name_to_string(&e.name.0),
@@ -152,7 +152,7 @@ fn convert_member(member: ModuleMember) -> Option<MoveModuleMember> {
                 .into_iter()
                 .map(|v| MoveEnumVariant {
                     name: name_to_string(&v.name.0),
-                    fields: variant_fields_to_strings(v.fields),
+                    fields: variant_fields_to_wit(v.fields),
                 })
                 .collect(),
         })),
@@ -191,33 +191,45 @@ fn convert_visibility(v: &Visibility) -> MoveVisibility {
     }
 }
 
-fn struct_fields_to_strings(fields: StructFields) -> Vec<String> {
+fn struct_fields_to_wit(fields: StructFields) -> MoveStructFields {
     match fields {
-        StructFields::Named(named) => named
-            .into_iter()
-            .map(|(_, field, ty)| format!("{}: {}", name_to_string(&field.0), type_to_string(&ty)))
-            .collect(),
-        StructFields::Positional(positional) => positional
-            .into_iter()
-            .enumerate()
-            .map(|(idx, (_, ty))| format!("{idx}: {}", type_to_string(&ty)))
-            .collect(),
-        StructFields::Native(_) => vec![],
+        StructFields::Named(named) => MoveStructFields::Named(
+            named
+                .into_iter()
+                .map(|(_, field, ty)| MoveField {
+                    name: name_to_string(&field.0),
+                    move_type: type_to_string(&ty),
+                })
+                .collect(),
+        ),
+        StructFields::Positional(positional) => MoveStructFields::Positional(
+            positional
+                .into_iter()
+                .map(|(_, ty)| type_to_string(&ty))
+                .collect(),
+        ),
+        StructFields::Native(_) => MoveStructFields::Native,
     }
 }
 
-fn variant_fields_to_strings(fields: VariantFields) -> Vec<String> {
+fn variant_fields_to_wit(fields: VariantFields) -> MoveVariantFields {
     match fields {
-        VariantFields::Named(named) => named
-            .into_iter()
-            .map(|(_, field, ty)| format!("{}: {}", name_to_string(&field.0), type_to_string(&ty)))
-            .collect(),
-        VariantFields::Positional(positional) => positional
-            .into_iter()
-            .enumerate()
-            .map(|(idx, (_, ty))| format!("{idx}: {}", type_to_string(&ty)))
-            .collect(),
-        VariantFields::Empty => vec![],
+        VariantFields::Named(named) => MoveVariantFields::Named(
+            named
+                .into_iter()
+                .map(|(_, field, ty)| MoveField {
+                    name: name_to_string(&field.0),
+                    move_type: type_to_string(&ty),
+                })
+                .collect(),
+        ),
+        VariantFields::Positional(positional) => MoveVariantFields::Positional(
+            positional
+                .into_iter()
+                .map(|(_, ty)| type_to_string(&ty))
+                .collect(),
+        ),
+        VariantFields::Empty => MoveVariantFields::Empty,
     }
 }
 
