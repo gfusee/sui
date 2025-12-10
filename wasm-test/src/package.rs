@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use crate::sui_move_json_rpc::{
     SuiMoveAbility, SuiMoveAbilitySet, SuiMoveNormalizedEnum, SuiMoveNormalizedField,
     SuiMoveNormalizedFunction, SuiMoveNormalizedModule, SuiMoveNormalizedStruct,
@@ -9,11 +8,12 @@ use move_command_line_common::files::FileHash;
 use move_compiler::parser::{
     ast::{
         self as ast_defs, Definition as MoveAstDefinition, LeadingNameAccess, LeadingNameAccess_,
-        ModuleMember, StructFields, Type, VariantFields, Visibility,
+        ModuleMember, Mutability, StructFields, Type, VariantFields, Visibility,
     },
     syntax::parse_file_string,
 };
 use move_compiler::shared::{CompilationEnv, Flags};
+use std::collections::BTreeMap;
 use sui_types::move_package::normalize_modules;
 
 wit_bindgen::generate!({
@@ -78,10 +78,7 @@ impl Guest for Package {
 
     fn get_definitions(move_code: String) -> Vec<MoveDefinition> {
         let ast_defs = parse_ast_definitions(&move_code);
-        ast_defs
-            .into_iter()
-            .flat_map(convert_definition)
-            .collect()
+        ast_defs.into_iter().flat_map(convert_definition).collect()
     }
 }
 
@@ -93,7 +90,7 @@ fn parse_ast_definitions(move_code: &str) -> Vec<MoveAstDefinition> {
         None,
         BTreeMap::new(),
         None,
-        None
+        None,
     );
     let file_hash = FileHash::new(move_code);
 
@@ -132,11 +129,24 @@ fn convert_member(member: ModuleMember) -> Option<MoveModuleMember> {
             visibility: convert_visibility(&f.visibility),
             is_entry: f.entry.is_some(),
             is_native: matches!(f.body.value, ast_defs::FunctionBody_::Native),
+            type_parameters: f
+                .signature
+                .type_parameters
+                .into_iter()
+                .map(|(name, constraints)| MoveTypeParameter {
+                    name: name_to_string(&name),
+                    constraints: ability_list_to_set(constraints),
+                })
+                .collect(),
             parameters: f
                 .signature
                 .parameters
                 .into_iter()
-                .map(|(_, var, ty)| format!("{}: {}", name_to_string(&var.0), type_to_string(&ty)))
+                .map(|(mutability, var, ty)| MoveParameter {
+                    name: name_to_string(&var.0),
+                    is_mutable: mutability.is_some(),
+                    move_type: type_to_move_type(&ty),
+                })
                 .collect(),
             returns: split_return_types(&f.signature.return_type),
         })),
@@ -198,14 +208,14 @@ fn struct_fields_to_wit(fields: StructFields) -> MoveStructFields {
                 .into_iter()
                 .map(|(_, field, ty)| MoveField {
                     name: name_to_string(&field.0),
-                    move_type: type_to_string(&ty),
+                    move_type: type_to_move_type(&ty),
                 })
                 .collect(),
         ),
         StructFields::Positional(positional) => MoveStructFields::Positional(
             positional
                 .into_iter()
-                .map(|(_, ty)| type_to_string(&ty))
+                .map(|(_, ty)| type_to_move_type(&ty))
                 .collect(),
         ),
         StructFields::Native(_) => MoveStructFields::Native,
@@ -219,29 +229,45 @@ fn variant_fields_to_wit(fields: VariantFields) -> MoveVariantFields {
                 .into_iter()
                 .map(|(_, field, ty)| MoveField {
                     name: name_to_string(&field.0),
-                    move_type: type_to_string(&ty),
+                    move_type: type_to_move_type(&ty),
                 })
                 .collect(),
         ),
         VariantFields::Positional(positional) => MoveVariantFields::Positional(
             positional
                 .into_iter()
-                .map(|(_, ty)| type_to_string(&ty))
+                .map(|(_, ty)| type_to_move_type(&ty))
                 .collect(),
         ),
         VariantFields::Empty => MoveVariantFields::Empty,
     }
 }
 
-fn split_return_types(ty: &Type) -> Vec<String> {
+fn split_return_types(ty: &Type) -> Vec<MoveType> {
     match &ty.value {
-        ast_defs::Type_::Multiple(types) => types.iter().map(type_to_string).collect(),
-        _ => vec![type_to_string(ty)],
+        ast_defs::Type_::Multiple(types) => types.iter().map(type_to_move_type).collect(),
+        _ => vec![type_to_move_type(ty)],
     }
 }
 
-fn type_to_string(ty: &Type) -> String {
-    format!("{:?}", ty)
+fn type_to_move_type(ty: &Type) -> MoveType {
+    MoveType {
+        repr: format!("{:?}", ty),
+    }
+}
+
+fn ability_list_to_set(abilities: Vec<ast_defs::Ability>) -> AbilitySet {
+    AbilitySet {
+        abilities: abilities
+            .into_iter()
+            .map(|a| match a.value {
+                ast_defs::Ability_::Copy => Ability::Copy,
+                ast_defs::Ability_::Drop => Ability::Drop,
+                ast_defs::Ability_::Store => Ability::Store,
+                ast_defs::Ability_::Key => Ability::Key,
+            })
+            .collect(),
+    }
 }
 
 fn to_normalized_struct(value: SuiMoveNormalizedStruct) -> NormalizedStruct {

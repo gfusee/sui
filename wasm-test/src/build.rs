@@ -1,23 +1,25 @@
 use anyhow::Error;
 use move_command_line_common::files::FileHash;
-use move_compiler::diagnostics::{
-    report_diagnostics_to_buffer, Diagnostic as MoveDiagnostic, Diagnostics as MoveDiagnostics,
-    DiagnosticsFormat as MoveDiagnosticsFormat,
+use move_compiler::diagnostics::codes::{
+    DiagnosticInfo as MoveDiagnosticInfo, Severity as MoveSeverity,
 };
-use move_compiler::diagnostics::codes::{DiagnosticInfo as MoveDiagnosticInfo, Severity as MoveSeverity};
+use move_compiler::diagnostics::{
+    Diagnostic as MoveDiagnostic, Diagnostics as MoveDiagnostics,
+    DiagnosticsFormat as MoveDiagnosticsFormat, report_diagnostics_to_buffer,
+};
 use move_ir_types::location::Loc;
+use move_package::BuildConfig as MoveBuildConfig;
 use move_package::compilation::build_plan::BuildPlan;
 use move_package::compilation::compiled_package::CompiledPackage as MoveCompiledPackage;
 use move_package::resolution::resolution_graph::ResolvedGraph;
 use move_package::source_package::parsed_manifest::{
     Dependencies, Dependency, DependencyKind, InternalDependency, PackageName,
 };
-use move_package::BuildConfig as MoveBuildConfig;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use sui_move_build::{
-    collect_bytecode_deps, decorate_warnings, gather_published_ids, verify_bytecode, BuildConfig,
-    CompiledPackage, SuiPackageHooks,
+    BuildConfig, CompiledPackage, SuiPackageHooks, collect_bytecode_deps, decorate_warnings,
+    gather_published_ids, verify_bytecode,
 };
 use sui_types::error::{SuiErrorKind, SuiResult};
 use sui_types::move_package::FnInfoMap;
@@ -39,15 +41,12 @@ impl Guest for Build {
         let install_dir = Path::new(&install_dir).to_path_buf();
         let system_packages_path = Path::new(&system_packages_path);
 
-        build_package(
-            &path,
-            install_dir,
-            system_packages_path,
-        )
-            .map_err(|(error, diagnostics)| BuildError {
+        build_package(&path, install_dir, system_packages_path).map_err(|(error, diagnostics)| {
+            BuildError {
                 message: error.to_string(),
                 diagnostics: convert_diagnostics(diagnostics),
-            })
+            }
+        })
     }
 }
 
@@ -63,11 +62,8 @@ fn build_package(
         .resolution_graph(path, chain_id.clone())
         .map_err(|e| (Error::from(e), MoveDiagnostics::new()))?;
 
-    let (compiled, warning_diagnostics) = build_from_resolution_graph(
-        resolution_graph,
-        true,
-        chain_id
-    )?;
+    let (compiled, warning_diagnostics) =
+        build_from_resolution_graph(resolution_graph, true, chain_id)?;
 
     let dependency_ids = compiled
         .get_published_dependencies_ids()
@@ -145,7 +141,7 @@ fn compile_package(
 
     match compiled_pkg_result {
         Ok(compiled_pkg) => Ok((compiled_pkg, fn_info.unwrap(), diagnostics)),
-        Err(err) => Err((err, diagnostics))
+        Err(err) => Err((err, diagnostics)),
     }
 }
 
@@ -173,10 +169,7 @@ fn new_build_config(install_dir: PathBuf, system_packages_path: &Path) -> BuildC
 fn implicit_deps(system_packages_path: &Path) -> Dependencies {
     let mut results = Vec::new();
 
-    let system_packages = [
-        ("MoveStdlib", "move-stdlib"),
-        ("Sui", "sui-framework"),
-    ];
+    let system_packages = [("MoveStdlib", "move-stdlib"), ("Sui", "sui-framework")];
 
     for (package_name, package_folder) in system_packages {
         let dependency_path = system_packages_path.join(package_folder);
@@ -229,10 +222,7 @@ fn convert_diagnostic(diag: MoveDiagnostic) -> Diagnostic {
     Diagnostic {
         info: convert_info(info),
         primary_label: convert_label(primary_label),
-        secondary_labels: secondary_labels
-            .into_iter()
-            .map(convert_label)
-            .collect(),
+        secondary_labels: secondary_labels.into_iter().map(convert_label).collect(),
         notes,
     }
 }

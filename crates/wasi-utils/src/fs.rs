@@ -19,14 +19,13 @@ pub fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
         path_str
     };
 
-    let Ok(file) = root
-        .open_at(
-            PathFlags::empty(),
-            path_str,
-            OpenFlags::empty(),
-            DescriptorFlags::READ,
-        ) else {
-        return Err(io::Error::other("failed to open file"))
+    let Ok(file) = root.open_at(
+        PathFlags::empty(),
+        path_str,
+        OpenFlags::empty(),
+        DescriptorFlags::READ,
+    ) else {
+        return Err(io::Error::other("failed to open file"));
     };
 
     let mut offset = 0;

@@ -118,20 +118,34 @@ world move-package {
     // parser definitions (subset of Move AST)
     enum move-visibility { public, friend, move-package, internal }
 
+    record move-type { repr: string }
+
+    record move-type-parameter {
+        name: string,
+        constraints: ability-set,
+    }
+
+    record move-parameter {
+        name: string,
+        is-mutable: bool,
+        move-type: move-type,
+    }
+
     record move-function {
         name: string,
         visibility: move-visibility,
         is-entry: bool,
         is-native: bool,
-        parameters: list<string>,
-        returns: list<string>,
+        type-parameters: list<move-type-parameter>,
+        parameters: list<move-parameter>,
+        returns: list<move-type>,
     }
 
-    record move-field { name: string, move-type: string }
+    record move-field { name: string, move-type: move-type }
 
     variant move-struct-fields {
         named(list<move-field>),
-        positional(list<string>),
+        positional(list<move-type>),
         native,
     }
 
@@ -143,7 +157,7 @@ world move-package {
 
     variant move-variant-fields {
         named(list<move-field>),
-        positional(list<string>),
+        positional(list<move-type>),
         empty,
     }
 

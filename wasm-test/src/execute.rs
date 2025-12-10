@@ -2,14 +2,11 @@ use crate::world::{WORLD, World};
 use base64::Engine;
 use std::ops::Deref;
 use std::str::FromStr;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use sui_types::base_types::{ObjectRef, SuiAddress, TransactionDigest};
 use sui_types::effects::TransactionEffectsAPI;
 use sui_types::gas::SuiGasStatus;
 use sui_types::object::Object;
-use sui_types::transaction::{
-    CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction,
-    Transaction, TransactionData, TransactionKind,
-};
+use sui_types::transaction::{CallArg, CheckedInputObjects, GasData, InputObjects, ObjectReadResult, ProgrammableTransaction, Transaction, TransactionData, TransactionKind};
 
 wit_bindgen::generate!({
     world: "execute",
@@ -42,17 +39,29 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
     )
     .unwrap();
 
-    let gas_object_read_results = gas_data
+    let non_gas_inputs_object_refs = ptb.inputs
+        .iter()
+        .filter_map(|call_arg| {
+            let CallArg::Object(obj) = call_arg else {
+                return None
+            };
+
+            Some(world.store.get_object(&obj.id())?.compute_object_reference())
+        });
+
+    let input_objects = gas_data
         .payment
         .iter()
-        .map(|gas| {
-            let gas_object = world.store.get_object(&gas.0).unwrap();
-            ObjectReadResult::new_from_gas_object(gas_object)
+        .map(|e| *e)
+        .chain(non_gas_inputs_object_refs)
+        .map(|object_ref| {
+            let object = world.store.get_object(&object_ref.0).unwrap();
+            ObjectReadResult::new_from_gas_object(object)
         })
         .collect();
 
-    let gas_checked_inputs =
-        CheckedInputObjects::new_for_replay(InputObjects::new(gas_object_read_results));
+    let checked_inputs =
+        CheckedInputObjects::new_with_checked_transaction_inputs(InputObjects::new(input_objects));
 
     let (inner_temp_store, _, effects, _, _) = world.executor.execute_transaction_to_effects(
         &world.store,
@@ -62,7 +71,7 @@ fn execute_with_world(world: &mut World, transaction: Vec<u8>) -> TransactionEff
         Ok(()),
         &100,
         1000000,
-        gas_checked_inputs,
+        checked_inputs,
         gas_data,
         gas_status,
         TransactionKind::ProgrammableTransaction(ptb),
