@@ -36,7 +36,123 @@ world execute {
         id-operation: id-operation,
     }
 
-    export execute: func(transaction: list<u8>) -> transaction-effects;
+    record sui-transaction-block-effects {
+        status: transaction-status,
+        executed-epoch: u64,
+        gas-used: gas-cost-summary,
+        transaction-digest: list<u8>,
+        created: list<owned-object-ref>,
+        mutated: list<owned-object-ref>,
+        unwrapped: list<owned-object-ref>,
+        deleted: list<sui-object-ref>,
+        unwrapped-then-deleted: list<sui-object-ref>,
+        wrapped: list<sui-object-ref>,
+        gas-object: owned-object-ref,
+        dependencies: list<list<u8>>,
+    }
+
+    record gas-cost-summary {
+        computation-cost: u64,
+        storage-cost: u64,
+        storage-rebate: u64,
+        non-refundable-storage-fee: u64,
+    }
+
+    record owned-object-ref {
+        reference: sui-object-ref,
+        owner: ownership,
+    }
+
+    record sui-object-ref {
+        object-id: list<u8>,
+        version: u64,
+        digest: list<u8>,
+    }
+
+    variant ownership {
+        address-owner(list<u8>),
+        object-owner(list<u8>),
+        shared(shared-ownership),
+        immutable,
+        consensus-address(consensus-address-ownership)
+    }
+
+    record shared-ownership {
+        initial-shared-version: u64,
+    }
+
+    record consensus-address-ownership {
+        start-version: u64,
+        owner: list<u8>
+    }
+
+    record sui-transaction-block-response {
+        digest: list<u8>,
+        effects: option<sui-transaction-block-effects>,
+        object-changes: list<object-change>,
+        raw-effects: list<u8>,
+    }
+
+    variant object-change {
+        published(object-change-published),
+        transferred(object-change-transferred),
+        mutated(object-change-mutated),
+        deleted(object-change-deleted),
+        wrapped(object-change-wrapped),
+        created(object-change-created),
+    }
+
+    record object-change-published {
+        package-id: list<u8>,
+        version: u64,
+        digest: list<u8>,
+        modules: list<string>,
+    }
+
+    record object-change-transferred {
+        sender: list<u8>,
+        recipient: ownership,
+        object-type: string,
+        object-id: list<u8>,
+        version: u64,
+        digest: list<u8>,
+    }
+
+    record object-change-mutated {
+        sender: list<u8>,
+        owner: ownership,
+        object-type: string,
+        object-id: list<u8>,
+        version: u64,
+        previous-version: u64,
+        digest: list<u8>,
+    }
+
+    record object-change-deleted {
+        sender: list<u8>,
+        object-type: string,
+        object-id: list<u8>,
+        version: u64,
+    }
+
+    record object-change-wrapped {
+        sender: list<u8>,
+        object-type: string,
+        object-id: list<u8>,
+        version: u64,
+    }
+
+    record object-change-created {
+        sender: list<u8>,
+        owner: ownership,
+        object-type: string,
+        object-id: list<u8>,
+        version: u64,
+        digest: list<u8>,
+    }
+
+    export execute: func(transaction: list<u8>) -> sui-transaction-block-response;
+    export dry-run-execute: func(transaction: list<u8>) -> sui-transaction-block-response;
 }
 
 world client {

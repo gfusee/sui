@@ -4,6 +4,7 @@ mod execute;
 mod package;
 mod sui_move_json_rpc;
 mod world;
+mod json_rpc_types;
 
 use base64::Engine;
 use std::str::FromStr;
