@@ -7,11 +7,13 @@ use move_compiler::diagnostics::{
     Diagnostic as MoveDiagnostic, Diagnostics as MoveDiagnostics,
     DiagnosticsFormat as MoveDiagnosticsFormat, report_diagnostics_to_buffer,
 };
+use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::Loc;
 use move_package::BuildConfig as MoveBuildConfig;
 use move_package::compilation::build_plan::BuildPlan;
 use move_package::compilation::compiled_package::CompiledPackage as MoveCompiledPackage;
 use move_package::resolution::resolution_graph::ResolvedGraph;
+use move_package::source_package::parsed_manifest::NamedAddress;
 use move_package::source_package::parsed_manifest::{
     Dependencies, Dependency, DependencyKind, InternalDependency, PackageName,
 };
@@ -82,11 +84,32 @@ fn build_package(
 }
 
 fn build_from_resolution_graph(
-    resolution_graph: ResolvedGraph,
+    mut resolution_graph: ResolvedGraph,
     run_bytecode_verifier: bool,
     chain_id: Option<String>,
 ) -> Result<(CompiledPackage, MoveDiagnostics), (anyhow::Error, MoveDiagnostics)> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
+
+    // Ensure the compiler substitutes published dependency addresses into bytecode.
+    for (name, id) in &dependency_ids.published {
+        resolution_graph
+            .build_options
+            .additional_named_addresses
+            .insert(name.to_string(), AccountAddress::from(*id));
+
+        if let Some(pkg) = resolution_graph.package_table.get_mut(name) {
+            pkg.resolved_table
+                .insert(NamedAddress::from(name.as_str()), AccountAddress::from(*id));
+        }
+
+        // Also update the root package's bindings so it links to published deps at their on-chain addresses.
+        let root = resolution_graph.root_package();
+        if let Some(root_pkg) = resolution_graph.package_table.get_mut(&root) {
+            root_pkg
+                .resolved_table
+                .insert(NamedAddress::from(name.as_str()), AccountAddress::from(*id));
+        }
+    }
 
     let bytecode_deps = collect_bytecode_deps(&resolution_graph).unwrap();
 
