@@ -11,7 +11,7 @@ use derive_where::derive_where;
 use sha2::{Digest as _, Sha256};
 use tempfile::tempdir;
 use tracing::debug;
-
+use vfs::{FileSystem, PhysicalFS, VfsPath};
 use super::manifest::Manifest;
 use super::package_lock::PackageSystemLock;
 use super::paths::PackagePath;

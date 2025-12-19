@@ -49,7 +49,7 @@ use petgraph::{
 };
 use tempfile::TempDir;
 use tracing::debug;
-
+use vfs::{VfsPath, VfsResult};
 use crate::{
     errors::PackageResult,
     flavor::{
@@ -74,7 +74,7 @@ pub struct TestPackageGraph {
     // is the same as the node's id
     inner: DiGraph<PackageSpec, DepSpec>,
     nodes: BTreeMap<String, NodeIndex>,
-    root: Option<PathBuf>,
+    root: Option<VfsPath>,
 }
 
 /// Information used to build a node in the package graph
@@ -156,7 +156,7 @@ pub struct PubSpec {
 }
 
 pub struct Scenario {
-    root_path: PathBuf,
+    root_path: VfsPath,
     tempdir: Option<TempDir>,
 }
 
@@ -266,7 +266,7 @@ impl TestPackageGraph {
         self
     }
 
-    pub fn at(mut self, path: impl AsRef<Path>) -> Self {
+    pub fn at(mut self, path: &VfsPath) -> Self {
         self.root = Some(path.as_ref().to_path_buf());
         self
     }
@@ -733,7 +733,7 @@ impl DepSpec {
 }
 
 impl Scenario {
-    pub fn path_for(&self, package: impl AsRef<str>) -> PathBuf {
+    pub fn path_for(&self, package: impl AsRef<str>) -> VfsResult<VfsPath> {
         self.root_path.join(package.as_ref())
     }
 
@@ -748,7 +748,7 @@ impl Scenario {
         &self,
         package: impl AsRef<str>,
     ) -> PackageResult<PackageGraph<Vanilla>> {
-        let path = PackagePath::new(self.path_for(package)).unwrap();
+        let path = PackagePath::new(self.path_for(package)?).unwrap();
         let mtx = path.lock().unwrap();
 
         PackageGraph::<Vanilla>::load_from_manifests(&path, &vanilla::default_environment(), &mtx)
@@ -770,7 +770,7 @@ impl Scenario {
             Ok(_) => panic!("expected root package to fail to load"),
             Err(err) => err
                 .to_string()
-                .replace(self.root_path.to_string_lossy().as_ref(), "<ROOT>"),
+                .replace(self.root_path.as_str(), "<ROOT>"),
         }
     }
 
@@ -779,21 +779,23 @@ impl Scenario {
         &self,
         package: impl AsRef<str>,
     ) -> PackageResult<RootPackage<Vanilla>> {
-        RootPackage::<Vanilla>::load(self.path_for(package), default_environment(), vec![]).await
+        RootPackage::<Vanilla>::load(self.path_for(package)?, default_environment(), vec![]).await
     }
 
-    pub fn read_file(&self, file: impl AsRef<Path>) -> String {
-        let path = self.root_path.join(&file);
+    pub fn read_file(&self, file: &VfsPath) -> PackageResult<String> {
+        let path = self.root_path.join(file.as_str())?;
         debug!("reading file at {path:?}");
-        std::fs::read_to_string(self.root_path.join(file.as_ref())).unwrap()
+        path.read_to_string().map_err(Into::into)
     }
 
-    pub fn extend_file(&self, file: impl AsRef<Path>, contents: impl AsRef<str>) {
-        let path = self.root_path.join(&file);
+    pub fn extend_file(&self, file: &VfsPath, contents: impl AsRef<str>) -> PackageResult<()> {
+        let path = self.root_path.join(file.as_str())?;
         debug!("adding to file at {path:?}");
-        let mut file_contents = std::fs::read_to_string(&path).unwrap();
+        let mut file_contents = path.read_to_string()?;
         file_contents.push_str(contents.as_ref());
-        std::fs::write(&path, &file_contents).unwrap();
+        write!(path.create_file()?, "{}", file_contents).unwrap();
+
+        Ok(())
     }
 }
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_spanned::Spanned;
 
 use move_compiler::editions::Edition;
-
+use vfs::VfsPath;
 use crate::compatibility::legacy::LegacyData;
 
 use super::{
@@ -137,7 +137,7 @@ pub struct ManifestGitDependency {
 
     /// The subdir within the repository
     #[serde(default)]
-    pub subdir: PathBuf,
+    pub subdir: VfsPath,
 }
 
 /// A `{system = "..."}` dependency in a manifest

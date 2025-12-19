@@ -17,6 +17,7 @@ use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
 use toml::value::Value as TV;
+use vfs::VfsPath;
 
 pub type LegacyVersion = (u64, u64, u64);
 pub type LegacySubstitution = BTreeMap<String, LegacySubstOrRename>;
@@ -60,7 +61,7 @@ pub(crate) fn find_module_name_for_package(path: &PackagePath) -> Result<Option<
     let mut files = Vec::new();
     find_files(
         &mut files,
-        &path.path().join(SourcePackageLayout::Sources.path()),
+        &path.path().join(SourcePackageLayout::Sources.path())?,
         "move",
         5,
     );
@@ -102,12 +103,12 @@ fn parse_address_literal(address_str: &str) -> Result<AccountAddress, AccountAdd
 }
 
 /// Find all files matching the extension in a given path.
-fn find_files(files: &mut Vec<PathBuf>, dir: &Path, extension: &str, max_depth: usize) {
+fn find_files(files: &mut Vec<VfsPath>, dir: &VfsPath, extension: &str, max_depth: usize) {
     if max_depth == 0 {
         return;
     }
 
-    if let Ok(entries) = fs::read_dir(dir) {
+    if let Ok(entries) = dir.read_dir() {
         for entry in entries.flatten() {
             let path = entry.path();
 

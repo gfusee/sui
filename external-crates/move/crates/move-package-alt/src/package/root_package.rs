@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt, path::Path};
 
 use indexmap::IndexMap;
 use tracing::debug;
-
+use vfs::VfsPath;
 use super::paths::{EphemeralPubfilePath, OutputPath, PackagePath};
 use super::{EnvironmentID, manifest::Manifest};
 use crate::graph::PackageInfo;
@@ -30,7 +30,7 @@ pub struct PackageConfig {
     /// The path to read all input files from (e.g. lockfiles, pubfiles, etc). If this path is
     /// different from `output_path`, the package system won't touch any files here Note that in
     /// the case of ephemeral loads, `self.load_type.ephemeral_file` may also be read
-    input_path: PathBuf,
+    input_path: VfsPath,
 
     /// The chain ID to build for
     chain_id: EnvironmentID,
@@ -41,7 +41,7 @@ pub struct PackageConfig {
     /// The directory to write all output files into (e.g. updated lockfiles, etc)
     /// Note that in the case of ephemeral loads, `self.load_type.ephemeral_file` may also be
     /// written
-    output_path: PathBuf,
+    output_path: VfsPath,
 
     /// The modes to load for
     modes: Vec<ModeName>,
@@ -106,12 +106,12 @@ pub struct RootPackage<F: MoveFlavor + fmt::Debug> {
 }
 
 impl PackageConfig {
-    fn persistent(path: impl AsRef<Path>, env: Environment, modes: Vec<ModeName>) -> Self {
+    fn persistent(path: VfsPath, env: Environment, modes: Vec<ModeName>) -> Self {
         Self {
-            input_path: path.as_ref().to_path_buf(),
+            input_path: path.clone(),
             chain_id: env.id,
             load_type: LoadType::Persistent { env: env.name },
-            output_path: path.as_ref().to_path_buf(),
+            output_path: path.clone(),
             modes,
             force_repin: false,
             ignore_digests: false,
@@ -133,9 +133,9 @@ impl LoadType {
 /// It's like a facade for all functionality, controlled by this.
 impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     pub fn environments(
-        path: impl AsRef<Path>,
+        path: &VfsPath,
     ) -> PackageResult<IndexMap<EnvironmentName, EnvironmentID>> {
-        let package_path = PackagePath::new(path.as_ref().to_path_buf())?;
+        let package_path = PackagePath::new(path.clone())?;
         let mtx = package_path.lock()?;
         let mut environments = F::default_environments();
 
@@ -152,7 +152,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load(
-        path: impl AsRef<Path>,
+        path: VfsPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -162,8 +162,8 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// A synchronous version of `load` that can be used to load a package while blocking in place.
-    pub fn load_sync(path: PathBuf, env: Environment, modes: Vec<ModeName>) -> PackageResult<Self> {
-        block_on!(Self::load(path.as_path(), env, modes))
+    pub fn load_sync(path: VfsPath, env: Environment, modes: Vec<ModeName>) -> PackageResult<Self> {
+        block_on!(Self::load(path, env, modes))
     }
 
     /// Load the root package from `root` in environment `build_env`, but replace all the addresses
@@ -175,7 +175,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_ephemeral(
-        root: impl AsRef<Path>,
+        root: VfsPath,
         build_env: Option<EnvironmentName>,
         chain_id: EnvironmentID,
         pubfile_path: impl AsRef<Path>,
@@ -183,13 +183,13 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ) -> PackageResult<Self> {
         let ephemeral_file = EphemeralPubfilePath::new(pubfile_path)?;
         let config = PackageConfig {
-            input_path: root.as_ref().to_path_buf(),
+            input_path: root.clone(),
             chain_id,
             load_type: LoadType::Ephemeral {
                 build_env,
                 ephemeral_file,
             },
-            output_path: root.as_ref().to_path_buf(),
+            output_path: root.clone(),
             modes,
             force_repin: false,
             ignore_digests: false,
@@ -205,7 +205,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     /// TODO: We should load from lockfiles instead of manifests for deps.
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_force_repin(
-        path: impl AsRef<Path>,
+        path: VfsPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -226,7 +226,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_ignore_digests(
-        path: impl AsRef<Path>,
+        path: &VfsPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -342,7 +342,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// Return the path to the directory containing the root package
-    pub fn package_path(&self) -> &Path {
+    pub fn package_path(&self) -> &VfsPath {
         self.input_path.path()
     }
 

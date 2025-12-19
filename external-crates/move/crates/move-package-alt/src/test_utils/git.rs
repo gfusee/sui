@@ -42,7 +42,7 @@
 //! adding files to a blank repository and committing them.
 
 use tempfile::TempDir;
-
+use vfs::{VfsPath, VfsResult};
 use crate::git::run_git_cmd_with_args;
 use crate::test_utils::*;
 
@@ -241,8 +241,8 @@ impl RepoProject {
             .unwrap();
     }
 
-    fn worktree_path(&self) -> PathBuf {
-        self.root.as_ref().join("worktree")
+    fn worktree_path(&self) -> VfsResult<VfsPath> {
+        self.root.join("worktree")?
     }
 }
 

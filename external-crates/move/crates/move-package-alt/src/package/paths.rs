@@ -8,11 +8,12 @@ use std::{
     fmt::Debug,
     path::{Path, PathBuf},
 };
-
+use std::cmp::Ordering;
 use path_clean::PathClean;
 use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::debug;
+use vfs::{VfsError, VfsPath, VfsResult};
 
 /// Lock file version written by this version of the compiler.  Backwards compatibility is
 /// guaranteed (the compiler can read lock files with older versions), forward compatibility is not
@@ -50,8 +51,8 @@ pub struct PackagePath(OutputPath);
 
 /// A path to a directory in which output can be generated. The directory must exist, but no files
 /// are necessarily present
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
-pub struct OutputPath(PathBuf);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutputPath(VfsPath);
 
 /// A path to an ephemeral publication file that may be read or updated
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -60,13 +61,16 @@ pub struct EphemeralPubfilePath(PathBuf);
 #[derive(Error, Debug)]
 pub enum PackagePathError {
     #[error("Invalid directory at `{path}`")]
-    InvalidDirectory { path: PathBuf },
+    InvalidDirectory { path: String },
 
     #[error("Package does not have a Move.toml file at `{path}`")]
-    InvalidPackage { path: PathBuf },
+    InvalidPackage { path: String },
 
     #[error("Path `{path}` does not refer to a file")]
-    InvalidFile { path: PathBuf },
+    InvalidFile { path: String },
+
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
 }
 
 #[derive(Error, Debug)]
@@ -84,16 +88,19 @@ pub enum FileError {
     },
 
     #[error("Path `{path}` does not refer to a file")]
-    InvalidFile { path: PathBuf },
+    InvalidFile { path: String },
 
     #[error("error while loading legacy manifest {file:?}: {source}")]
     LegacyError {
-        file: PathBuf,
+        file: String,
         source: anyhow::Error,
     },
 
     #[error(transparent)]
     LockError(#[from] LockError),
+
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
 
     #[error(
         "File {file:?} has version {version}, but this CLI only supports versions up to {max}; please upgrade your CLI"
@@ -110,7 +117,7 @@ pub type FileResult<T> = Result<T, FileError>;
 
 /// Attempt to extract the name from the manifest file contained inside of `dir`.
 /// Compatable with both modern and legacy files
-pub fn read_name_from_manifest(dir: impl AsRef<Path>) -> FileResult<String> {
+pub fn read_name_from_manifest(dir: &VfsPath) -> FileResult<String> {
     #[derive(Deserialize)]
     struct Header {
         name: String,
@@ -121,24 +128,24 @@ pub fn read_name_from_manifest(dir: impl AsRef<Path>) -> FileResult<String> {
         package: Header,
     }
 
-    let path = dir.as_ref().join("Move.toml");
-    let f: File = parse_file(&path)?.ok_or(FileError::InvalidFile { path })?.1;
+    let path = dir.join("Move.toml")?;
+    let f: File = parse_file(&path)?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })?.1;
     Ok(f.package.name)
 }
 
 impl PackagePath {
-    pub fn new(dir: PathBuf) -> PackagePathResult<Self> {
-        let path = dir.clean();
-
-        if !dir.is_dir() {
-            return Err(PackagePathError::InvalidDirectory { path: dir.clone() });
+    pub fn new(dir: VfsPath) -> PackagePathResult<Self> {
+        if !dir.is_dir()? {
+            return Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() });
         }
 
-        let result = Self(OutputPath(path));
+        let result = Self(OutputPath(dir));
 
-        if !result.manifest_path().exists() {
+        let manifest_path = result.manifest_path()?;
+
+        if !manifest_path.exists()? {
             return Err(PackagePathError::InvalidPackage {
-                path: result.manifest_path(),
+                path: manifest_path.as_str().to_string(),
             });
         }
 
@@ -156,8 +163,8 @@ impl PackagePath {
         &self,
         _mtx: &PackageSystemLock,
     ) -> FileResult<(FileHandle, ParsedManifest)> {
-        let path = self.manifest_path();
-        parse_file(&path)?.ok_or(FileError::InvalidFile { path })
+        let path = self.manifest_path()?;
+        parse_file(&path)?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })
     }
 
     /// Parse and return the lockfile if it exists, returning None if the file doesn't exist or if
@@ -226,11 +233,11 @@ impl PackagePath {
     }
 
     /// The path to the directory containing the package
-    pub fn path(&self) -> &Path {
+    pub fn path(&self) -> &VfsPath {
         self.0.path()
     }
 
-    fn manifest_path(&self) -> PathBuf {
+    fn manifest_path(&self) -> VfsResult<VfsPath> {
         self.0.manifest_path()
     }
 
@@ -243,13 +250,25 @@ impl PackagePath {
     }
 }
 
+impl PartialOrd for OutputPath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.as_str().partial_cmp(other.0.as_str())
+    }
+}
+
+impl Ord for OutputPath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.as_str().cmp(other.0.as_str())
+    }
+}
+
 impl OutputPath {
     /// Create a canonical path from the given [`dir`]. This function checks that there is a
     /// directory at `dir` and that it contains a valid Move package, i.e., it has a `Move.toml`
     /// file.
-    pub fn new(dir: PathBuf) -> PackagePathResult<Self> {
-        if !dir.is_dir() {
-            Err(PackagePathError::InvalidDirectory { path: dir.clone() })
+    pub fn new(dir: VfsPath) -> PackagePathResult<Self> {
+        if !dir.is_dir()? {
+            Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() })
         } else {
             Ok(Self(dir))
         }
@@ -260,7 +279,7 @@ impl OutputPath {
         Ok(PackageSystemLock::new_for_project(self.path())?)
     }
 
-    fn path(&self) -> &Path {
+    fn path(&self) -> &VfsPath {
         &self.0
     }
 
@@ -305,15 +324,15 @@ impl OutputPath {
             .1
     }
 
-    fn manifest_path(&self) -> PathBuf {
+    fn manifest_path(&self) -> VfsResult<VfsPath> {
         self.path().join("Move.toml")
     }
 
-    fn lockfile_path(&self) -> PathBuf {
+    fn lockfile_path(&self) -> VfsResult<VfsPath> {
         self.path().join("Move.lock")
     }
 
-    fn pubfile_path(&self) -> PathBuf {
+    fn pubfile_path(&self) -> VfsResult<VfsPath> {
         self.path().join("Published.toml")
     }
 }
@@ -356,7 +375,7 @@ impl EphemeralPubfilePath {
     }
 }
 
-fn parse_file<T: DeserializeOwned>(path: &Path) -> FileResult<Option<(FileHandle, T)>> {
+fn parse_file<T: DeserializeOwned>(path: &VfsPath) -> FileResult<Option<(FileHandle, T)>> {
     if !path.exists() {
         Ok(None)
     } else if !path.is_file() {

@@ -22,6 +22,7 @@ use crate::{
 use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
+use vfs::VfsPath;
 
 static CONFIG: OnceCell<String> = OnceCell::new();
 
@@ -38,7 +39,7 @@ pub(crate) fn get_cache_path() -> &'static str {
 /// A cache that manages a collection of downloaded git trees
 #[derive(Debug)]
 pub struct GitCache {
-    root_dir: PathBuf,
+    root_dir: VfsPath,
 }
 
 /// A subdirectory within a particular commit of a git repository. The files may or may not have
@@ -53,16 +54,10 @@ pub struct GitTree {
 
     /// relative path inside the repository to use for sparse checkout. Guaranteed to not begin
     /// with `..`
-    path_in_repo: PathBuf,
+    path_in_repo: VfsPath,
 
     /// Absolute path to the root of the repository
-    path_to_repo: PathBuf,
-}
-
-impl Default for GitCache {
-    fn default() -> Self {
-        Self::new()
-    }
+    path_to_repo: VfsPath,
 }
 
 impl GitCache {
@@ -72,16 +67,20 @@ impl GitCache {
         }
     }
     /// Create or load the cache at `root_dir`
-    pub fn new_from_dir(root_dir: impl AsRef<Path>) -> Self {
+    pub fn new_from_dir(root_dir: VfsPath) -> Self {
         Self {
-            root_dir: root_dir.as_ref().to_path_buf(),
+            root_dir
         }
     }
 
     /// Resolve the git committish `rev` (branch, tag, or sha) from a repository at the remote
     /// `repo` to a commit hash. This will make a remote call so network is required.
-    pub async fn find_sha(repo: &str, rev: &Option<String>) -> GitResult<GitSha> {
-        find_sha(repo, rev).await
+    pub async fn find_sha(
+        repo: &str,
+        rev: &Option<String>,
+        git_cache_path: &Option<VfsPath>
+    ) -> GitResult<GitSha> {
+        find_sha(repo, rev, git_cache_path).await
     }
 
     /// Helper function to find the sha and then construct a [GitTree]. If `rev` is `None`, the
@@ -90,10 +89,11 @@ impl GitCache {
         &self,
         repo: &str,
         rev: &Option<String>,
-        path_in_repo: Option<PathBuf>,
+        git_cache_path: &Option<VfsPath>,
+        path_in_repo: VfsPath,
     ) -> GitResult<GitTree> {
-        let sha = Self::find_sha(repo, rev).await?;
-        self.tree_for_sha(repo.to_string(), sha.clone(), path_in_repo.clone())
+        let sha = Self::find_sha(repo, rev, git_cache_path).await?;
+        self.tree_for_sha(repo.to_string(), sha.clone(), path_in_repo)
     }
 
     /// Construct a tree in `self` for the repository `repo` with the provided `sha` and
@@ -102,14 +102,13 @@ impl GitCache {
         &self,
         repo: String,
         sha: GitSha,
-        path_in_repo: Option<PathBuf>,
+        path_in_repo: VfsPath,
     ) -> GitResult<GitTree> {
         let filename = url_to_file_name(repo.as_str());
-        let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"));
-        let path_in_repo = path_in_repo.unwrap_or_default().clean();
+        let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"))?;
 
-        if path_in_repo.starts_with("..") {
-            return Err(GitError::BadPath { path: path_in_repo });
+        if path_in_repo.as_str().starts_with("..") {
+            return Err(GitError::BadPath { path: path_in_repo.as_str().to_string() });
         }
 
         Ok(GitTree {
@@ -124,20 +123,20 @@ impl GitCache {
 impl GitTree {
     /// The absolute path on the filesystem where this tree will be downloaded when `fetch` is
     /// called
-    pub fn path_to_tree(&self) -> PathBuf {
-        self.path_to_repo.join(&self.path_in_repo)
+    pub fn path_to_tree(&self) -> GitResult<VfsPath> {
+        Ok(self.path_to_repo.join(self.path_in_repo.as_str())?)
     }
 
     /// Ensure that the files are downloaded to `self.path_to_tree()`. Fails if there was already a
     /// dirty checkout there (call [Self::fetch_allow_dirty] if you don't want to
     /// fail). Returns `self.path_to_tree()`.
-    pub async fn fetch(&self) -> GitResult<PathBuf> {
+    pub async fn fetch(&self) -> GitResult<VfsPath> {
         self.checkout_repo(false).await
     }
 
     /// Ensure that there are files downloaded to `self.path_to_tree()`. Has no effect if
     /// `self.path_to_tree()` already exists. Returns `self.path_to_tree()`
-    pub async fn fetch_allow_dirty(&self) -> GitResult<PathBuf> {
+    pub async fn fetch_allow_dirty(&self) -> GitResult<VfsPath> {
         self.checkout_repo(true).await
     }
 
@@ -158,13 +157,14 @@ impl GitTree {
 
     /// A new tree in the same repository with `path_in_repo` set to
     /// `self.path_in_repo.join(relative_path)`.
-    pub fn relative_tree(&self, relative_path: impl AsRef<Path>) -> GitResult<Self> {
+    pub fn relative_tree(&self, relative_path: impl AsRef<str>) -> GitResult<Self> {
         let mut result = self.clone();
 
-        result.path_in_repo = self.path_in_repo.join(relative_path).clean();
-        if result.path_in_repo.to_string_lossy().starts_with("..") {
+        result.path_in_repo = self.path_in_repo.join(relative_path)?;
+        let path_in_repo_str = result.path_in_repo.as_str();
+        if path_in_repo_str.starts_with("..") {
             Err(GitError::BadPath {
-                path: result.path_in_repo,
+                path: path_in_repo_str.to_string(),
             })
         } else {
             Ok(result)
@@ -176,15 +176,15 @@ impl GitTree {
     /// given sha.
     ///
     /// Fails if `allow_dirty` is false and a dirty checkout of the directory already exists
-    async fn checkout_repo(&self, allow_dirty: bool) -> GitResult<PathBuf> {
+    async fn checkout_repo(&self, allow_dirty: bool) -> GitResult<VfsPath> {
         // Checking out at `<repo>_<sha>` is sequential to prevent corruptions.
         let _lock =
             PackageSystemLock::new_for_git(&self.repo_id()).map_err(GitError::LockingError)?;
 
-        let tree_path = self.path_to_tree();
+        let tree_path = self.path_to_tree()?;
 
         // create repo if necessary
-        if !self.path_to_repo.exists() {
+        if !self.path_to_repo.exists()? {
             // git clone --sparse --filter=blob:none --no-checkout <url> <path>
             user_info!("Downloading from {}", self.repo);
             run_git_cmd_with_args(
@@ -199,7 +199,7 @@ impl GitTree {
                     "--depth",
                     "1",
                     &self.repo,
-                    &self.path_to_repo.to_string_lossy(),
+                    &self.path_to_repo.as_str(),
                 ],
                 None,
             )
@@ -225,9 +225,9 @@ impl GitTree {
             .await?;
 
         // check for dirt
-        if !allow_dirty && self.is_dirty().await {
+        if !allow_dirty && self.is_dirty().await? {
             Err(GitError::dirty(
-                self.path_to_tree().to_string_lossy().as_ref(),
+                self.path_to_tree()?.as_str(),
             ))
         } else {
             Ok(tree_path)
@@ -240,19 +240,19 @@ impl GitTree {
     }
 
     /// Return true if the directory exists and is dirty
-    async fn is_dirty(&self) -> bool {
-        if !self.path_to_repo.join(".git").exists() {
-            return true;
+    async fn is_dirty(&self) -> GitResult<bool> {
+        if !self.path_to_repo.join(".git")?.exists()? {
+            return Ok(true);
         }
 
         // for passing the path to `git status`, path in repo should be `.` if it's empty
         // here's the error msg from git
         // fatal: empty string is not a valid pathspec. please use . instead if you meant to
         // match all paths
-        let path_in_repo = if self.path_in_repo.as_os_str().is_empty() {
+        let path_in_repo = if self.path_in_repo.as_str().is_empty() {
             "."
         } else {
-            &self.path_in_repo.to_string_lossy()
+            self.path_in_repo.as_str()
         };
 
         let Ok(output) = self
@@ -265,15 +265,15 @@ impl GitTree {
             .await
         else {
             // if there's an error, the git repo has probably been tampered with - it's dirty
-            return true;
+            return Ok(true);
         };
 
         if !output.is_empty() {
             debug!("Tree {self:?} is dirty");
-            return true;
+            return Ok(true);
         }
 
-        false
+        Ok(false)
     }
 
     /// Returns `<REPO_URL>_<SHA>` in a filename format.
@@ -300,7 +300,11 @@ fn url_to_file_name(url: &str) -> String {
 
 /// Resolve the git committish `rev` (branch, tag, or sha) from a repository at the remote
 /// `repo` to a 40-character commit SHA. This will make a remote call so network is required.
-async fn find_sha(repo: &str, rev: &Option<String>) -> GitResult<GitSha> {
+async fn find_sha(
+    repo: &str,
+    rev: &Option<String>,
+    git_cache_path: &Option<VfsPath>
+) -> GitResult<GitSha> {
     if let Some(r) = rev {
         if let Ok(sha) = GitSha::try_from(r.to_string()) {
             return Ok(sha);
@@ -308,7 +312,7 @@ async fn find_sha(repo: &str, rev: &Option<String>) -> GitResult<GitSha> {
 
         // if the sha is a short sha, then the repo will be cloned to a temp directory and full
         // history will be downloaded to retrieve the full sha
-        if let Ok(Some(full_sha)) = try_find_full_sha(repo, r).await {
+        if let Ok(Some(full_sha)) = try_find_full_sha(repo, r, git_cache_path).await {
             return Ok(full_sha);
         }
 
@@ -344,7 +348,8 @@ async fn find_default_branch_and_get_sha(repo_url: &str) -> GitResult<GitSha> {
 /// Runs `git <args>` in `cwd`. Fails if there is an io failure or if `git` returns a non-zero
 /// exit status; returns the standard output and logs standard error to `info!`
 // TODO: this should be &Path?
-pub async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&PathBuf>) -> GitResult<String> {
+// TODO: only works with PhysicalFS
+pub async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&VfsPath>) -> GitResult<String> {
     // Run the git command
 
     let mut cmd = Command::new("git");
@@ -355,7 +360,7 @@ pub async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&PathBuf>) -> GitR
     cmd.env("GIT_CONFIG_GLOBAL", "");
 
     if let Some(cwd) = cwd {
-        cmd.current_dir(cwd);
+        cmd.current_dir(cwd.as_str());
     }
 
     debug!("running `{}`", display_cmd(&cmd));
@@ -433,22 +438,29 @@ async fn find_branch_or_tag_sha(repo: &str, rev: &str) -> GitResult<GitSha> {
 }
 
 /// If the given rev is a short sha, clone the repository to a temp dir and return the full sha.
-async fn try_find_full_sha(repo: &str, rev: &str) -> GitResult<Option<GitSha>> {
+async fn try_find_full_sha(
+    repo: &str,
+    rev: &str,
+    git_cache_path: &Option<VfsPath>
+) -> GitResult<Option<GitSha>> {
     debug!("try_find_full_sha for `{rev}` in `{repo}`");
     if rev.chars().any(|c| !c.is_ascii_hexdigit()) {
         // not a sha!
         return Ok(None);
     }
 
-    let git_cache_path = PathBuf::from(get_cache_path());
-    let lookup_path = git_cache_path.join("lookups");
+    let Some(git_cache_path) = git_cache_path else {
+        return Err(GitError::no_sha(repo, rev));
+    };
 
-    std::fs::create_dir_all(&lookup_path).map_err(GitError::TempDirectory)?;
+    let lookup_path = git_cache_path.join("lookups")?;
 
-    let path_to_clone = lookup_path.join(url_to_file_name(repo));
-    let path_to_clone_str = path_to_clone.to_string_lossy();
+    lookup_path.create_dir_all().map_err(GitError::TempDirectory)?;
 
-    if path_to_clone.exists() {
+    let path_to_clone = lookup_path.join(url_to_file_name(repo))?;
+    let path_to_clone_str = path_to_clone.as_str().to_string();
+
+    if path_to_clone.exists()? {
         debug!("Repository is already in the cache for lookups, fetching the list of new history.");
         // We are fetching the "latest" history for that repository.
         run_git_cmd_with_args(&["fetch", "--filter=blob:none"], Some(&path_to_clone)).await?;

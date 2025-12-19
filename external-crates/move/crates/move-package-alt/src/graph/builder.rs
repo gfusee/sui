@@ -16,16 +16,15 @@ use crate::{
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
-    path::PathBuf,
     sync::{Arc, Mutex},
 };
-
+use std::cmp::Ordering;
 use bimap::BiBTreeMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
-
+use vfs::VfsPath;
 use super::PackageGraph;
 
 #[derive(Error, Debug)]
@@ -54,11 +53,27 @@ struct PackageCache<F: MoveFlavor> {
     // infra
     // TODO: would dashmap simplify this?
     #[allow(clippy::type_complexity)]
-    cache: Mutex<BTreeMap<PathBuf, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
+    cache: Mutex<BTreeMap<OrdVfsPath, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
 }
 
 pub struct PackageGraphBuilder<F: MoveFlavor> {
     cache: PackageCache<F>,
+}
+
+/// A wrapper around VfsPath with PartialOrd and Ord
+#[derive(PartialEq, Eq)]
+struct OrdVfsPath(VfsPath);
+
+impl PartialOrd for OrdVfsPath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.as_str().partial_cmp(other.0.as_str())
+    }
+}
+
+impl Ord for OrdVfsPath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.as_str().cmp(other.0.as_str())
+    }
 }
 
 impl<F: MoveFlavor> PackageGraphBuilder<F> {
@@ -298,8 +313,9 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
             dep: package
                 .dep_for_self()
                 .unfetched_path()
-                .to_string_lossy()
-                .to_string(),
+                .ok()
+                .map(|e| e.as_str().to_string())
+                .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string()),
             err: Box::new(err),
         })?;
 
@@ -352,11 +368,14 @@ impl<F: MoveFlavor> PackageCache<F> {
         env: &Environment,
         mtx: &PackageSystemLock,
     ) -> PackageResult<Arc<Package<F>>> {
+        let unfetched_path = dep.unfetched_path()?;
+        let ord_unfetched_path = OrdVfsPath(unfetched_path);
+
         let cell = self
             .cache
             .lock()
             .expect("unpoisoned")
-            .entry(dep.unfetched_path())
+            .entry(ord_unfetched_path)
             .or_default()
             .clone();
 
@@ -375,7 +394,7 @@ impl<F: MoveFlavor> PackageCache<F> {
                 Ok(node)
             }
             Err(e) => Err(PackageError::DepError {
-                dep: dep.unfetched_path().display().to_string(),
+                dep: dep.unfetched_path()?.as_str().to_string(),
                 err: Box::new(e),
             }),
         }

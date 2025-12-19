@@ -19,7 +19,7 @@ pub use files::Files;
 
 use move_core_types::identifier::Identifier;
 use thiserror::Error;
-
+use vfs::VfsError;
 use crate::dependency::FetchError;
 use crate::dependency::ResolverError;
 use crate::git::GitError;
@@ -64,6 +64,9 @@ pub enum PackageError {
 
     #[error(transparent)]
     FetchError(#[from] FetchError),
+
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
 
     #[error("Invalid system dependency `{dep}`; the allowed system dependencies are: {valid}")]
     InvalidSystemDep { dep: String, valid: String },

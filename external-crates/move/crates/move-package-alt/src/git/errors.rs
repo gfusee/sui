@@ -2,12 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, process::ExitStatus};
-
-use thiserror::Error;
-use tokio::process::Command;
+use std::process::ExitStatus;
 
 use crate::package::package_lock::LockError;
+use thiserror::Error;
+use tokio::process::Command;
+use vfs::{VfsError, VfsPath};
 
 pub type GitResult<T> = std::result::Result<T, GitError>;
 
@@ -21,6 +21,9 @@ pub enum GitError {
     #[error("could not extract a sha for repo {repo} and rev {rev}")]
     NoSha { repo: String, rev: String },
 
+    #[error("given a short sha for repo {repo} and rev {rev}, but no git cache path")]
+    NoCachePath { repo: String, rev: String },
+
     #[error("error while executing git command `{cmd}`{cwd_note}:\n{kind:?}")]
     CommandError {
         cmd: String,
@@ -33,10 +36,13 @@ pub enum GitError {
     TempDirectory(std::io::Error),
 
     #[error("relative path `{path}` is not contained in the repository")]
-    BadPath { path: PathBuf },
+    BadPath { path: String },
 
     #[error(transparent)]
     LockingError(#[from] LockError),
+
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
 }
 
 #[derive(Error, Debug)]
@@ -58,19 +64,19 @@ impl GitError {
         }
     }
 
-    pub fn io_error(cmd: &Command, cwd: &Option<&PathBuf>, error: std::io::Error) -> Self {
+    pub fn io_error(cmd: &Command, cwd: &Option<&VfsPath>, error: std::io::Error) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::IoError(error))
     }
 
-    pub fn nonzero_exit_status(cmd: &Command, cwd: &Option<&PathBuf>, code: ExitStatus) -> Self {
+    pub fn nonzero_exit_status(cmd: &Command, cwd: &Option<&VfsPath>, code: ExitStatus) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::ErrorCode(code))
     }
 
-    pub fn non_utf_output(cmd: &Command, cwd: &Option<&PathBuf>) -> Self {
+    pub fn non_utf_output(cmd: &Command, cwd: &Option<&VfsPath>) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::NonUtf8)
     }
 
-    fn command_error(cmd: &Command, cwd: &Option<&PathBuf>, kind: CommandErrorKind) -> Self {
+    fn command_error(cmd: &Command, cwd: &Option<&VfsPath>, kind: CommandErrorKind) -> Self {
         Self::CommandError {
             cmd: format!("{cmd:?}"),
             cwd_note: match cwd {
@@ -84,6 +90,15 @@ impl GitError {
     /// Construct an error for the case when we can't find a sha for revision `rev` in `repo`
     pub fn no_sha(repo_url: &str, rev: &str) -> Self {
         Self::NoSha {
+            repo: repo_url.to_string(),
+            rev: rev.to_string(),
+        }
+    }
+
+    /// Construct an error for the case when no git cache path was provided
+    /// for revision `rev` in `repo`, where `rev` is a short sha
+    pub fn no_cache_path(repo_url: &str, rev: &str) -> Self {
+        Self::NoCachePath {
             repo: repo_url.to_string(),
             rev: rev.to_string(),
         }

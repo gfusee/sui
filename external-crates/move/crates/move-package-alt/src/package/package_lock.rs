@@ -4,7 +4,7 @@ use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::{debug, error};
-
+use vfs::VfsPath;
 use crate::git::get_cache_path;
 use crate::logging::user_error;
 
@@ -14,8 +14,8 @@ pub enum LockError {
         "Unexpected error acquiring lock for package at {package} (lock file: `{lock}`): {source}"
     )]
     PackageLockError {
-        package: PathBuf,
-        lock: PathBuf,
+        package: String,
+        lock: String,
         source: std::io::Error,
     },
 
@@ -47,11 +47,11 @@ impl PackageSystemLock {
 
     /// Acquire a lock corresponding to the package contained in the directory `path`
     /// We do sequential operations per package (we acquire lock per package path).
-    pub fn new_for_project(path: &Path) -> LockResult<Self> {
+    pub fn new_for_project(path: &VfsPath) -> LockResult<Self> {
         let project_lock_path = cache_path_for(digest_path(path).as_str())
             .expect("failed to get git cache folder lock");
         Self::new_for_path(&project_lock_path, true).map_err(|source| LockError::PackageLockError {
-            package: path.to_path_buf(),
+            package: path.as_str().to_string(),
             lock: project_lock_path,
             source,
         })
@@ -100,10 +100,9 @@ fn cache_path_for(name: &str) -> LockResult<PathBuf> {
     Ok(project_lock_path)
 }
 
-fn digest_path(path: &Path) -> String {
+fn digest_path(path: &VfsPath) -> String {
     let mut hasher = Sha256::new();
-    // Convert the path to a string safely
-    hasher.update(path.to_string_lossy().as_bytes());
+    hasher.update(path.as_str().as_bytes());
     let result = hasher.finalize();
     // Return hex representation
     format!("{:x}", result)

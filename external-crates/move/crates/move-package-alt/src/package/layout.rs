@@ -32,8 +32,8 @@ impl SourcePackageLayout {
     /// ├── specifications (optional)
     /// ├── doc_templates      (optional)
     /// └── tests          (optional, test mode)
-    pub fn path(&self) -> &Path {
-        Path::new(self.location_str())
+    pub fn path(&self) -> &str {
+        self.location_str()
     }
 
     pub fn try_find_root(starting_path: &Path) -> Result<PathBuf> {
@@ -46,7 +46,7 @@ impl SourcePackageLayout {
                 bail!(
                     "Unable to find package manifest at '{}/{}' or in its parents",
                     starting_path.to_string_lossy(),
-                    Self::Manifest.path().to_string_lossy()
+                    Self::Manifest.path().to_string()
                 )
             }
         }

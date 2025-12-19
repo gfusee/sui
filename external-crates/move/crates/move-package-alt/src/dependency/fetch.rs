@@ -44,10 +44,9 @@ impl FetchedDependency {
             Pinned::Git(dep) => dep
                 .inner
                 .fetch()
-                .await
-                .map_err(FetchError::from_git(pinned))?,
+                .await,
             _ => pinned.unfetched_path(),
-        };
+        }.map_err(FetchError::from_git(pinned))?;
 
         PackagePath::new(path).map_err(FetchError::from_package(pinned))
     }

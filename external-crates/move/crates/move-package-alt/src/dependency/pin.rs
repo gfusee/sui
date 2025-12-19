@@ -6,7 +6,7 @@ use std::{fmt, path::PathBuf};
 
 use path_clean::PathClean;
 use tracing::debug;
-
+use vfs::VfsPath;
 use crate::{
     dependency::{ResolvedDependency, combine::Combined, resolve::Resolved},
     errors::{FileHandle, PackageError, PackageResult, fmt_truncated},
@@ -18,7 +18,7 @@ use crate::{
         ManifestGitDependency, ModeName, OnChainDepInfo, PackageName, RootDepInfo,
     },
 };
-
+use crate::git::GitResult;
 use super::{CombinedDependency, Dependency};
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,
@@ -45,11 +45,11 @@ pub struct PinnedGitDependency {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinnedLocalDependency {
     /// The path to the package directory on the filesystem
-    absolute_path_to_package: PathBuf,
+    absolute_path_to_package: VfsPath,
 
     /// The path from the root package to this package, used for serializing the local dependency
     /// back to the root package's lockfile.
-    relative_path_from_root_package: PathBuf,
+    relative_path_from_root_package: VfsPath,
 }
 
 #[derive(Debug, Clone)]
@@ -174,12 +174,12 @@ impl Pinned {
 
     /// Return the absolute path to the directory that this package would be fetched into, without
     /// actually fetching it
-    pub fn unfetched_path(&self) -> PathBuf {
+    pub fn unfetched_path(&self) -> GitResult<VfsPath> {
         match &self {
             Pinned::Git(dep) => dep.inner.path_to_tree(),
-            Pinned::Local(dep) => dep.absolute_path_to_package.clone(),
+            Pinned::Local(dep) => Ok(dep.absolute_path_to_package.clone()),
             Pinned::OnChain(_dep) => todo!(),
-            Pinned::Root(path) => path.path().to_path_buf(),
+            Pinned::Root(path) => Ok(path.path().clone()),
         }
     }
 
@@ -244,7 +244,7 @@ impl ManifestGitDependency {
     async fn pin(&self) -> PackageResult<Pinned> {
         let cache = GitCache::new();
         let ManifestGitDependency { repo, rev, subdir } = self.clone();
-        let tree = cache.resolve_to_tree(&repo, &rev, Some(subdir)).await?;
+        let tree = cache.resolve_to_tree(&repo, &rev, subdir).await?;
         Ok(Pinned::Git(PinnedGitDependency { inner: tree }))
     }
 }

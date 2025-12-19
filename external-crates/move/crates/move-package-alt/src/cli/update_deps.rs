@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-
+use vfs::{PhysicalFS, VfsPath};
 use crate::{
     flavor::Vanilla,
     package::RootPackage,
@@ -37,8 +37,10 @@ pub struct UpdateDeps {
 impl UpdateDeps {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let path = self.path.clone().unwrap_or(PathBuf::from("."));
+        let fs = PhysicalFS::new(path);
+        let vfs_path = VfsPath::new(fs);
 
-        let envs = RootPackage::<Vanilla>::environments(&path)?;
+        let envs = RootPackage::<Vanilla>::environments(&vfs_path)?;
 
         let Some(chain_id) = envs.get(&self.environment) else {
             bail!("Environment {} not found", self.environment);
@@ -47,7 +49,7 @@ impl UpdateDeps {
         let environment = Environment::new(self.environment.clone(), chain_id.clone());
 
         let mut root_package =
-            RootPackage::<Vanilla>::load_force_repin(&path, environment, self.modes.clone())
+            RootPackage::<Vanilla>::load_force_repin(vfs_path, environment, self.modes.clone())
                 .await?;
         root_package.save_lockfile_to_disk()?;
 
