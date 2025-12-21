@@ -45,6 +45,7 @@ heck.workspace = true
 walkdir.workspace = true
 whoami.workspace = true
 fs4.workspace = true
+uuid.workspace = true
 vfs.workspace = true
 
 [dev-dependencies]

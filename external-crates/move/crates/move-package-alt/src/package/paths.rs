@@ -9,7 +9,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use std::cmp::Ordering;
-use path_clean::PathClean;
 use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::debug;

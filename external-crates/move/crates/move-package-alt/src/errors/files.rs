@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display}
     , io,
-    path::PathBuf,
 };
 
 use append_only_vec::AppendOnlyVec;

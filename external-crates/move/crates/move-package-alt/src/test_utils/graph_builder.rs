@@ -47,7 +47,6 @@ use petgraph::{
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
 };
-use tempfile::TempDir;
 use tracing::debug;
 use vfs::{VfsPath, VfsResult};
 use crate::{
@@ -65,7 +64,8 @@ use crate::{
 };
 
 use crate::graph::PackageGraph;
-
+use crate::vfs::tempdir::TempDir;
+use crate::vfs::wrappers::OrdVfsPath;
 use super::git::RepoProject;
 
 pub struct TestPackageGraph {
@@ -106,7 +106,7 @@ pub struct PackageSpec {
     git_deps: Vec<GitSpec>,
 
     /// Additional files
-    files: BTreeMap<PathBuf, String>,
+    files: BTreeMap<OrdVfsPath, String>,
 
     /// Are implicit deps included?
     implicit_deps: bool,
@@ -266,8 +266,8 @@ impl TestPackageGraph {
         self
     }
 
-    pub fn at(mut self, path: &VfsPath) -> Self {
-        self.root = Some(path.as_ref().to_path_buf());
+    pub fn at(mut self, path: VfsPath) -> Self {
+        self.root = Some(path);
         self
     }
 
@@ -278,39 +278,40 @@ impl TestPackageGraph {
     /// All dependencies are local
     pub fn build(self) -> Scenario {
         let (tempdir, root_path) = match &self.root {
-            Some(file) => (None, file.to_path_buf()),
+            Some(file) => (None, file),
             None => {
                 let tmp = TempDir::new().unwrap();
-                let path = tmp.path().to_path_buf();
+                let path = tmp.path();
                 (Some(tmp), path)
             }
         };
 
         for (package_id, node) in self.nodes.iter() {
-            let dir = root_path.join(package_id.as_str());
-            std::fs::create_dir_all(&dir).unwrap();
+            let dir = root_path.join(package_id.as_str()).unwrap();
+            dir.create_dir_all().unwrap();
 
             let manifest = &self.format_manifest(*node);
             debug!(
                 "Generated test manifest for {package_id} ({:?}):\n\n{manifest}",
                 dir.join("Move.toml")
             );
-            std::fs::write(dir.join("Move.toml"), manifest).unwrap();
+            write!(dir.join("Move.toml").unwrap().create_file().unwrap(), "{}", manifest).unwrap();
 
             let pubfile = &self.format_pubfile(*node);
             if !pubfile.is_empty() {
                 debug!("Generated test pubfile for {package_id}:\n\n{pubfile}");
-                std::fs::write(dir.join("Published.toml"), pubfile).unwrap();
+                write!(dir.join("Published.toml").unwrap().create_file().unwrap(), "{}", pubfile).unwrap();
             }
 
             // add extra files
             for (path, contents) in self.inner[*node].files.iter() {
-                std::fs::create_dir_all(dir.join(path).parent().unwrap()).unwrap();
-                std::fs::write(dir.join(path), contents).unwrap();
+                let dir_path = dir.join(path.as_path().as_str()).unwrap();
+                dir_path.parent().create_dir_all().unwrap();
+                write!(dir_path.create_file().unwrap(), "{}", contents).unwrap();
             }
         }
 
-        Scenario { tempdir, root_path }
+        Scenario { tempdir, root_path: root_path.clone() }
     }
 
     /// Return the contents of a `Move.toml` file for the package represented by `node`
@@ -627,9 +628,9 @@ impl PackageSpec {
         self
     }
 
-    pub fn add_file(mut self, path: impl AsRef<Path>, contents: impl AsRef<str>) -> Self {
+    pub fn add_file(mut self, path: VfsPath, contents: impl AsRef<str>) -> Self {
         self.files
-            .insert(path.as_ref().to_path_buf(), contents.as_ref().to_string());
+            .insert(OrdVfsPath::new(path), contents.as_ref().to_string());
         self
     }
 

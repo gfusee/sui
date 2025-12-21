@@ -2,16 +2,16 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use super::{legacy::LegacyEnvironment, parse_address_literal};
 use crate::{
     logging::user_warning,
     package::EnvironmentName,
     schema::{MoveHeader, OriginalID, ParsedLockfile, PublishAddresses, PublishedID, RenderToml},
 };
-use anyhow::{Result, anyhow};
-use std::{collections::BTreeMap, path::Path};
+use anyhow::{anyhow, Result};
+use std::collections::BTreeMap;
 use toml::Value as TV;
-
-use super::{legacy::LegacyEnvironment, parse_address_literal};
+use vfs::VfsPath;
 
 /// Parse the legacy lockfile in `path` (i.e. version 3 or less) and return the extracted
 /// information.
@@ -21,9 +21,9 @@ use super::{legacy::LegacyEnvironment, parse_address_literal};
 /// If the file exists and is a weird mishmash of a legacy and modern lockfile, we replace it with
 ///    a modern lockfile (after emitting a loud warning); in this case we also return `Ok(None)`
 pub fn load_legacy_lockfile(
-    lockfile_path: &Path,
+    lockfile_path: &VfsPath,
 ) -> anyhow::Result<Option<BTreeMap<EnvironmentName, LegacyEnvironment>>> {
-    let Ok(file_contents) = std::fs::read_to_string(lockfile_path) else {
+    let Ok(file_contents) = lockfile_path.read_to_string() else {
         return Ok(None);
     };
 
@@ -64,7 +64,7 @@ pub fn load_legacy_lockfile(
         };
 
         // TODO: this really should be handled by the output path, but that requires effort
-        std::fs::write(lockfile_path, lockfile.render_as_toml())?;
+        write!(lockfile_path.create_file()?, "{}", lockfile.render_as_toml())?;
 
         return Ok(None);
     };

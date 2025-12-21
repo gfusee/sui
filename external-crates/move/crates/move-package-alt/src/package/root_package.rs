@@ -2,7 +2,6 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
 use std::{collections::BTreeMap, fmt, path::Path};
 
 use indexmap::IndexMap;
@@ -226,7 +225,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_ignore_digests(
-        path: &VfsPath,
+        path: VfsPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {

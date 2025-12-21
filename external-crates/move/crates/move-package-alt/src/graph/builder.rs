@@ -18,13 +18,12 @@ use std::{
     collections::{BTreeMap, btree_map::Entry},
     sync::{Arc, Mutex},
 };
-use std::cmp::Ordering;
 use bimap::BiBTreeMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
-use vfs::VfsPath;
+use crate::vfs::wrappers::OrdVfsPath;
 use super::PackageGraph;
 
 #[derive(Error, Debug)]
@@ -58,22 +57,6 @@ struct PackageCache<F: MoveFlavor> {
 
 pub struct PackageGraphBuilder<F: MoveFlavor> {
     cache: PackageCache<F>,
-}
-
-/// A wrapper around VfsPath with PartialOrd and Ord
-#[derive(PartialEq, Eq)]
-struct OrdVfsPath(VfsPath);
-
-impl PartialOrd for OrdVfsPath {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.as_str().partial_cmp(other.0.as_str())
-    }
-}
-
-impl Ord for OrdVfsPath {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.as_str().cmp(other.0.as_str())
-    }
 }
 
 impl<F: MoveFlavor> PackageGraphBuilder<F> {
@@ -369,7 +352,7 @@ impl<F: MoveFlavor> PackageCache<F> {
         mtx: &PackageSystemLock,
     ) -> PackageResult<Arc<Package<F>>> {
         let unfetched_path = dep.unfetched_path()?;
-        let ord_unfetched_path = OrdVfsPath(unfetched_path);
+        let ord_unfetched_path = OrdVfsPath::new(unfetched_path);
 
         let cell = self
             .cache

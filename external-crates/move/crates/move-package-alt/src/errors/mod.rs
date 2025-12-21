@@ -31,6 +31,7 @@ use crate::package::EnvironmentName;
 use crate::package::manifest::ManifestError;
 use crate::package::paths::FileError;
 use crate::package::paths::PackagePathError;
+use crate::vfs::errors::TempDirError;
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
@@ -67,6 +68,12 @@ pub enum PackageError {
 
     #[error(transparent)]
     VfsError(#[from] VfsError),
+
+    #[error(transparent)]
+    TempDirError(#[from] TempDirError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 
     #[error("Invalid system dependency `{dep}`; the allowed system dependencies are: {valid}")]
     InvalidSystemDep { dep: String, valid: String },

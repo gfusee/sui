@@ -8380,6 +8380,7 @@ dependencies = [
  "toml_edit 0.22.24",
  "tracing",
  "tracing-subscriber",
+ "uuid 1.2.2",
  "vfs",
  "walkdir",
  "whoami",
@@ -15680,6 +15681,7 @@ dependencies = [
  "tokio",
  "toml 0.7.4",
  "tracing",
+ "vfs",
  "walkdir",
 ]
 

@@ -4,12 +4,11 @@
 
 use std::{
     io::BufRead,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Stdio,
 };
 
 use indoc::formatdoc;
-use path_clean::PathClean;
 use tokio::process::Command;
 use tracing::debug;
 
@@ -22,7 +21,7 @@ use crate::{
 use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
-use vfs::VfsPath;
+use vfs::{VfsPath, VfsResult};
 
 static CONFIG: OnceCell<String> = OnceCell::new();
 
@@ -31,6 +30,8 @@ pub(crate) fn get_cache_path() -> &'static str {
     CONFIG.get_or_init(|| {
         PathBuf::from(move_command_line_common::env::MOVE_HOME.clone())
             .join("git")
+            .canonicalize()
+            .expect("cache_path should canonicalize")
             .to_string_lossy()
             .to_string()
     })
@@ -54,17 +55,19 @@ pub struct GitTree {
 
     /// relative path inside the repository to use for sparse checkout. Guaranteed to not begin
     /// with `..`
-    path_in_repo: VfsPath,
+    path_in_repo: String,
 
     /// Absolute path to the root of the repository
     path_to_repo: VfsPath,
 }
 
 impl GitCache {
-    pub fn new() -> Self {
-        Self {
-            root_dir: get_cache_path().into(),
-        }
+    pub fn new(base: VfsPath) -> VfsResult<Self> {
+        let root_dir = base.root().join(get_cache_path())?;
+
+        Ok(Self {
+            root_dir
+        })
     }
     /// Create or load the cache at `root_dir`
     pub fn new_from_dir(root_dir: VfsPath) -> Self {
@@ -90,7 +93,7 @@ impl GitCache {
         repo: &str,
         rev: &Option<String>,
         git_cache_path: &Option<VfsPath>,
-        path_in_repo: VfsPath,
+        path_in_repo: String,
     ) -> GitResult<GitTree> {
         let sha = Self::find_sha(repo, rev, git_cache_path).await?;
         self.tree_for_sha(repo.to_string(), sha.clone(), path_in_repo)
@@ -102,7 +105,7 @@ impl GitCache {
         &self,
         repo: String,
         sha: GitSha,
-        path_in_repo: VfsPath,
+        path_in_repo: String,
     ) -> GitResult<GitTree> {
         let filename = url_to_file_name(repo.as_str());
         let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"))?;
@@ -146,7 +149,7 @@ impl GitTree {
     }
 
     /// The relative path to the subtree within the repository
-    pub fn path_in_repo(&self) -> &Path {
+    pub fn path_in_repo(&self) -> &VfsPath {
         &self.path_in_repo
     }
 
@@ -206,7 +209,7 @@ impl GitTree {
             .await?;
         }
 
-        if self.path_in_repo().to_str() == Some("") || self.path_in_repo().to_str() == Some(".") {
+        if self.path_in_repo().as_str() == "" || self.path_in_repo().as_str() == "." {
             self.run_git(&["sparse-checkout", "disable"]).await?;
         }
 
@@ -215,7 +218,7 @@ impl GitTree {
             self.run_git(&[
                 "sparse-checkout",
                 "add",
-                &self.path_in_repo().to_string_lossy(),
+                self.path_in_repo().as_str(),
             ])
             .await?;
         }
@@ -455,7 +458,9 @@ async fn try_find_full_sha(
 
     let lookup_path = git_cache_path.join("lookups")?;
 
-    lookup_path.create_dir_all().map_err(GitError::TempDirectory)?;
+    lookup_path.create_dir_all().map_err(|error| GitError::TempDirectory(
+        std::io::Error::new(std::io::ErrorKind::Unsupported, error)
+    ))?;
 
     let path_to_clone = lookup_path.join(url_to_file_name(repo))?;
     let path_to_clone_str = path_to_clone.as_str().to_string();

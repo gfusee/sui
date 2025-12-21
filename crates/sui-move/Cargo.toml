@@ -43,6 +43,7 @@ sui-protocol-config.workspace = true
 sui-sdk.workspace = true
 sui-types.workspace = true
 sui-package-alt.workspace = true
+vfs.workspace = true
 better_any = "0.1.1"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

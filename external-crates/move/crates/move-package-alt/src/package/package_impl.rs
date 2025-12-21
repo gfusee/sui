@@ -9,9 +9,8 @@ use std::{
 
 use derive_where::derive_where;
 use sha2::{Digest as _, Sha256};
-use tempfile::tempdir;
 use tracing::debug;
-use vfs::{FileSystem, PhysicalFS, VfsPath};
+use vfs::VfsPath;
 use super::manifest::Manifest;
 use super::package_lock::PackageSystemLock;
 use super::paths::PackagePath;
@@ -32,6 +31,7 @@ use crate::{
     package::manifest::Digest,
     schema::{Environment, OriginalID, PackageMetadata, PackageName, PublishedID},
 };
+use crate::vfs::tempdir::TempDir;
 
 // TODO: is this the right way to handle this?
 static DUMMY_ADDRESSES: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0x1000));
@@ -307,14 +307,15 @@ impl<F: MoveFlavor> Package<F> {
 pub async fn cache_package<F: MoveFlavor>(
     env: &Environment,
     manifest_dep: &ManifestDependencyInfo,
+    base: VfsPath
 ) -> PackageResult<CachedPackageInfo> {
     // We need some file handles and things to give context to the dep loading system
-    let tempdir = tempdir().expect("can create a temporary directory");
-    let toml_path = tempdir.path().join("Move.toml");
-    std::fs::write(&toml_path, "").expect("can write to temporary file");
+    let tempdir = TempDir::new(base).expect("can create a temporary directory");
+    let toml_path = tempdir.path().join("Move.toml")?;
+    write!(toml_path.create_file()?, "").expect("can write to temporary file");
 
     let toml_handle = FileHandle::new(toml_path).expect("can load a newly created tempfile");
-    let dummy_path = PackagePath::new(tempdir.path().to_path_buf())
+    let dummy_path = PackagePath::new(tempdir.path().clone())
         .expect("temporary directory is a valid package");
 
     let mtx = dummy_path.lock().expect("can lock the temporary directory");

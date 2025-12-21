@@ -1,15 +1,17 @@
 use fs4::fs_std::FileExt;
 use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
-use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tracing::{debug, error};
-use vfs::VfsPath;
+use tracing::debug;
+use vfs::{VfsError, VfsPath};
 use crate::git::get_cache_path;
 use crate::logging::user_error;
 
 #[derive(Debug, Error)]
 pub enum LockError {
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
+
     #[error(
         "Unexpected error acquiring lock for package at {package} (lock file: `{lock}`): {source}"
     )]
@@ -22,8 +24,8 @@ pub enum LockError {
     #[error("Unexpected error acquiring lock for {name} cache (path: `{path}`): {source}")]
     CacheLockError {
         name: String,
-        path: PathBuf,
-        source: std::io::Error,
+        path: String,
+        source: VfsError,
     },
 }
 
@@ -48,7 +50,7 @@ impl PackageSystemLock {
     /// Acquire a lock corresponding to the package contained in the directory `path`
     /// We do sequential operations per package (we acquire lock per package path).
     pub fn new_for_project(path: &VfsPath) -> LockResult<Self> {
-        let project_lock_path = cache_path_for(digest_path(path).as_str())
+        let project_lock_path = cache_path_for(&path, digest_path(path).as_str())
             .expect("failed to get git cache folder lock");
         Self::new_for_path(&project_lock_path, true).map_err(|source| LockError::PackageLockError {
             package: path.as_str().to_string(),
@@ -61,7 +63,7 @@ impl PackageSystemLock {
         &mut self.file
     }
 
-    fn new_for_path(path: &Path, should_truncate: bool) -> std::io::Result<Self> {
+    fn new_for_path(path: &VfsPath, should_truncate: bool) -> std::io::Result<Self> {
         debug!("acquiring lock for {path:?}");
         let lock = OpenOptions::new()
             .truncate(should_truncate)
@@ -86,14 +88,17 @@ impl Drop for PackageSystemLock {
     }
 }
 
-fn cache_path_for(name: &str) -> LockResult<PathBuf> {
-    let cache_path = PathBuf::from(get_cache_path());
-    let project_lock_path = cache_path.join(format!(".{name}.lock"));
+fn cache_path_for(
+    base: &VfsPath,
+    name: &str
+) -> LockResult<VfsPath> {
+    let cache_path = base.root().join(get_cache_path())?;
+    let project_lock_path = cache_path.join(format!(".{name}.lock"))?;
 
     // create dir if not exists.
-    std::fs::create_dir_all(&cache_path).map_err(|source| LockError::CacheLockError {
+    cache_path.create_dir_all().map_err(|source| LockError::CacheLockError {
         name: name.to_string(),
-        path: project_lock_path.clone(),
+        path: project_lock_path.as_str().to_string(),
         source,
     })?;
 

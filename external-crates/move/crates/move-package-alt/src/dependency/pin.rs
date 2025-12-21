@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt, path::PathBuf};
+use std::fmt;
 
 use path_clean::PathClean;
 use tracing::debug;
@@ -76,7 +76,7 @@ impl PinnedDependencyInfo {
         for dep in deps.into_iter() {
             let transformed = match dep.0.dep_info {
                 Resolved::Local(ref loc) => loc.clone().pin(parent)?,
-                Resolved::Git(ref git) => git.pin().await?,
+                Resolved::Git(ref git) => git.pin(git_cache_path.clone()).await?,
                 Resolved::OnChain(_) => todo!(),
             };
 
@@ -202,11 +202,8 @@ impl Pinned {
                 absolute_path_to_package: containing_file
                     .path()
                     .parent()
-                    .expect("files have parents")
-                    .join(&loc.local)
-                    .to_path_buf()
-                    .clean(),
-                relative_path_from_root_package: loc.local.to_path_buf().clean(),
+                    .join(&loc.local)?,
+                relative_path_from_root_package: loc.local?,
             })),
             LockfileDependencyInfo::OnChain(chain) => Ok(Pinned::OnChain(chain.clone())),
             LockfileDependencyInfo::Git(git) => Ok(Pinned::Git(git.clone().try_into()?)),
@@ -214,8 +211,6 @@ impl Pinned {
                 containing_file
                     .as_ref()
                     .parent()
-                    .expect("files have parents")
-                    .to_path_buf(),
             )?)),
         }
     }
@@ -228,7 +223,7 @@ impl Pinned {
             }
             Pinned::Git(git) => {
                 let repo = fmt_truncated(git.inner.repo_url(), 8, 12);
-                let path = git.inner.path_in_repo().to_string_lossy();
+                let path = git.inner.path_in_repo().as_str();
                 let rev = fmt_truncated(git.inner.sha(), 6, 2);
                 format!(r#"git = "{repo}", path = "{path}", rev = "{rev}""#)
             }
@@ -241,10 +236,10 @@ impl Pinned {
 impl ManifestGitDependency {
     /// Replace the commit-ish [self.rev] with a commit (i.e. a SHA). Requires fetching the git
     /// repository
-    async fn pin(&self) -> PackageResult<Pinned> {
-        let cache = GitCache::new();
+    async fn pin(&self, git_cache_path: VfsPath) -> PackageResult<Pinned> {
+        let cache = GitCache::new(git_cache_path.clone())?;
         let ManifestGitDependency { repo, rev, subdir } = self.clone();
-        let tree = cache.resolve_to_tree(&repo, &rev, subdir).await?;
+        let tree = cache.resolve_to_tree(&repo, &rev, &Some(git_cache_path), subdir).await?;
         Ok(Pinned::Git(PinnedGitDependency { inner: tree }))
     }
 }

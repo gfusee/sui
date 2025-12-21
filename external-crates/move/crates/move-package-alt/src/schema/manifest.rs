@@ -1,11 +1,10 @@
-use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
 
-use serde::{Deserialize, Deserializer, Serialize, de};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_spanned::Spanned;
 
-use move_compiler::editions::Edition;
-use vfs::VfsPath;
 use crate::compatibility::legacy::LegacyData;
+use move_compiler::editions::Edition;
 
 use super::{
     EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, PublishAddresses, ResolverName,
@@ -137,7 +136,7 @@ pub struct ManifestGitDependency {
 
     /// The subdir within the repository
     #[serde(default)]
-    pub subdir: VfsPath,
+    pub subdir: String,
 }
 
 /// A `{system = "..."}` dependency in a manifest

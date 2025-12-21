@@ -3,8 +3,7 @@ pub mod legacy_lockfile;
 pub mod legacy_parser;
 
 use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use move_core_types::account_address::{AccountAddress, AccountAddressParseError};
@@ -17,7 +16,7 @@ use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
 use toml::value::Value as TV;
-use vfs::VfsPath;
+use vfs::{VfsFileType, VfsPath};
 
 pub type LegacyVersion = (u64, u64, u64);
 pub type LegacySubstitution = BTreeMap<String, LegacySubstOrRename>;
@@ -70,7 +69,7 @@ pub(crate) fn find_module_name_for_package(path: &PackagePath) -> Result<Option<
     let mut names = HashSet::new();
 
     for file in files {
-        let file_contents = fs::read_to_string(file)?;
+        let file_contents = file.read_to_string()?;
         let module_names = parse_module_names(&file_contents)?;
 
         if !module_names.is_empty() {
@@ -109,18 +108,19 @@ fn find_files(files: &mut Vec<VfsPath>, dir: &VfsPath, extension: &str, max_dept
     }
 
     if let Ok(entries) = dir.read_dir() {
-        for entry in entries.flatten() {
-            let path = entry.path();
-
+        for entry in entries {
             if let Ok(metadata) = entry.metadata() {
-                if metadata.is_file() {
-                    if let Some(ext) = path.extension()
-                        && ext == extension
-                    {
-                        files.push(path);
+                match metadata.file_type {
+                    VfsFileType::File => {
+                        if let Some(ext) = entry.extension()
+                            && ext == extension
+                        {
+                            files.push(entry);
+                        }
+                    },
+                    VfsFileType::Directory => {
+                        find_files(files, &entry, extension, max_depth - 1);
                     }
-                } else if metadata.is_dir() {
-                    find_files(files, &path, extension, max_depth - 1);
                 }
             }
         }

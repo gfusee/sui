@@ -2,10 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
 
 use codespan_reporting::diagnostic::Diagnostic;
 
@@ -23,6 +20,7 @@ use super::{
 };
 use indexmap::IndexMap;
 use serde_spanned::Spanned;
+use vfs::VfsPath;
 
 // TODO: replace this with something more strongly typed
 pub type Digest = String;
@@ -41,7 +39,7 @@ pub struct ManifestError {
 
 #[derive(Debug)]
 enum ErrorLocation {
-    WholeFile(PathBuf),
+    WholeFile(VfsPath),
 }
 
 #[derive(Error, Debug)]
@@ -118,11 +116,11 @@ impl Manifest {
 
 impl ManifestError {
     pub(crate) fn with_file<T: Into<ManifestErrorKind>>(
-        path: impl AsRef<Path>,
+        path: VfsPath,
     ) -> impl Fn(T) -> Self {
         move |e| ManifestError {
             kind: Box::new(e.into()),
-            location: ErrorLocation::WholeFile(path.as_ref().to_path_buf()),
+            location: ErrorLocation::WholeFile(path.clone()),
         }
     }
 
@@ -138,7 +136,7 @@ impl ManifestError {
     /// Create an error object representing a flavor rejection of the manifest
     pub(crate) fn flavor_rejected_manifest(manifest_handle: FileHandle, message: String) -> Self {
         Self {
-            location: ErrorLocation::WholeFile(manifest_handle.path().to_path_buf()),
+            location: ErrorLocation::WholeFile(manifest_handle.path().clone()),
             kind: Box::new(ManifestErrorKind::FlavorRejectedManifest(message)),
         }
     }

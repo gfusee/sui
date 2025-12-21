@@ -80,7 +80,7 @@ pub fn try_load_legacy_manifest<F: MoveFlavor>(
     default_env: &Environment,
     is_root: bool,
 ) -> anyhow::Result<Option<(FileHandle, ParsedManifest)>> {
-    let Ok(file_handle) = FileHandle::new(path.path().join("Move.toml")) else {
+    let Ok(file_handle) = FileHandle::new(path.path().clone().join("Move.toml")?) else {
         debug!("failed to load legacy file");
         return Ok(None);
     };
@@ -209,7 +209,7 @@ fn parse_source_manifest<F: MoveFlavor>(
                 normalize_legacy_name_to_identifier(metadata.legacy_name.as_str());
 
             let legacy_publications =
-                load_legacy_lockfile(&path.path().join("Move.lock"))?.unwrap_or_default();
+                load_legacy_lockfile(&path.path().clone().join("Move.lock")?)?.unwrap_or_default();
 
             Ok(ParsedManifest {
                 package: PackageMetadata {
