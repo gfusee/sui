@@ -8,6 +8,7 @@ use crate::package::package_lock::LockError;
 use thiserror::Error;
 use tokio::process::Command;
 use vfs::{VfsError, VfsPath};
+use crate::vfs::errors::TempDirError;
 
 pub type GitResult<T> = std::result::Result<T, GitError>;
 
@@ -43,6 +44,9 @@ pub enum GitError {
 
     #[error(transparent)]
     VfsError(#[from] VfsError),
+
+    #[error(transparent)]
+    TempDirError(#[from] TempDirError),
 }
 
 #[derive(Error, Debug)]

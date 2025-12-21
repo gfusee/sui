@@ -21,19 +21,19 @@ use crate::{
 use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
+use path_clean::PathClean;
 use vfs::{VfsPath, VfsResult};
 
-static CONFIG: OnceCell<String> = OnceCell::new();
+static CONFIG: OnceCell<VfsPath> = OnceCell::new();
 
 // TODO: this should be moved into [crate::dependency::git]
-pub(crate) fn get_cache_path() -> &'static str {
+pub(crate) fn get_cache_path(base: &VfsPath) -> &'static VfsPath {
     CONFIG.get_or_init(|| {
-        PathBuf::from(move_command_line_common::env::MOVE_HOME.clone())
+        base.root()
+            .join(move_command_line_common::env::MOVE_HOME.clone())
+            .expect("joining root path with MOVE_HOME should work")
             .join("git")
-            .canonicalize()
-            .expect("cache_path should canonicalize")
-            .to_string_lossy()
-            .to_string()
+            .expect("joining MOVE_HOME path with git should work")
     })
 }
 
@@ -55,15 +55,15 @@ pub struct GitTree {
 
     /// relative path inside the repository to use for sparse checkout. Guaranteed to not begin
     /// with `..`
-    path_in_repo: String,
+    path_in_repo: PathBuf,
 
     /// Absolute path to the root of the repository
     path_to_repo: VfsPath,
 }
 
 impl GitCache {
-    pub fn new(base: VfsPath) -> VfsResult<Self> {
-        let root_dir = base.root().join(get_cache_path())?;
+    pub fn new(base: &VfsPath) -> VfsResult<Self> {
+        let root_dir = get_cache_path(base).clone();
 
         Ok(Self {
             root_dir
@@ -81,9 +81,9 @@ impl GitCache {
     pub async fn find_sha(
         repo: &str,
         rev: &Option<String>,
-        git_cache_path: &Option<VfsPath>
+        base: &VfsPath
     ) -> GitResult<GitSha> {
-        find_sha(repo, rev, git_cache_path).await
+        find_sha(repo, rev, base).await
     }
 
     /// Helper function to find the sha and then construct a [GitTree]. If `rev` is `None`, the
@@ -92,10 +92,10 @@ impl GitCache {
         &self,
         repo: &str,
         rev: &Option<String>,
-        git_cache_path: &Option<VfsPath>,
-        path_in_repo: String,
+        base: &VfsPath,
+        path_in_repo: PathBuf,
     ) -> GitResult<GitTree> {
-        let sha = Self::find_sha(repo, rev, git_cache_path).await?;
+        let sha = Self::find_sha(repo, rev, base).await?;
         self.tree_for_sha(repo.to_string(), sha.clone(), path_in_repo)
     }
 
@@ -105,13 +105,13 @@ impl GitCache {
         &self,
         repo: String,
         sha: GitSha,
-        path_in_repo: String,
+        path_in_repo: PathBuf,
     ) -> GitResult<GitTree> {
         let filename = url_to_file_name(repo.as_str());
         let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"))?;
 
-        if path_in_repo.as_str().starts_with("..") {
-            return Err(GitError::BadPath { path: path_in_repo.as_str().to_string() });
+        if path_in_repo.to_string_lossy().starts_with("..") {
+            return Err(GitError::BadPath { path: path_in_repo.to_string_lossy().to_string() });
         }
 
         Ok(GitTree {
@@ -127,7 +127,7 @@ impl GitTree {
     /// The absolute path on the filesystem where this tree will be downloaded when `fetch` is
     /// called
     pub fn path_to_tree(&self) -> GitResult<VfsPath> {
-        Ok(self.path_to_repo.join(self.path_in_repo.as_str())?)
+        Ok(self.path_to_repo.join(self.path_in_repo.to_string_lossy())?)
     }
 
     /// Ensure that the files are downloaded to `self.path_to_tree()`. Fails if there was already a
@@ -149,7 +149,7 @@ impl GitTree {
     }
 
     /// The relative path to the subtree within the repository
-    pub fn path_in_repo(&self) -> &VfsPath {
+    pub fn path_in_repo(&self) -> &PathBuf {
         &self.path_in_repo
     }
 
@@ -163,8 +163,8 @@ impl GitTree {
     pub fn relative_tree(&self, relative_path: impl AsRef<str>) -> GitResult<Self> {
         let mut result = self.clone();
 
-        result.path_in_repo = self.path_in_repo.join(relative_path)?;
-        let path_in_repo_str = result.path_in_repo.as_str();
+        result.path_in_repo = self.path_in_repo.join(relative_path.as_ref()).clean();
+        let path_in_repo_str = result.path_in_repo.to_string_lossy();
         if path_in_repo_str.starts_with("..") {
             Err(GitError::BadPath {
                 path: path_in_repo_str.to_string(),
@@ -209,7 +209,7 @@ impl GitTree {
             .await?;
         }
 
-        if self.path_in_repo().as_str() == "" || self.path_in_repo().as_str() == "." {
+        if self.path_in_repo() == "" || self.path_in_repo() == "." {
             self.run_git(&["sparse-checkout", "disable"]).await?;
         }
 
@@ -218,7 +218,7 @@ impl GitTree {
             self.run_git(&[
                 "sparse-checkout",
                 "add",
-                self.path_in_repo().as_str(),
+                &self.path_in_repo().to_string_lossy(),
             ])
             .await?;
         }
@@ -252,10 +252,10 @@ impl GitTree {
         // here's the error msg from git
         // fatal: empty string is not a valid pathspec. please use . instead if you meant to
         // match all paths
-        let path_in_repo = if self.path_in_repo.as_str().is_empty() {
+        let path_in_repo = if self.path_in_repo.as_os_str().is_empty() {
             "."
         } else {
-            self.path_in_repo.as_str()
+            &self.path_in_repo.to_string_lossy()
         };
 
         let Ok(output) = self
@@ -306,7 +306,7 @@ fn url_to_file_name(url: &str) -> String {
 async fn find_sha(
     repo: &str,
     rev: &Option<String>,
-    git_cache_path: &Option<VfsPath>
+    base: &VfsPath
 ) -> GitResult<GitSha> {
     if let Some(r) = rev {
         if let Ok(sha) = GitSha::try_from(r.to_string()) {
@@ -315,7 +315,7 @@ async fn find_sha(
 
         // if the sha is a short sha, then the repo will be cloned to a temp directory and full
         // history will be downloaded to retrieve the full sha
-        if let Ok(Some(full_sha)) = try_find_full_sha(repo, r, git_cache_path).await {
+        if let Ok(Some(full_sha)) = try_find_full_sha(repo, r, base).await {
             return Ok(full_sha);
         }
 
@@ -444,7 +444,7 @@ async fn find_branch_or_tag_sha(repo: &str, rev: &str) -> GitResult<GitSha> {
 async fn try_find_full_sha(
     repo: &str,
     rev: &str,
-    git_cache_path: &Option<VfsPath>
+    base: &VfsPath
 ) -> GitResult<Option<GitSha>> {
     debug!("try_find_full_sha for `{rev}` in `{repo}`");
     if rev.chars().any(|c| !c.is_ascii_hexdigit()) {
@@ -452,9 +452,7 @@ async fn try_find_full_sha(
         return Ok(None);
     }
 
-    let Some(git_cache_path) = git_cache_path else {
-        return Err(GitError::no_sha(repo, rev));
-    };
+    let git_cache_path = get_cache_path(base);
 
     let lookup_path = git_cache_path.join("lookups")?;
 

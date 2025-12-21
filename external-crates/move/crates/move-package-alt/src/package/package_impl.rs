@@ -307,7 +307,7 @@ impl<F: MoveFlavor> Package<F> {
 pub async fn cache_package<F: MoveFlavor>(
     env: &Environment,
     manifest_dep: &ManifestDependencyInfo,
-    base: VfsPath
+    base: &VfsPath
 ) -> PackageResult<CachedPackageInfo> {
     // We need some file handles and things to give context to the dep loading system
     let tempdir = TempDir::new(base).expect("can create a temporary directory");

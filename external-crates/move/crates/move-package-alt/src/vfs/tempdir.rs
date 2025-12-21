@@ -14,7 +14,7 @@ impl Drop for TempDir {
 }
 
 impl TempDir {
-    pub fn new(base: VfsPath) -> TempDirResult<Self> {
+    pub fn new(base: &VfsPath) -> TempDirResult<Self> {
         let tempdir_name = format!("tmp-{}", Uuid::new_v4());
 
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]

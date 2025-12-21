@@ -258,7 +258,7 @@ impl TestPackageGraph {
         self.inner[self.nodes[source.as_ref()]]
             .git_deps
             .push(GitSpec {
-                repo: repo.repo_path_str(),
+                repo: repo.repo_path_str().unwrap(),
                 path: target.as_ref().to_string(),
                 rev: rev.as_ref().to_string(),
                 spec: dep_spec,
@@ -276,12 +276,12 @@ impl TestPackageGraph {
     /// the lockfiles will contain all of the publication information, but the pinned sections of
     /// the lockfiles will be empty (so that the package graph will be built from the manifest).
     /// All dependencies are local
-    pub fn build(self) -> Scenario {
+    pub fn build(self, base: &VfsPath) -> Scenario {
         let (tempdir, root_path) = match &self.root {
-            Some(file) => (None, file),
+            Some(file) => (None, file.clone()),
             None => {
-                let tmp = TempDir::new().unwrap();
-                let path = tmp.path();
+                let tmp = TempDir::new(base).unwrap();
+                let path = tmp.path().clone();
                 (Some(tmp), path)
             }
         };

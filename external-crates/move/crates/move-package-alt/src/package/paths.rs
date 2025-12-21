@@ -6,7 +6,6 @@
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    path::{Path, PathBuf},
 };
 use std::cmp::Ordering;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -37,7 +36,7 @@ use crate::{
         RenderToml,
     },
 };
-
+use crate::vfs::wrappers::OrdVfsPath;
 use super::{
     EnvironmentName,
     package_lock::{LockError, PackageSystemLock},
@@ -55,7 +54,7 @@ pub struct OutputPath(VfsPath);
 
 /// A path to an ephemeral publication file that may be read or updated
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
-pub struct EphemeralPubfilePath(PathBuf);
+pub struct EphemeralPubfilePath(OrdVfsPath);
 
 #[derive(Error, Debug)]
 pub enum PackagePathError {
@@ -82,7 +81,7 @@ pub enum FileError {
 
     #[error("error while loading {file:?}: {source}")]
     IoError {
-        file: PathBuf,
+        file: String,
         source: std::io::Error,
     },
 
@@ -105,7 +104,7 @@ pub enum FileError {
         "File {file:?} has version {version}, but this CLI only supports versions up to {max}; please upgrade your CLI"
     )]
     VersionError {
-        file: PathBuf,
+        file: String,
         version: usize,
         max: usize,
     },
@@ -128,7 +127,7 @@ pub fn read_name_from_manifest(dir: &VfsPath) -> FileResult<String> {
     }
 
     let path = dir.join("Move.toml")?;
-    let f: File = parse_file(&path)?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })?.1;
+    let f: File = parse_file(path.clone())?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })?.1;
     Ok(f.package.name)
 }
 
@@ -163,7 +162,7 @@ impl PackagePath {
         _mtx: &PackageSystemLock,
     ) -> FileResult<(FileHandle, ParsedManifest)> {
         let path = self.manifest_path()?;
-        parse_file(&path)?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })
+        parse_file(path.clone())?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })
     }
 
     /// Parse and return the lockfile if it exists, returning None if the file doesn't exist or if
@@ -173,17 +172,18 @@ impl PackagePath {
         &self,
         _mtx: &PackageSystemLock,
     ) -> FileResult<Option<(FileHandle, ParsedLockfile)>> {
-        if !self.lockfile_path().exists() {
+        if !self.lockfile_path()?.exists()? {
             return Ok(None);
         }
-        let version = lockfile_version(&self.lockfile_path())?;
+        let lockfile_path = self.lockfile_path()?;
+        let version = lockfile_version(lockfile_path.clone())?;
         if version < LOCKFILE_VERSION {
             Ok(None)
         } else if version == LOCKFILE_VERSION {
-            parse_file(&self.lockfile_path())
+            parse_file(lockfile_path)
         } else {
             Err(FileError::VersionError {
-                file: self.lockfile_path(),
+                file: lockfile_path.as_str().to_string(),
                 version,
                 max: LOCKFILE_VERSION,
             })
@@ -197,9 +197,9 @@ impl PackagePath {
         &self,
         _mtx: &PackageSystemLock,
     ) -> FileResult<Option<BTreeMap<EnvironmentName, LegacyEnvironment>>> {
-        let path = self.lockfile_path().to_path_buf();
+        let path = self.lockfile_path()?;
         let pubs = load_legacy_lockfile(&path).map_err(|err| FileError::LegacyError {
-            file: path,
+            file: path.as_str().to_string(),
             source: err,
         })?;
         Ok(pubs)
@@ -213,10 +213,10 @@ impl PackagePath {
         is_root: bool,
         _mtx: &PackageSystemLock,
     ) -> FileResult<Option<(FileHandle, ParsedManifest)>> {
-        let path = self.manifest_path().to_path_buf();
+        let path = self.manifest_path()?;
         try_load_legacy_manifest::<F>(self, default_env, is_root).map_err(|err| {
             FileError::LegacyError {
-                file: path,
+                file: path.as_str().to_string(),
                 source: err,
             }
         })
@@ -228,7 +228,7 @@ impl PackagePath {
         &self,
         _mtx: &PackageSystemLock,
     ) -> FileResult<Option<(FileHandle, ParsedPublishedFile<F>)>> {
-        parse_file(&self.pubfile_path())
+        parse_file(self.pubfile_path()?)
     }
 
     /// The path to the directory containing the package
@@ -240,11 +240,11 @@ impl PackagePath {
         self.0.manifest_path()
     }
 
-    fn lockfile_path(&self) -> PathBuf {
+    fn lockfile_path(&self) -> VfsResult<VfsPath> {
         self.0.lockfile_path()
     }
 
-    fn pubfile_path(&self) -> PathBuf {
+    fn pubfile_path(&self) -> VfsResult<VfsPath> {
         self.0.pubfile_path()
     }
 }
@@ -288,7 +288,7 @@ impl OutputPath {
         file: &ParsedLockfile,
         _mtx: &PackageSystemLock,
     ) -> FileResult<()> {
-        render_file(&self.lockfile_path(), file)
+        render_file(&self.lockfile_path()?, file)
     }
 
     /// Replace the pubfile with the contents of `file`
@@ -297,7 +297,7 @@ impl OutputPath {
         file: &ParsedPublishedFile<F>,
         _mtx: &PackageSystemLock,
     ) -> FileResult<()> {
-        render_file(&self.pubfile_path(), file)
+        render_file(&self.pubfile_path()?, file)
     }
 
     /// Read the contents of the lockfile from the output directory
@@ -338,23 +338,17 @@ impl OutputPath {
 
 impl EphemeralPubfilePath {
     /// Create `file`'s parent directory (thus ensuring that `file` can be created).
-    pub fn new(file: impl AsRef<Path>) -> PackagePathResult<Self> {
-        let path = file.as_ref().to_path_buf();
-
-        let Some(parent) = file.as_ref().parent() else {
-            return Err(PackagePathError::InvalidFile { path });
-        };
-
-        if let Err(e) = std::fs::create_dir_all(parent) {
+    pub fn new(file: VfsPath) -> PackagePathResult<Self> {
+        if let Err(e) = file.parent().create_dir_all() {
             debug!("unexpected error creating directory: {e:?}");
-            Err(PackagePathError::InvalidFile { path })
+            Err(PackagePathError::InvalidFile { path: file.as_str().to_string() })
         } else {
-            Ok(Self(path))
+            Ok(Self(OrdVfsPath::new(file)))
         }
     }
 
-    fn path(&self) -> &Path {
-        &self.0
+    fn path(&self) -> &VfsPath {
+        &self.0.as_path()
     }
 
     // TODO: we should require a lock for the pubfile, which we hold between reading and writing
@@ -370,20 +364,20 @@ impl EphemeralPubfilePath {
     pub fn read_pubfile<F: MoveFlavor>(
         &self,
     ) -> FileResult<Option<(FileHandle, ParsedEphemeralPubs<F>)>> {
-        parse_file(self.path())
+        parse_file(self.path().clone())
     }
 }
 
-fn parse_file<T: DeserializeOwned>(path: &VfsPath) -> FileResult<Option<(FileHandle, T)>> {
-    if !path.exists() {
+fn parse_file<T: DeserializeOwned>(path: VfsPath) -> FileResult<Option<(FileHandle, T)>> {
+    if !path.exists()? {
         Ok(None)
-    } else if !path.is_file() {
+    } else if !path.is_file()? {
         Err(FileError::InvalidFile {
-            path: path.to_path_buf(),
+            path: path.as_str().to_string(),
         })
     } else {
-        let file = FileHandle::new(path).map_err(|source| FileError::IoError {
-            file: path.to_path_buf(),
+        let file = FileHandle::new(path.clone()).map_err(|source| FileError::IoError {
+            file: path.as_str().to_string(),
             source,
         })?;
 
@@ -394,17 +388,17 @@ fn parse_file<T: DeserializeOwned>(path: &VfsPath) -> FileResult<Option<(FileHan
     }
 }
 
-fn render_file<T: RenderToml>(path: &Path, value: &T) -> FileResult<()> {
+fn render_file<T: RenderToml>(path: &VfsPath, value: &T) -> FileResult<()> {
     let rendered = value.render_as_toml();
     debug!("writing to {path:?}:\n{rendered}");
-    std::fs::write(path, rendered).map_err(|source| FileError::IoError {
-        file: path.to_path_buf(),
+    write!(path.create_file()?, "{rendered}").map_err(|source| FileError::IoError {
+        file: path.as_str().to_string(),
         source,
     })
 }
 
 /// Extract the version field from the lockfile (compatible with all formats)
-fn lockfile_version(path: &Path) -> FileResult<usize> {
+fn lockfile_version(path: VfsPath) -> FileResult<usize> {
     #[derive(Deserialize)]
     struct Header {
         #[serde(default)]
@@ -417,9 +411,9 @@ fn lockfile_version(path: &Path) -> FileResult<usize> {
         header: Header,
     }
 
-    let f: Lockfile = parse_file(path)?
+    let f: Lockfile = parse_file(path.clone())?
         .ok_or(FileError::InvalidFile {
-            path: path.to_path_buf(),
+            path: path.as_str().to_string(),
         })?
         .1;
 

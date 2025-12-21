@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fmt, path::Path};
+use std::{collections::BTreeMap, fmt};
 
 use indexmap::IndexMap;
 use tracing::debug;
@@ -177,7 +177,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
         root: VfsPath,
         build_env: Option<EnvironmentName>,
         chain_id: EnvironmentID,
-        pubfile_path: impl AsRef<Path>,
+        pubfile_path: VfsPath,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
         let ephemeral_file = EphemeralPubfilePath::new(pubfile_path)?;

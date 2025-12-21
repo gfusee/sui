@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use vfs::VfsPath;
 
 /// A wrapper around VfsPath with PartialOrd and Ord
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) struct OrdVfsPath(VfsPath);
 
 impl OrdVfsPath {

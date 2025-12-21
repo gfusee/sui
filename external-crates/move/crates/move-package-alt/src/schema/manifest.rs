@@ -1,5 +1,5 @@
 use std::{collections::BTreeMap, str::FromStr};
-
+use std::path::PathBuf;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_spanned::Spanned;
 
@@ -136,7 +136,7 @@ pub struct ManifestGitDependency {
 
     /// The subdir within the repository
     #[serde(default)]
-    pub subdir: String,
+    pub subdir: PathBuf,
 }
 
 /// A `{system = "..."}` dependency in a manifest
