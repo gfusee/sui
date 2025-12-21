@@ -11,7 +11,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use toml::Value as TV;
-use vfs::VfsPath;
+use crate::vfs::wrappers::VirtualPath;
 
 /// Parse the legacy lockfile in `path` (i.e. version 3 or less) and return the extracted
 /// information.
@@ -21,7 +21,7 @@ use vfs::VfsPath;
 /// If the file exists and is a weird mishmash of a legacy and modern lockfile, we replace it with
 ///    a modern lockfile (after emitting a loud warning); in this case we also return `Ok(None)`
 pub fn load_legacy_lockfile(
-    lockfile_path: &VfsPath,
+    lockfile_path: &VirtualPath,
 ) -> anyhow::Result<Option<BTreeMap<EnvironmentName, LegacyEnvironment>>> {
     let Ok(file_contents) = lockfile_path.read_to_string() else {
         return Ok(None);

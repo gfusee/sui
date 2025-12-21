@@ -20,7 +20,7 @@ use super::{
 };
 use indexmap::IndexMap;
 use serde_spanned::Spanned;
-use vfs::VfsPath;
+use crate::vfs::wrappers::VirtualPath;
 
 // TODO: replace this with something more strongly typed
 pub type Digest = String;
@@ -39,7 +39,7 @@ pub struct ManifestError {
 
 #[derive(Debug)]
 enum ErrorLocation {
-    WholeFile(VfsPath),
+    WholeFile(VirtualPath),
 }
 
 #[derive(Error, Debug)]
@@ -116,7 +116,7 @@ impl Manifest {
 
 impl ManifestError {
     pub(crate) fn with_file<T: Into<ManifestErrorKind>>(
-        path: VfsPath,
+        path: VirtualPath,
     ) -> impl Fn(T) -> Self {
         move |e| ManifestError {
             kind: Box::new(e.into()),

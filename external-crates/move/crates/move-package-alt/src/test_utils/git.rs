@@ -41,9 +41,10 @@
 //! [`repo()`] can be used to create a [`RepoBuilder`] which provides a way of
 //! adding files to a blank repository and committing them.
 
-use vfs::{VfsPath, VfsResult};
+use vfs::VfsResult;
 use crate::git::{run_git_cmd_with_args, GitResult};
 use crate::vfs::tempdir::TempDir;
+use crate::vfs::wrappers::VirtualPath;
 use super::graph_builder::TestPackageGraph;
 
 /// A [RepoProject] represents a bare repository in a temporary directory. You can add new commits
@@ -62,7 +63,7 @@ pub struct Commit<'repo> {
     sha: String,
 }
 
-pub async fn new(base: &VfsPath) -> GitResult<RepoProject> {
+pub async fn new(base: &VirtualPath) -> GitResult<RepoProject> {
     RepoProject::new(base).await
 }
 
@@ -87,7 +88,7 @@ impl Commit<'_> {
 }
 
 impl RepoProject {
-    pub async fn new(base: &VfsPath) -> GitResult<Self> {
+    pub async fn new(base: &VirtualPath) -> GitResult<Self> {
         let result = Self {
             root: TempDir::new(base)?,
         };
@@ -95,7 +96,7 @@ impl RepoProject {
         Ok(result)
     }
 
-    pub fn repo_path(&self) -> VfsResult<VfsPath> {
+    pub fn repo_path(&self) -> VfsResult<VirtualPath> {
         self.root.path().join("repo")
     }
 
@@ -105,7 +106,7 @@ impl RepoProject {
 
     /// Builds a new project using `build` (starting from an empty directory), then commits it to
     /// the repository and updates the `main` branch. Returns the created commit
-    pub async fn commit<F>(&self, base: &VfsPath, build: F) -> GitResult<Commit>
+    pub async fn commit<F>(&self, base: &VirtualPath, build: F) -> GitResult<Commit>
     where
         F: FnOnce(TestPackageGraph) -> TestPackageGraph,
     {
@@ -241,7 +242,7 @@ impl RepoProject {
         Ok(())
     }
 
-    fn worktree_path(&self) -> VfsResult<VfsPath> {
+    fn worktree_path(&self) -> VfsResult<VirtualPath> {
         self.root.path().join("worktree")
     }
 }

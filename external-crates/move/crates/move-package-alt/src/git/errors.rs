@@ -7,8 +7,9 @@ use std::process::ExitStatus;
 use crate::package::package_lock::LockError;
 use thiserror::Error;
 use tokio::process::Command;
-use vfs::{VfsError, VfsPath};
+use vfs::VfsError;
 use crate::vfs::errors::TempDirError;
+use crate::vfs::wrappers::VirtualPath;
 
 pub type GitResult<T> = std::result::Result<T, GitError>;
 
@@ -68,19 +69,19 @@ impl GitError {
         }
     }
 
-    pub fn io_error(cmd: &Command, cwd: &Option<&VfsPath>, error: std::io::Error) -> Self {
+    pub fn io_error(cmd: &Command, cwd: &Option<&VirtualPath>, error: std::io::Error) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::IoError(error))
     }
 
-    pub fn nonzero_exit_status(cmd: &Command, cwd: &Option<&VfsPath>, code: ExitStatus) -> Self {
+    pub fn nonzero_exit_status(cmd: &Command, cwd: &Option<&VirtualPath>, code: ExitStatus) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::ErrorCode(code))
     }
 
-    pub fn non_utf_output(cmd: &Command, cwd: &Option<&VfsPath>) -> Self {
+    pub fn non_utf_output(cmd: &Command, cwd: &Option<&VirtualPath>) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::NonUtf8)
     }
 
-    fn command_error(cmd: &Command, cwd: &Option<&VfsPath>, kind: CommandErrorKind) -> Self {
+    fn command_error(cmd: &Command, cwd: &Option<&VirtualPath>, kind: CommandErrorKind) -> Self {
         Self::CommandError {
             cmd: format!("{cmd:?}"),
             cwd_note: match cwd {

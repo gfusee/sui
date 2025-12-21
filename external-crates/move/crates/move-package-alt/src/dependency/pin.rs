@@ -5,7 +5,6 @@
 use std::fmt;
 use std::path::PathBuf;
 use tracing::debug;
-use vfs::VfsPath;
 use crate::{
     dependency::{ResolvedDependency, combine::Combined, resolve::Resolved},
     errors::{FileHandle, PackageError, PackageResult, fmt_truncated},
@@ -18,6 +17,7 @@ use crate::{
     },
 };
 use crate::git::GitResult;
+use crate::vfs::wrappers::VirtualPath;
 use super::{CombinedDependency, Dependency};
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,
@@ -44,7 +44,7 @@ pub struct PinnedGitDependency {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinnedLocalDependency {
     /// The path to the package directory on the filesystem
-    absolute_path_to_package: VfsPath,
+    absolute_path_to_package: VirtualPath,
 
     /// The path from the root package to this package, used for serializing the local dependency
     /// back to the root package's lockfile.
@@ -55,7 +55,7 @@ pub struct PinnedLocalDependency {
 pub struct PinnedDependencyInfo(pub(super) Dependency<Pinned>);
 
 impl PinnedGitDependency {
-    fn try_from_lockfile_git_dep_info(base: &VfsPath, value: LockfileGitDepInfo) -> Result<Self, GitError> {
+    fn try_from_lockfile_git_dep_info(base: &VirtualPath, value: LockfileGitDepInfo) -> Result<Self, GitError> {
         let cache = GitCache::new(base)?;
         let LockfileGitDepInfo { repo, rev, path } = value;
         let tree = cache.tree_for_sha(repo, rev, path)?;
@@ -184,7 +184,7 @@ impl Pinned {
 
     /// Return the absolute path to the directory that this package would be fetched into, without
     /// actually fetching it
-    pub fn unfetched_path(&self) -> GitResult<VfsPath> {
+    pub fn unfetched_path(&self) -> GitResult<VirtualPath> {
         match &self {
             Pinned::Git(dep) => dep.inner.path_to_tree(),
             Pinned::Local(dep) => Ok(dep.absolute_path_to_package.clone()),
@@ -246,7 +246,7 @@ impl Pinned {
 impl ManifestGitDependency {
     /// Replace the commit-ish [self.rev] with a commit (i.e. a SHA). Requires fetching the git
     /// repository
-    async fn pin(&self, base: &VfsPath) -> PackageResult<Pinned> {
+    async fn pin(&self, base: &VirtualPath) -> PackageResult<Pinned> {
         let cache = GitCache::new(base)?;
         let ManifestGitDependency { repo, rev, subdir } = self.clone();
         let tree = cache.resolve_to_tree(&repo, &rev, base, subdir).await?;

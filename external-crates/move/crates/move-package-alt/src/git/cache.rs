@@ -22,12 +22,13 @@ use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
 use path_clean::PathClean;
-use vfs::{VfsPath, VfsResult};
+use vfs::VfsResult;
+use crate::vfs::wrappers::VirtualPath;
 
-static CONFIG: OnceCell<VfsPath> = OnceCell::new();
+static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 
 // TODO: this should be moved into [crate::dependency::git]
-pub(crate) fn get_cache_path(base: &VfsPath) -> &'static VfsPath {
+pub(crate) fn get_cache_path(base: &VirtualPath) -> &'static VirtualPath {
     CONFIG.get_or_init(|| {
         base.root()
             .join(move_command_line_common::env::MOVE_HOME.clone())
@@ -40,7 +41,7 @@ pub(crate) fn get_cache_path(base: &VfsPath) -> &'static VfsPath {
 /// A cache that manages a collection of downloaded git trees
 #[derive(Debug)]
 pub struct GitCache {
-    root_dir: VfsPath,
+    root_dir: VirtualPath,
 }
 
 /// A subdirectory within a particular commit of a git repository. The files may or may not have
@@ -58,11 +59,11 @@ pub struct GitTree {
     path_in_repo: PathBuf,
 
     /// Absolute path to the root of the repository
-    path_to_repo: VfsPath,
+    path_to_repo: VirtualPath,
 }
 
 impl GitCache {
-    pub fn new(base: &VfsPath) -> VfsResult<Self> {
+    pub fn new(base: &VirtualPath) -> VfsResult<Self> {
         let root_dir = get_cache_path(base).clone();
 
         Ok(Self {
@@ -70,7 +71,7 @@ impl GitCache {
         })
     }
     /// Create or load the cache at `root_dir`
-    pub fn new_from_dir(root_dir: VfsPath) -> Self {
+    pub fn new_from_dir(root_dir: VirtualPath) -> Self {
         Self {
             root_dir
         }
@@ -81,7 +82,7 @@ impl GitCache {
     pub async fn find_sha(
         repo: &str,
         rev: &Option<String>,
-        base: &VfsPath
+        base: &VirtualPath
     ) -> GitResult<GitSha> {
         find_sha(repo, rev, base).await
     }
@@ -92,7 +93,7 @@ impl GitCache {
         &self,
         repo: &str,
         rev: &Option<String>,
-        base: &VfsPath,
+        base: &VirtualPath,
         path_in_repo: PathBuf,
     ) -> GitResult<GitTree> {
         let sha = Self::find_sha(repo, rev, base).await?;
@@ -126,20 +127,20 @@ impl GitCache {
 impl GitTree {
     /// The absolute path on the filesystem where this tree will be downloaded when `fetch` is
     /// called
-    pub fn path_to_tree(&self) -> GitResult<VfsPath> {
+    pub fn path_to_tree(&self) -> GitResult<VirtualPath> {
         Ok(self.path_to_repo.join(self.path_in_repo.to_string_lossy())?)
     }
 
     /// Ensure that the files are downloaded to `self.path_to_tree()`. Fails if there was already a
     /// dirty checkout there (call [Self::fetch_allow_dirty] if you don't want to
     /// fail). Returns `self.path_to_tree()`.
-    pub async fn fetch(&self) -> GitResult<VfsPath> {
+    pub async fn fetch(&self) -> GitResult<VirtualPath> {
         self.checkout_repo(false).await
     }
 
     /// Ensure that there are files downloaded to `self.path_to_tree()`. Has no effect if
     /// `self.path_to_tree()` already exists. Returns `self.path_to_tree()`
-    pub async fn fetch_allow_dirty(&self) -> GitResult<VfsPath> {
+    pub async fn fetch_allow_dirty(&self) -> GitResult<VirtualPath> {
         self.checkout_repo(true).await
     }
 
@@ -179,12 +180,13 @@ impl GitTree {
     /// given sha.
     ///
     /// Fails if `allow_dirty` is false and a dirty checkout of the directory already exists
-    async fn checkout_repo(&self, allow_dirty: bool) -> GitResult<VfsPath> {
+    async fn checkout_repo(&self, allow_dirty: bool) -> GitResult<VirtualPath> {
+        let tree_path = self.path_to_tree()?;
+
         // Checking out at `<repo>_<sha>` is sequential to prevent corruptions.
         let _lock =
-            PackageSystemLock::new_for_git(&self.repo_id()).map_err(GitError::LockingError)?;
+            PackageSystemLock::new_for_git(&tree_path, &self.repo_id()).map_err(GitError::LockingError)?;
 
-        let tree_path = self.path_to_tree()?;
 
         // create repo if necessary
         if !self.path_to_repo.exists()? {
@@ -306,7 +308,7 @@ fn url_to_file_name(url: &str) -> String {
 async fn find_sha(
     repo: &str,
     rev: &Option<String>,
-    base: &VfsPath
+    base: &VirtualPath
 ) -> GitResult<GitSha> {
     if let Some(r) = rev {
         if let Ok(sha) = GitSha::try_from(r.to_string()) {
@@ -352,7 +354,7 @@ async fn find_default_branch_and_get_sha(repo_url: &str) -> GitResult<GitSha> {
 /// exit status; returns the standard output and logs standard error to `info!`
 // TODO: this should be &Path?
 // TODO: only works with PhysicalFS
-pub async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&VfsPath>) -> GitResult<String> {
+pub async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&VirtualPath>) -> GitResult<String> {
     // Run the git command
 
     let mut cmd = Command::new("git");
@@ -444,7 +446,7 @@ async fn find_branch_or_tag_sha(repo: &str, rev: &str) -> GitResult<GitSha> {
 async fn try_find_full_sha(
     repo: &str,
     rev: &str,
-    base: &VfsPath
+    base: &VirtualPath
 ) -> GitResult<Option<GitSha>> {
     debug!("try_find_full_sha for `{rev}` in `{repo}`");
     if rev.chars().any(|c| !c.is_ascii_hexdigit()) {

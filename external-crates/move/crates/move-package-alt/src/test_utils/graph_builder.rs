@@ -48,7 +48,7 @@ use petgraph::{
     visit::EdgeRef,
 };
 use tracing::debug;
-use vfs::{VfsPath, VfsResult};
+use vfs::VfsResult;
 use crate::{
     errors::PackageResult,
     flavor::{
@@ -65,7 +65,7 @@ use crate::{
 
 use crate::graph::PackageGraph;
 use crate::vfs::tempdir::TempDir;
-use crate::vfs::wrappers::OrdVfsPath;
+use crate::vfs::wrappers::VirtualPath;
 use super::git::RepoProject;
 
 pub struct TestPackageGraph {
@@ -74,7 +74,7 @@ pub struct TestPackageGraph {
     // is the same as the node's id
     inner: DiGraph<PackageSpec, DepSpec>,
     nodes: BTreeMap<String, NodeIndex>,
-    root: Option<VfsPath>,
+    root: Option<VirtualPath>,
 }
 
 /// Information used to build a node in the package graph
@@ -106,7 +106,7 @@ pub struct PackageSpec {
     git_deps: Vec<GitSpec>,
 
     /// Additional files
-    files: BTreeMap<OrdVfsPath, String>,
+    files: BTreeMap<VirtualPath, String>,
 
     /// Are implicit deps included?
     implicit_deps: bool,
@@ -156,7 +156,7 @@ pub struct PubSpec {
 }
 
 pub struct Scenario {
-    root_path: VfsPath,
+    root_path: VirtualPath,
     tempdir: Option<TempDir>,
 }
 
@@ -266,7 +266,7 @@ impl TestPackageGraph {
         self
     }
 
-    pub fn at(mut self, path: VfsPath) -> Self {
+    pub fn at(mut self, path: VirtualPath) -> Self {
         self.root = Some(path);
         self
     }
@@ -276,7 +276,7 @@ impl TestPackageGraph {
     /// the lockfiles will contain all of the publication information, but the pinned sections of
     /// the lockfiles will be empty (so that the package graph will be built from the manifest).
     /// All dependencies are local
-    pub fn build(self, base: &VfsPath) -> Scenario {
+    pub fn build(self, base: &VirtualPath) -> Scenario {
         let (tempdir, root_path) = match &self.root {
             Some(file) => (None, file.clone()),
             None => {
@@ -305,7 +305,7 @@ impl TestPackageGraph {
 
             // add extra files
             for (path, contents) in self.inner[*node].files.iter() {
-                let dir_path = dir.join(path.as_path().as_str()).unwrap();
+                let dir_path = dir.join(path.as_str()).unwrap();
                 dir_path.parent().create_dir_all().unwrap();
                 write!(dir_path.create_file().unwrap(), "{}", contents).unwrap();
             }
@@ -628,9 +628,9 @@ impl PackageSpec {
         self
     }
 
-    pub fn add_file(mut self, path: VfsPath, contents: impl AsRef<str>) -> Self {
+    pub fn add_file(mut self, path: VirtualPath, contents: impl AsRef<str>) -> Self {
         self.files
-            .insert(OrdVfsPath::new(path), contents.as_ref().to_string());
+            .insert(path, contents.as_ref().to_string());
         self
     }
 
@@ -734,7 +734,7 @@ impl DepSpec {
 }
 
 impl Scenario {
-    pub fn path_for(&self, package: impl AsRef<str>) -> VfsResult<VfsPath> {
+    pub fn path_for(&self, package: impl AsRef<str>) -> VfsResult<VirtualPath> {
         self.root_path.join(package.as_ref())
     }
 
@@ -783,13 +783,13 @@ impl Scenario {
         RootPackage::<Vanilla>::load(self.path_for(package)?, default_environment(), vec![]).await
     }
 
-    pub fn read_file(&self, file: &VfsPath) -> PackageResult<String> {
+    pub fn read_file(&self, file: &VirtualPath) -> PackageResult<String> {
         let path = self.root_path.join(file.as_str())?;
         debug!("reading file at {path:?}");
         path.read_to_string().map_err(Into::into)
     }
 
-    pub fn extend_file(&self, file: &VfsPath, contents: impl AsRef<str>) -> PackageResult<()> {
+    pub fn extend_file(&self, file: &VirtualPath, contents: impl AsRef<str>) -> PackageResult<()> {
         let path = self.root_path.join(file.as_str())?;
         debug!("adding to file at {path:?}");
         let mut file_contents = path.read_to_string()?;

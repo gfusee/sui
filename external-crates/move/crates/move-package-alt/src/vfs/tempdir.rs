@@ -1,10 +1,10 @@
 use crate::vfs::errors::TempDirResult;
 use std::env;
 use uuid::Uuid;
-use vfs::VfsPath;
+use crate::vfs::wrappers::VirtualPath;
 
 pub(crate) struct TempDir {
-    path: VfsPath
+    path: VirtualPath
 }
 
 impl Drop for TempDir {
@@ -14,7 +14,7 @@ impl Drop for TempDir {
 }
 
 impl TempDir {
-    pub fn new(base: &VfsPath) -> TempDirResult<Self> {
+    pub fn new(base: &VirtualPath) -> TempDirResult<Self> {
         let tempdir_name = format!("tmp-{}", Uuid::new_v4());
 
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
@@ -33,7 +33,7 @@ impl TempDir {
         Ok(Self { path: tempdir })
     }
 
-    pub fn path(&self) -> &VfsPath {
+    pub fn path(&self) -> &VirtualPath {
         &self.path
     }
 }

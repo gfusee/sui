@@ -23,7 +23,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
-use crate::vfs::wrappers::OrdVfsPath;
+use crate::vfs::wrappers::VirtualPath;
 use super::PackageGraph;
 
 #[derive(Error, Debug)]
@@ -52,7 +52,7 @@ struct PackageCache<F: MoveFlavor> {
     // infra
     // TODO: would dashmap simplify this?
     #[allow(clippy::type_complexity)]
-    cache: Mutex<BTreeMap<OrdVfsPath, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
+    cache: Mutex<BTreeMap<VirtualPath, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
 }
 
 pub struct PackageGraphBuilder<F: MoveFlavor> {
@@ -352,13 +352,12 @@ impl<F: MoveFlavor> PackageCache<F> {
         mtx: &PackageSystemLock,
     ) -> PackageResult<Arc<Package<F>>> {
         let unfetched_path = dep.unfetched_path()?;
-        let ord_unfetched_path = OrdVfsPath::new(unfetched_path);
 
         let cell = self
             .cache
             .lock()
             .expect("unpoisoned")
-            .entry(ord_unfetched_path)
+            .entry(unfetched_path)
             .or_default()
             .clone();
 

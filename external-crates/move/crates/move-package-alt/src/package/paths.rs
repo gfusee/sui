@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::debug;
-use vfs::{VfsError, VfsPath, VfsResult};
+use vfs::{VfsError, VfsResult};
 
 /// Lock file version written by this version of the compiler.  Backwards compatibility is
 /// guaranteed (the compiler can read lock files with older versions), forward compatibility is not
@@ -36,7 +36,7 @@ use crate::{
         RenderToml,
     },
 };
-use crate::vfs::wrappers::OrdVfsPath;
+use crate::vfs::wrappers::VirtualPath;
 use super::{
     EnvironmentName,
     package_lock::{LockError, PackageSystemLock},
@@ -50,11 +50,11 @@ pub struct PackagePath(OutputPath);
 /// A path to a directory in which output can be generated. The directory must exist, but no files
 /// are necessarily present
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OutputPath(VfsPath);
+pub struct OutputPath(VirtualPath);
 
 /// A path to an ephemeral publication file that may be read or updated
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
-pub struct EphemeralPubfilePath(OrdVfsPath);
+pub struct EphemeralPubfilePath(VirtualPath);
 
 #[derive(Error, Debug)]
 pub enum PackagePathError {
@@ -115,7 +115,7 @@ pub type FileResult<T> = Result<T, FileError>;
 
 /// Attempt to extract the name from the manifest file contained inside of `dir`.
 /// Compatable with both modern and legacy files
-pub fn read_name_from_manifest(dir: &VfsPath) -> FileResult<String> {
+pub fn read_name_from_manifest(dir: &VirtualPath) -> FileResult<String> {
     #[derive(Deserialize)]
     struct Header {
         name: String,
@@ -132,7 +132,7 @@ pub fn read_name_from_manifest(dir: &VfsPath) -> FileResult<String> {
 }
 
 impl PackagePath {
-    pub fn new(dir: VfsPath) -> PackagePathResult<Self> {
+    pub fn new(dir: VirtualPath) -> PackagePathResult<Self> {
         if !dir.is_dir()? {
             return Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() });
         }
@@ -232,19 +232,19 @@ impl PackagePath {
     }
 
     /// The path to the directory containing the package
-    pub fn path(&self) -> &VfsPath {
+    pub fn path(&self) -> &VirtualPath {
         self.0.path()
     }
 
-    fn manifest_path(&self) -> VfsResult<VfsPath> {
+    fn manifest_path(&self) -> VfsResult<VirtualPath> {
         self.0.manifest_path()
     }
 
-    fn lockfile_path(&self) -> VfsResult<VfsPath> {
+    fn lockfile_path(&self) -> VfsResult<VirtualPath> {
         self.0.lockfile_path()
     }
 
-    fn pubfile_path(&self) -> VfsResult<VfsPath> {
+    fn pubfile_path(&self) -> VfsResult<VirtualPath> {
         self.0.pubfile_path()
     }
 }
@@ -265,7 +265,7 @@ impl OutputPath {
     /// Create a canonical path from the given [`dir`]. This function checks that there is a
     /// directory at `dir` and that it contains a valid Move package, i.e., it has a `Move.toml`
     /// file.
-    pub fn new(dir: VfsPath) -> PackagePathResult<Self> {
+    pub fn new(dir: VirtualPath) -> PackagePathResult<Self> {
         if !dir.is_dir()? {
             Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() })
         } else {
@@ -278,7 +278,7 @@ impl OutputPath {
         Ok(PackageSystemLock::new_for_project(self.path())?)
     }
 
-    fn path(&self) -> &VfsPath {
+    fn path(&self) -> &VirtualPath {
         &self.0
     }
 
@@ -323,32 +323,32 @@ impl OutputPath {
             .1
     }
 
-    fn manifest_path(&self) -> VfsResult<VfsPath> {
+    fn manifest_path(&self) -> VfsResult<VirtualPath> {
         self.path().join("Move.toml")
     }
 
-    fn lockfile_path(&self) -> VfsResult<VfsPath> {
+    fn lockfile_path(&self) -> VfsResult<VirtualPath> {
         self.path().join("Move.lock")
     }
 
-    fn pubfile_path(&self) -> VfsResult<VfsPath> {
+    fn pubfile_path(&self) -> VfsResult<VirtualPath> {
         self.path().join("Published.toml")
     }
 }
 
 impl EphemeralPubfilePath {
     /// Create `file`'s parent directory (thus ensuring that `file` can be created).
-    pub fn new(file: VfsPath) -> PackagePathResult<Self> {
+    pub fn new(file: VirtualPath) -> PackagePathResult<Self> {
         if let Err(e) = file.parent().create_dir_all() {
             debug!("unexpected error creating directory: {e:?}");
             Err(PackagePathError::InvalidFile { path: file.as_str().to_string() })
         } else {
-            Ok(Self(OrdVfsPath::new(file)))
+            Ok(Self(file))
         }
     }
 
-    fn path(&self) -> &VfsPath {
-        &self.0.as_path()
+    fn path(&self) -> &VirtualPath {
+        &self.0
     }
 
     // TODO: we should require a lock for the pubfile, which we hold between reading and writing
@@ -368,7 +368,7 @@ impl EphemeralPubfilePath {
     }
 }
 
-fn parse_file<T: DeserializeOwned>(path: VfsPath) -> FileResult<Option<(FileHandle, T)>> {
+fn parse_file<T: DeserializeOwned>(path: VirtualPath) -> FileResult<Option<(FileHandle, T)>> {
     if !path.exists()? {
         Ok(None)
     } else if !path.is_file()? {
@@ -388,7 +388,7 @@ fn parse_file<T: DeserializeOwned>(path: VfsPath) -> FileResult<Option<(FileHand
     }
 }
 
-fn render_file<T: RenderToml>(path: &VfsPath, value: &T) -> FileResult<()> {
+fn render_file<T: RenderToml>(path: &VirtualPath, value: &T) -> FileResult<()> {
     let rendered = value.render_as_toml();
     debug!("writing to {path:?}:\n{rendered}");
     write!(path.create_file()?, "{rendered}").map_err(|source| FileError::IoError {
@@ -398,7 +398,7 @@ fn render_file<T: RenderToml>(path: &VfsPath, value: &T) -> FileResult<()> {
 }
 
 /// Extract the version field from the lockfile (compatible with all formats)
-fn lockfile_version(path: VfsPath) -> FileResult<usize> {
+fn lockfile_version(path: VirtualPath) -> FileResult<usize> {
     #[derive(Deserialize)]
     struct Header {
         #[serde(default)]

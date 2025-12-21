@@ -6,12 +6,13 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-use vfs::{PhysicalFS, VfsPath};
+use vfs::PhysicalFS;
 use crate::{
     flavor::Vanilla,
     package::RootPackage,
     schema::{Environment, EnvironmentName, ModeName},
 };
+use crate::vfs::wrappers::VirtualPath;
 
 /// Re-pin the dependencies of this package.
 #[derive(Debug, Clone, Parser)]
@@ -38,7 +39,7 @@ impl UpdateDeps {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let path = self.path.clone().unwrap_or(PathBuf::from("."));
         let fs = PhysicalFS::new(path);
-        let vfs_path = VfsPath::new(fs);
+        let vfs_path = VirtualPath::new(fs);
 
         let envs = RootPackage::<Vanilla>::environments(&vfs_path)?;
 

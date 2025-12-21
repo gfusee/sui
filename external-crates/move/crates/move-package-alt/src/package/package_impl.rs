@@ -10,7 +10,6 @@ use std::{
 use derive_where::derive_where;
 use sha2::{Digest as _, Sha256};
 use tracing::debug;
-use vfs::VfsPath;
 use super::manifest::Manifest;
 use super::package_lock::PackageSystemLock;
 use super::paths::PackagePath;
@@ -32,6 +31,7 @@ use crate::{
     schema::{Environment, OriginalID, PackageMetadata, PackageName, PublishedID},
 };
 use crate::vfs::tempdir::TempDir;
+use crate::vfs::wrappers::VirtualPath;
 
 // TODO: is this the right way to handle this?
 static DUMMY_ADDRESSES: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0x1000));
@@ -307,7 +307,7 @@ impl<F: MoveFlavor> Package<F> {
 pub async fn cache_package<F: MoveFlavor>(
     env: &Environment,
     manifest_dep: &ManifestDependencyInfo,
-    base: &VfsPath
+    base: &VirtualPath
 ) -> PackageResult<CachedPackageInfo> {
     // We need some file handles and things to give context to the dep loading system
     let tempdir = TempDir::new(base).expect("can create a temporary directory");

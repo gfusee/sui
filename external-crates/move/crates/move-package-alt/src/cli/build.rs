@@ -11,7 +11,8 @@ use crate::{
 };
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-use vfs::{PhysicalFS, VfsPath};
+use vfs::PhysicalFS;
+use crate::vfs::wrappers::VirtualPath;
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]
@@ -38,7 +39,7 @@ impl Build {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let path = self.path.clone().unwrap_or_else(|| PathBuf::from("."));
         let fs = PhysicalFS::new(path);
-        let vfs_path = VfsPath::new(fs);
+        let vfs_path = VirtualPath::new(fs);
 
         let envs = RootPackage::<Vanilla>::environments(&vfs_path)?;
 
