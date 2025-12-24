@@ -22,7 +22,7 @@ use crate::{
     package::EnvironmentName,
     schema::ParsedLockfile,
 };
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[derive(Clone, Debug)]
 pub struct PackageConfig {

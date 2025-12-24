@@ -36,6 +36,7 @@ use move_package_alt_compilation::compiled_package::CompiledPackage as MoveCompi
 use move_package_alt_compilation::{
     build_config::BuildConfig as MoveBuildConfig, build_plan::BuildPlan,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 
 use sui_package_alt::{SuiFlavor, testnet_environment};
@@ -57,6 +58,7 @@ mod build_tests;
 pub mod test_utils {
     use crate::{BuildConfig, CompiledPackage};
     use std::path::PathBuf;
+    use move_package_alt_vfs::wrappers::VirtualPath;
 
     pub async fn compile_basics_package() -> CompiledPackage {
         compile_example_package("../../examples/move/basics").await
@@ -70,8 +72,13 @@ pub mod test_utils {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
+        let virtual_path = VirtualPath::physical()
+            .unwrap()
+            .join(path)
+            .unwrap();
+
         BuildConfig::new_for_testing()
-            .build_async(&path)
+            .build_async(virtual_path)
             .await
             .unwrap()
     }
@@ -185,9 +192,9 @@ impl BuildConfig {
         Ok((compiled_pkg, fn_info.unwrap()))
     }
 
-    pub async fn build_async(self, path: &Path) -> anyhow::Result<CompiledPackage> {
+    pub async fn build_async(self, path: VirtualPath) -> anyhow::Result<CompiledPackage> {
         let mut root_pkg = RootPackage::<SuiFlavor>::load(
-            path.to_path_buf(),
+            path,
             self.environment.clone(),
             self.config.mode_set(),
         )
@@ -205,10 +212,10 @@ impl BuildConfig {
 
     /// Given a `path` and a `build_config`, build the package in that path, including its dependencies.
     /// If we are building the Sui framework, we skip the check that the addresses should be 0
-    pub fn build(self, path: &Path) -> anyhow::Result<CompiledPackage> {
+    pub fn build(self, path: VirtualPath) -> anyhow::Result<CompiledPackage> {
         // we need to block here to compile the package, which requires to fetch dependencies
         let mut root_pkg = RootPackage::<SuiFlavor>::load_sync(
-            path.to_path_buf(),
+            path,
             self.environment.clone(),
             self.config.mode_set(),
         )?;

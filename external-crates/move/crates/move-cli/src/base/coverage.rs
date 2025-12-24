@@ -17,6 +17,7 @@ use std::{
     fs::File,
     path::{Path, PathBuf},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 const COVERAGE_FILE_NAME: &str = "lcov.info";
 const DIFFERENTIAL: &str = "diff";
@@ -74,7 +75,7 @@ pub struct Coverage {
 impl Coverage {
     pub async fn execute<F: MoveFlavor>(
         self,
-        path: Option<&Path>,
+        path: Option<&VirtualPath>,
         config: BuildConfig,
     ) -> anyhow::Result<()> {
         let path = reroot_path(path)?;

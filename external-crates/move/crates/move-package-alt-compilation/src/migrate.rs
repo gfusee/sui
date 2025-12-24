@@ -134,7 +134,7 @@ impl<F: MoveFlavor, W: Write + Send, R: BufRead> MigrationContext<'_, F, W, R> {
             self.terminal.writeln("Changes complete")?;
         }
 
-        let filename = migration.record_diff(self.build_plan.root_package_path().to_path_buf())?;
+        let filename = migration.record_diff(self.build_plan.root_package_path().as_ref().clone())?;
         self.terminal.write(WROTE_PATCHFILE)?;
         self.terminal.writeln(filename.as_str())?;
         self.terminal.newline()?;

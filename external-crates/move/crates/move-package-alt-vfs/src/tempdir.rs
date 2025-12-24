@@ -1,9 +1,10 @@
-use crate::vfs::errors::TempDirResult;
+use crate::errors::TempDirResult;
 use std::env;
+use std::path::PathBuf;
 use uuid::Uuid;
-use crate::vfs::wrappers::VirtualPath;
+use crate::wrappers::VirtualPath;
 
-pub(crate) struct TempDir {
+pub struct TempDir {
     path: VirtualPath
 }
 
@@ -19,14 +20,13 @@ impl TempDir {
 
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
         let os_tempdir = env::temp_dir().canonicalize()?;
-        let tmp_base = os_tempdir.to_str().unwrap_or_else(|| "tmp");
 
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-        let tmp_base = "tmp".to_string();
+        let tmp_base = PathBuf::from("tmp".to_string());
 
         let tempdir = base.root()
-            .join(&tmp_base)?
-            .join(tempdir_name)?;
+            .join(&os_tempdir)?
+            .join(&tempdir_name)?;
 
         tempdir.create_dir_all()?;
 

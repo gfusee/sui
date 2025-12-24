@@ -17,6 +17,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::PathBuf,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[derive(Clone, Debug)]
 pub struct BuildNamedAddresses {
@@ -57,7 +58,7 @@ pub struct CompiledPackageInfo {
 #[derive(Debug, Clone)]
 pub struct CompiledUnitWithSource {
     pub unit: CompiledUnit,
-    pub source_path: PathBuf,
+    pub source_path: VirtualPath,
 }
 
 impl CompiledPackage {

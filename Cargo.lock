@@ -7872,6 +7872,7 @@ dependencies = [
  "move-ir-types",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "once_cell",
  "serde",
@@ -7915,6 +7916,7 @@ dependencies = [
  "move-command-line-common",
  "move-core-types",
  "move-ir-types",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "serde",
  "serde_json",
@@ -8008,6 +8010,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-source-map",
  "move-disassembler",
+ "move-package-alt-vfs",
  "ratatui",
  "regex",
 ]
@@ -8038,6 +8041,7 @@ dependencies = [
  "move-model-2",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "move-stdlib",
  "move-stdlib-natives",
  "move-symbol-pool",
@@ -8230,6 +8234,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-model-2",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "num",
  "once_cell",
@@ -8352,7 +8357,6 @@ dependencies = [
  "codespan-reporting",
  "colored",
  "derive-where",
- "fs4",
  "futures",
  "heck 0.3.3",
  "indexmap 2.8.0",
@@ -8362,6 +8366,7 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "named-lock",
  "once_cell",
@@ -8380,8 +8385,6 @@ dependencies = [
  "toml_edit 0.22.24",
  "tracing",
  "tracing-subscriber",
- "uuid 1.2.2",
- "vfs",
  "walkdir",
  "whoami",
 ]
@@ -8404,6 +8407,7 @@ dependencies = [
  "move-docgen",
  "move-model-2",
  "move-package-alt",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "once_cell",
  "petgraph 0.8.1",
@@ -8411,6 +8415,17 @@ dependencies = [
  "serde_yaml 0.8.26",
  "toml_edit 0.22.24",
  "tracing",
+ "vfs",
+]
+
+[[package]]
+name = "move-package-alt-vfs"
+version = "0.1.0"
+dependencies = [
+ "fs4",
+ "move-symbol-pool",
+ "thiserror 1.0.69",
+ "uuid 1.2.2",
  "vfs",
 ]
 
@@ -8493,6 +8508,7 @@ dependencies = [
  "move-docgen",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "move-stdlib-natives",
  "move-vm-runtime",
  "sha2 0.9.9",
@@ -15702,6 +15718,7 @@ dependencies = [
  "move-ir-types",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "mysten-common",
  "serde-reflection",
@@ -16007,6 +16024,7 @@ dependencies = [
  "move-core-types",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "serde",
  "shared-crypto",
  "sui-config",
@@ -16666,6 +16684,7 @@ dependencies = [
  "move-core-types",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-package-alt-vfs",
  "move-symbol-pool",
  "msim",
  "rand 0.8.5",
@@ -16867,6 +16886,7 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "move-core-types",
+ "move-package-alt-vfs",
  "shared-crypto",
  "sui-genesis-builder",
  "sui-move-build",
@@ -17126,6 +17146,7 @@ dependencies = [
  "move-binary-format",
  "move-command-line-common",
  "move-compiler",
+ "move-package-alt-vfs",
  "msim",
  "sui-move-build",
  "tokio",

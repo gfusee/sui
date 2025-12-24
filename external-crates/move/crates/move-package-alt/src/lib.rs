@@ -17,7 +17,6 @@ pub(crate) mod logging;
 pub mod package;
 pub mod schema;
 pub mod test_utils;
-pub(crate) mod vfs;
 
 pub use package::package_impl::cache_package;
 pub use package::paths::read_name_from_manifest;

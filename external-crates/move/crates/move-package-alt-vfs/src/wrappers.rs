@@ -1,10 +1,12 @@
 use std::cmp::Ordering;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use fs4::fs_std::FileExt;
-use vfs::{FileSystem, PhysicalFS, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use move_symbol_pool::Symbol;
+use vfs::{FileSystem, OverlayFS, PhysicalFS, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 
 pub trait FileSystemExt: FileSystem {
     fn open_lockable(&self, path: &str, should_truncate: bool) -> VfsResult<Lockable>;
@@ -24,7 +26,7 @@ pub struct ArcFileSystem {
 
 #[derive(Debug)]
 pub struct Lockable {
-    inner: Box<dyn LockableAndDebuggable>
+    inner: Box<dyn LockableAndDebuggable + Send>
 }
 
 impl Lock for Lockable {
@@ -47,6 +49,8 @@ impl Lock for File {
     }
 }
 
+impl LockableAndDebuggable for File {}
+
 impl FileSystemExt for PhysicalFS {
     fn open_lockable(&self, path: &str, should_truncate: bool) -> VfsResult<Lockable> {
         let lock = OpenOptions::new()
@@ -62,10 +66,25 @@ impl FileSystemExt for PhysicalFS {
     }
 }
 
+impl FileSystemExt for OverlayFS {
+    fn open_lockable(&self, _path: &str, _should_truncate: bool) -> VfsResult<Lockable> {
+        unimplemented!("Is it needed?")
+    }
+}
+
 #[derive(Clone, Debug)]
-pub(crate) struct VirtualPath {
+pub struct VirtualPath {
     path: VfsPath,
-    filesystem: ArcFileSystem
+    cwd: VfsPath,
+    filesystem: ArcFileSystem,
+}
+
+impl ArcFileSystem {
+    fn new<FS: FileSystemExt>(fs: FS) -> Self {
+        Self {
+            fs: Arc::new(Box::new(fs)),
+        }
+    }
 }
 
 impl FileSystem for ArcFileSystem {
@@ -132,51 +151,106 @@ impl PartialEq for VirtualPath {
 
 impl Eq for VirtualPath {}
 
+impl AsRef<VfsPath> for VirtualPath {
+    fn as_ref(&self) -> &VfsPath {
+        &self.path
+    }
+}
+
 impl VirtualPath {
-    pub(crate) fn new<FS: FileSystemExt>(
-        filesystem: FS
-    ) -> Self {
-        Self {
-            path: VfsPath::new(filesystem.clone()),
-            filesystem: ArcFileSystem {
-                fs: Arc::new(Box::new(filesystem)),
-            },
-        }
+    pub fn new<FS: FileSystemExt>(
+        cwd: Option<impl AsRef<str>>,
+        filesystem: FS,
+    ) -> VfsResult<Self> {
+        let arc_filesystem = ArcFileSystem::new(filesystem);
+        let path = VfsPath::new(arc_filesystem.clone());
+        let cwd = match cwd {
+            Some(cwd) => path.root().join(cwd)?,
+            None => path.clone()
+        };
+
+        Ok(Self {
+            path,
+            cwd,
+            filesystem: arc_filesystem,
+        })
     }
 
-    pub(crate) fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
-        self.path.join(path).map(|e| self.with_vfs_path(e))
+    pub fn physical() -> VfsResult<Self> {
+        let physical_filesystem = ArcFileSystem::new(PhysicalFS::new("/"));
+        let cwd = std::env::current_dir()
+            .ok()
+            .map(|e| e.canonicalize().ok())
+            .flatten()
+            .map(|e| e.to_string_lossy().to_string());
+
+        VirtualPath::new(
+            cwd,
+            physical_filesystem
+        )
     }
 
-    pub(crate) fn root(&self) -> Self {
+    pub fn pop(&mut self) -> VfsResult<bool> {
+        let mut self_path_buf = PathBuf::from(self.path.as_str());
+        let result = self_path_buf.pop();
+
+        *self = self.join(self_path_buf)?;
+
+        Ok(result)
+    }
+
+    pub fn join(&self, path: impl AsRef<Path>) -> VfsResult<Self> {
+        let path = path.as_ref();
+        if path.is_absolute() {
+            self.path.root().join(path.to_string_lossy())
+        } else {
+            self.path.join(path.to_string_lossy())
+        }.map(|e| self.with_vfs_path(e))
+    }
+
+    pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
+        self.path.open_file()
+    }
+
+    pub fn with_extension<S: AsRef<str>>(&self, extension: S) -> VfsResult<VirtualPath> {
+        let path_buf_with_extension = PathBuf::from(self.as_str()).with_extension(extension.as_ref());
+
+        self.join(path_buf_with_extension)
+    }
+
+    pub fn root(&self) -> Self {
         self.with_vfs_path(self.path.root())
     }
 
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn cwd(&self) -> Self {
+        self.with_vfs_path(self.cwd.clone())
+    }
+
+    pub fn as_str(&self) -> &str {
         self.path.as_str()
     }
 
-    pub(crate) fn is_dir(&self) -> VfsResult<bool> {
+    pub fn is_dir(&self) -> VfsResult<bool> {
         self.path.is_dir()
     }
 
-    pub(crate) fn is_file(&self) -> VfsResult<bool> {
+    pub fn is_file(&self) -> VfsResult<bool> {
         self.path.is_file()
     }
 
-    pub(crate) fn exists(&self) -> VfsResult<bool> {
+    pub fn exists(&self) -> VfsResult<bool> {
         self.path.exists()
     }
 
-    pub(crate) fn parent(&self) -> Self {
+    pub fn parent(&self) -> Self {
         self.with_vfs_path(self.path.parent())
     }
 
-    pub(crate) fn create_dir_all(&self) -> VfsResult<()> {
+    pub fn create_dir_all(&self) -> VfsResult<()> {
         self.path.create_dir_all()
     }
 
-    pub(crate) fn create_file(&self) -> VfsResult<Box<dyn Write + Send>> {
+    pub fn create_file(&self) -> VfsResult<Box<dyn Write + Send>> {
         self.path.create_file()
     }
 
@@ -184,14 +258,24 @@ impl VirtualPath {
         self.path.read_to_string()
     }
 
-    pub(crate) fn remove_dir_all(&self) -> VfsResult<()> {
+    pub fn remove_file(&self) -> VfsResult<()> {
+        self.path.remove_file()
+    }
+
+    pub fn remove_dir_all(&self) -> VfsResult<()> {
         self.path.remove_dir_all()
     }
 
     pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VirtualPath> + Send>> {
+        let self_clone = self.clone();
+
         self.path
             .read_dir()
-            .map(|vfs_paths| vfs_paths.map(|e| self.with_vfs_path(e)).into())
+            .map(move |iter| {
+                let self_clone = self_clone.clone();
+                let mapped_iter = iter.map(move |vsf_path| self_clone.with_vfs_path(vsf_path));
+                Box::new(mapped_iter) as Box<dyn Iterator<Item = VirtualPath> + Send>
+            })
     }
 
     pub fn metadata(&self) -> VfsResult<VfsMetadata> {
@@ -209,6 +293,7 @@ impl VirtualPath {
     fn with_vfs_path(&self, path: VfsPath) -> Self {
         Self {
             path,
+            cwd: self.cwd.clone(),
             filesystem: self.filesystem.clone(),
         }
     }

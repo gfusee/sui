@@ -48,7 +48,7 @@ use petgraph::{
     visit::EdgeRef,
 };
 use tracing::debug;
-use vfs::VfsResult;
+use move_package_alt_vfs::VfsResult;
 use crate::{
     errors::PackageResult,
     flavor::{
@@ -64,8 +64,8 @@ use crate::{
 };
 
 use crate::graph::PackageGraph;
-use crate::vfs::tempdir::TempDir;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::tempdir::TempDir;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use super::git::RepoProject;
 
 pub struct TestPackageGraph {

@@ -19,7 +19,7 @@ pub use files::Files;
 
 use move_core_types::identifier::Identifier;
 use thiserror::Error;
-use vfs::VfsError;
+use move_package_alt_vfs::VfsError;
 use crate::dependency::FetchError;
 use crate::dependency::ResolverError;
 use crate::git::GitError;
@@ -31,7 +31,7 @@ use crate::package::EnvironmentName;
 use crate::package::manifest::ManifestError;
 use crate::package::paths::FileError;
 use crate::package::paths::PackagePathError;
-use crate::vfs::errors::TempDirError;
+use move_package_alt_vfs::errors::TempDirError;
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;

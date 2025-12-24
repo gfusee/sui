@@ -2,26 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{build_config::BuildConfig, layout::CompiledPackageLayout};
-use std::path::{Path, PathBuf};
+use move_package_alt_vfs::VfsResult;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Computes the base directory for the build output based on the install_dir configuration.
 /// If install_dir is specified, it will be used as the base (resolved relative to project_root if relative).
 /// Otherwise, the project_root itself is used as the base.
-pub fn get_install_base_path(project_root: &Path, build_config: &BuildConfig) -> PathBuf {
+pub fn get_install_base_path(project_root: &VirtualPath, build_config: &BuildConfig) -> VfsResult<VirtualPath> {
     if let Some(install_dir) = &build_config.install_dir {
-        if install_dir.is_relative() {
-            project_root.join(install_dir)
-        } else {
-            install_dir.clone()
-        }
+        project_root.join(install_dir) // VirtualPath already handles relative vs absolute paths
     } else {
-        project_root.to_path_buf()
+        Ok(project_root.clone())
     }
 }
 
 /// Computes the full build directory path, including the "build" subdirectory.
 /// This is where compiled packages are actually stored.
-pub fn get_build_output_path(project_root: &Path, build_config: &BuildConfig) -> PathBuf {
-    let base_path = get_install_base_path(project_root, build_config);
+pub fn get_build_output_path(project_root: &VirtualPath, build_config: &BuildConfig) -> VfsResult<VirtualPath> {
+    let base_path = get_install_base_path(project_root, build_config)?;
     base_path.join(CompiledPackageLayout::Root.path())
 }

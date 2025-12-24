@@ -7,9 +7,9 @@ use std::process::ExitStatus;
 use crate::package::package_lock::LockError;
 use thiserror::Error;
 use tokio::process::Command;
-use vfs::VfsError;
-use crate::vfs::errors::TempDirError;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::VfsError;
+use move_package_alt_vfs::errors::TempDirError;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 pub type GitResult<T> = std::result::Result<T, GitError>;
 

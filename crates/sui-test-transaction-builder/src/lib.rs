@@ -5,6 +5,7 @@ use move_core_types::ident_str;
 use move_core_types::u256::U256;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::path::PathBuf;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_genesis_builder::validator_info::GenesisValidatorMetadata;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_sdk::rpc_types::{
@@ -511,7 +512,13 @@ impl TestTransactionBuilder {
             PublishData::Source(path, with_unpublished_deps) => {
                 let mut config = BuildConfig::new_for_testing();
                 config.config.set_unpublished_deps_to_zero = with_unpublished_deps;
-                let compiled_package = config.build(&path).unwrap();
+
+                let virtual_path = VirtualPath::physical()
+                    .unwrap()
+                    .join(path)
+                    .unwrap();
+
+                let compiled_package = config.build(virtual_path).unwrap();
                 let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
                 let dependencies = compiled_package.get_dependency_storage_package_ids();
                 (all_module_bytes, dependencies)
@@ -535,8 +542,13 @@ impl TestTransactionBuilder {
     pub async fn publish_with_data_async(mut self, data: PublishData) -> Self {
         let (all_module_bytes, dependencies) = match data {
             PublishData::Source(path, with_unpublished_deps) => {
+                let virtual_path = VirtualPath::physical()
+                    .unwrap()
+                    .join(path)
+                    .unwrap();
+
                 let compiled_package = BuildConfig::new_for_testing()
-                    .build_async(&path)
+                    .build_async(virtual_path)
                     .await
                     .unwrap();
                 let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);

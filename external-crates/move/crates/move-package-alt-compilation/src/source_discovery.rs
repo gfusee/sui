@@ -7,11 +7,13 @@ use move_command_line_common::files::find_move_filenames;
 use move_compiler::shared::files::FileName;
 use move_package_alt::package::{layout::SourcePackageLayout, paths::PackagePath};
 use std::path::{Path, PathBuf};
+use move_package_alt_vfs::VfsResult;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 // Find all the source files for a package at the given path
 pub fn get_sources(path: &PackagePath, config: &BuildConfig) -> Result<Vec<FileName>> {
-    let places_to_look = source_paths_for_config(path.path(), config);
-    Ok(find_move_filenames(&places_to_look, false)?
+    let places_to_look = source_paths_for_config(path.path(), config)?;
+    Ok(find_move_filenames(&places_to_look.iter().map(|e| e.as_str().to_string()).collect::<Vec<_>>(), false)?
         .into_iter()
         .map(FileName::from)
         .collect())
@@ -19,27 +21,33 @@ pub fn get_sources(path: &PackagePath, config: &BuildConfig) -> Result<Vec<FileN
 
 /// Get the source paths to look for source files in a package at the given path, based on the
 /// build config flags.
-fn source_paths_for_config(package_path: &Path, config: &BuildConfig) -> Vec<PathBuf> {
+fn source_paths_for_config(package_path: &VirtualPath, config: &BuildConfig) -> VfsResult<Vec<VirtualPath>> {
     let mut places_to_look = Vec::new();
-    let mut add_path = |layout_path: SourcePackageLayout| {
-        let path = package_path.join(layout_path.path());
-        if layout_path.is_optional() && !path.exists() {
-            return;
+    let mut add_path = |layout_path: SourcePackageLayout| -> VfsResult<()> {
+        let path = package_path.join(layout_path.path())?;
+        if layout_path.is_optional() && !path.exists()? {
+            return Ok(());
         }
-        places_to_look.push(path)
+        places_to_look.push(path);
+
+        Ok(())
     };
 
-    add_path(SourcePackageLayout::Sources);
-    add_path(SourcePackageLayout::Scripts);
+    add_path(SourcePackageLayout::Sources)?;
+    add_path(SourcePackageLayout::Scripts)?;
 
     if config.test_mode {
-        add_path(SourcePackageLayout::Tests);
+        add_path(SourcePackageLayout::Tests)?;
     }
 
-    places_to_look
-        .into_iter()
-        .filter(|path| path.exists())
-        .collect()
+    let mut filtered_places_to_look = Vec::new();
+    for place_to_look in places_to_look {
+        if place_to_look.exists()? {
+            filtered_places_to_look.push(place_to_look);
+        }
+    }
+
+    Ok(filtered_places_to_look)
 }
 
 #[cfg(test)]

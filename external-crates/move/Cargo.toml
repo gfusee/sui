@@ -185,6 +185,7 @@ move-ir-types = { path = "crates/move-ir-types" }
 move-model = { path = "crates/move-model" }
 move-model-2 = { path = "crates/move-model-2" }
 move-package = { path = "crates/move-package" }
+move-package-alt-vfs = { path = "crates/move-package-alt-vfs" }
 move-package-alt = { path = "crates/move-package-alt" }
 move-package-alt-compilation = { path = "crates/move-package-alt-compilation" }
 move-proc-macros = { path = "crates/move-proc-macros"}

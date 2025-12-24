@@ -22,8 +22,8 @@ use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
 use path_clean::PathClean;
-use vfs::VfsResult;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::VfsResult;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 
@@ -128,7 +128,7 @@ impl GitTree {
     /// The absolute path on the filesystem where this tree will be downloaded when `fetch` is
     /// called
     pub fn path_to_tree(&self) -> GitResult<VirtualPath> {
-        Ok(self.path_to_repo.join(self.path_in_repo.to_string_lossy())?)
+        Ok(self.path_to_repo.join(&self.path_in_repo)?)
     }
 
     /// Ensure that the files are downloaded to `self.path_to_tree()`. Fails if there was already a
@@ -246,7 +246,7 @@ impl GitTree {
 
     /// Return true if the directory exists and is dirty
     async fn is_dirty(&self) -> GitResult<bool> {
-        if !self.path_to_repo.join(".git")?.exists()? {
+        if !self.path_to_repo.join(&".git")?.exists()? {
             return Ok(true);
         }
 
@@ -456,13 +456,13 @@ async fn try_find_full_sha(
 
     let git_cache_path = get_cache_path(base);
 
-    let lookup_path = git_cache_path.join("lookups")?;
+    let lookup_path = git_cache_path.join(&"lookups")?;
 
     lookup_path.create_dir_all().map_err(|error| GitError::TempDirectory(
         std::io::Error::new(std::io::ErrorKind::Unsupported, error)
     ))?;
 
-    let path_to_clone = lookup_path.join(url_to_file_name(repo))?;
+    let path_to_clone = lookup_path.join(&url_to_file_name(repo))?;
     let path_to_clone_str = path_to_clone.as_str().to_string();
 
     if path_to_clone.exists()? {

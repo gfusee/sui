@@ -20,7 +20,7 @@ use super::{
 };
 use indexmap::IndexMap;
 use serde_spanned::Spanned;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 // TODO: replace this with something more strongly typed
 pub type Digest = String;

@@ -95,11 +95,12 @@ use move_package_alt::flavor::MoveFlavor;
 use move_package_alt::package::RootPackage;
 use move_package_alt::schema::Environment;
 use std::path::Path;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// If no environment is passed, it will use the default implicit environment. If an environment
 /// is passed, it will try to find it in the list of available environments, and error if it cannot
 /// be found.
-pub fn find_env<F: MoveFlavor>(path: &Path, config: &BuildConfig) -> anyhow::Result<Environment> {
+pub fn find_env<F: MoveFlavor>(path: &VirtualPath, config: &BuildConfig) -> anyhow::Result<Environment> {
     let envs = RootPackage::<F>::environments(path)?;
     let env = if let Some(ref e) = config.environment {
         if let Some(env) = envs.get(e) {

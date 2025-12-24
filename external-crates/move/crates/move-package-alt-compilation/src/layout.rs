@@ -18,8 +18,8 @@ pub enum CompiledPackageLayout {
 }
 
 impl CompiledPackageLayout {
-    pub fn path(&self) -> &Path {
-        let path = match self {
+    pub fn path(&self) -> &str {
+        match self {
             Self::BuildInfo => "BuildInfo.yaml",
             Self::Root => "build",
             Self::Dependencies => "dependencies",
@@ -29,8 +29,7 @@ impl CompiledPackageLayout {
             Self::CompiledModules => "bytecode_modules",
             Self::CompiledDocs => "docs",
             Self::Disassembly => "disassembly",
-        };
-        Path::new(path)
+        }
     }
 
     pub fn path_to_file_after_category(path: &Path) -> PathBuf {

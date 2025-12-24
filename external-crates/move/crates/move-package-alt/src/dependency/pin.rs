@@ -17,7 +17,7 @@ use crate::{
     },
 };
 use crate::git::GitResult;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use super::{CombinedDependency, Dependency};
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,
@@ -212,7 +212,7 @@ impl Pinned {
                 absolute_path_to_package: containing_file
                     .path()
                     .parent()
-                    .join(loc.local.to_string_lossy())?,
+                    .join(&loc.local)?,
                 relative_path_from_root_package: loc.local.clone(),
             })),
             LockfileDependencyInfo::OnChain(chain) => Ok(Pinned::OnChain(chain.clone())),
@@ -265,12 +265,12 @@ impl LocalDepInfo {
                 inner: parent_git.inner.relative_tree(self.local.to_string_lossy())?,
             }),
             Pinned::Local(parent_local) => Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: parent.unfetched_path()?.join(&self.local.to_string_lossy())?,
+                absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
                 relative_path_from_root_package: parent_local.relative_path_from_root_package
                     .join(&self.local)
             }),
             Pinned::Root(_) => Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: parent.unfetched_path()?.join(&self.local.to_string_lossy())?,
+                absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
                 relative_path_from_root_package: self.local,
             }),
             Pinned::OnChain(_) => todo!(),

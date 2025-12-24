@@ -13,6 +13,7 @@ use std::{
     io::Stdout,
     path::{Path, PathBuf},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[cfg(test)]
 mod tests;
@@ -71,9 +72,12 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
 
     let env = move_package_alt::flavor::vanilla::default_environment();
 
+    let modules_full_path = VirtualPath::physical()?
+        .join(modules_full_path())?;
+
     let model = config
         .move_model_from_path::<Vanilla, Stdout>(
-            Path::new(&modules_full_path()).parent().unwrap(),
+            modules_full_path,
             env,
             &mut std::io::stdout(),
         )

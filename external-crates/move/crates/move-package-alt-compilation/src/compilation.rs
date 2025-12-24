@@ -14,7 +14,7 @@ use crate::{
     layout::CompiledPackageLayout,
     on_disk_package::{OnDiskCompiledPackage, OnDiskPackage},
 };
-use std::{collections::BTreeSet, path::Path};
+use std::collections::BTreeSet;
 
 use anyhow::Result;
 use colored::Colorize;
@@ -40,10 +40,10 @@ use move_package_alt::{
 use move_symbol_pool::Symbol;
 use std::{collections::BTreeMap, io::Write, path::PathBuf, str::FromStr};
 use tracing::debug;
-use vfs::VfsPath;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 pub async fn compile_package<W: Write + Send, F: MoveFlavor>(
-    path: &Path,
+    path: VirtualPath,
     build_config: &BuildConfig,
     env: &Environment,
     writer: &mut W,
@@ -77,13 +77,13 @@ pub fn compiler_flags(build_config: &BuildConfig) -> Flags {
 
 pub fn build_all<W: Write + Send, F: MoveFlavor>(
     w: &mut W,
-    vfs_root: Option<VfsPath>,
+    vfs_root: Option<VirtualPath>,
     root_pkg: &RootPackage<F>,
     dependencies: BTreeSet<PackageID>,
     build_config: &BuildConfig,
     compiler_driver: impl FnOnce(Compiler) -> Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
 ) -> Result<CompiledPackage> {
-    let project_root = root_pkg.package_path().to_path_buf();
+    let project_root = root_pkg.package_path();
     let program_info_hook = SaveHook::new([SaveFlag::TypingInfo]);
     let package_name = Symbol::from(root_pkg.name().as_str());
     let (file_map, all_compiled_units) = build_for_driver(
@@ -118,22 +118,21 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
         // unwraps below are safe as the source path exists (or must have existed at some point)
         // so it would be syntactically correct
         let file_name = PathBuf::from(source_path.file_name().unwrap());
-        if let Ok(p) = dunce::canonicalize(source_path.parent().unwrap()) {
-            annot_unit
-                .named_module
-                .source_map
-                .set_from_file_path(p.join(file_name));
-        }
+        let p = source_path.parent().unwrap();
+        annot_unit
+            .named_module
+            .source_map
+            .set_from_file_path(p.join(file_name));
         let unit = CompiledUnitWithSource {
             unit: annot_unit.named_module,
-            source_path,
+            source_path: project_root.join(source_path)?,
         };
         if package_name == root_package_name {
             root_compiled_units.push(unit.clone())
         } else {
             deps_compiled_units.push((package_name, unit.clone()))
         }
-        all_compiled_units_vec.push((unit.source_path, unit.unit));
+        all_compiled_units_vec.push((PathBuf::from(unit.source_path.as_str()), unit.unit));
     }
 
     let mut compiled_docs = None;
@@ -156,6 +155,11 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
             all_compiled_units_vec,
         )?;
 
+        let install_dir = match &build_config.install_dir {
+            Some(install_dir) => Some(project_root.cwd().join(install_dir)?),
+            None => None
+        };
+
         compiled_docs = Some(build_docs(
             DocgenFlags::default(), // TODO this should be configurable
             root_package_name,
@@ -164,7 +168,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
             //TODO Fix this, it needs immediate dependencies for this pkg
             &[],
             // &immediate_dependencies,
-            &build_config.install_dir,
+            &install_dir,
         )?);
     };
 
@@ -177,7 +181,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
         build_flags: build_config.clone(),
     };
 
-    let under_path = shared::get_build_output_path(&project_root, build_config);
+    let under_path = shared::get_build_output_path(&project_root, build_config)?;
 
     save_to_disk(
         root_compiled_units.clone(),
@@ -202,7 +206,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
 #[allow(unreachable_code)] // TODO
 pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
     w: &mut W,
-    vfs_root: Option<VfsPath>,
+    vfs_root: Option<VirtualPath>,
     build_config: &BuildConfig,
     root_pkg: &RootPackage<F>,
     dependencies: BTreeSet<PackageID>,
@@ -228,7 +232,7 @@ pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
     let lint_level = build_config.lint_flag.get();
     let sui_mode = build_config.default_flavor == Some(Flavor::Sui);
     let flags = compiler_flags(build_config);
-    let mut compiler = Compiler::from_package_paths(vfs_root, package_paths, vec![])
+    let mut compiler = Compiler::from_package_paths(vfs_root.map(|e| e.as_ref().clone()), package_paths, vec![])
         .unwrap()
         .set_flags(flags);
     if sui_mode {
@@ -252,12 +256,12 @@ fn save_to_disk(
     deps_compiled_units: Vec<(Symbol, CompiledUnitWithSource)>,
     compiled_docs: Option<Vec<(String, String)>>,
     root_package: Symbol,
-    under_path: PathBuf,
+    under_path: VirtualPath,
 ) -> Result<OnDiskCompiledPackage> {
     check_filepaths_ok(&root_compiled_units, compiled_package_info.package_name)?;
-    assert!(under_path.ends_with(CompiledPackageLayout::Root.path()));
+    assert!(under_path.as_str().ends_with(CompiledPackageLayout::Root.path()));
     let on_disk_package = OnDiskCompiledPackage {
-        root_path: under_path.join(root_package.to_string()),
+        root_path: under_path.join(root_package.to_string())?,
         package: OnDiskPackage {
             compiled_package_info: compiled_package_info.clone(),
             dependencies: deps_compiled_units
@@ -271,11 +275,11 @@ fn save_to_disk(
 
     // Clear out the build dir for this package so we don't keep artifacts from previous
     // compilations
-    if on_disk_package.root_path.is_dir() {
-        std::fs::remove_dir_all(&on_disk_package.root_path)?;
+    if on_disk_package.root_path.is_dir()? {
+        on_disk_package.root_path.remove_dir_all()?;
     }
 
-    std::fs::create_dir_all(&on_disk_package.root_path)?;
+    on_disk_package.root_path.create_dir_all()?;
 
     for compiled_unit in root_compiled_units {
         on_disk_package.save_compiled_unit(root_package, &compiled_unit)?;
@@ -294,8 +298,7 @@ fn save_to_disk(
     if let Some(docs) = compiled_docs {
         for (doc_filename, doc_contents) in docs {
             on_disk_package.save_under(
-                CompiledPackageLayout::CompiledDocs
-                    .path()
+                PathBuf::from(CompiledPackageLayout::CompiledDocs.path())
                     .join(doc_filename)
                     .with_extension("md"),
                 doc_contents.clone().as_bytes(),
@@ -326,7 +329,7 @@ fn check_filepaths_ok(
             .or_insert_with(Vec::new);
         entry.push((
             name,
-            compiled_unit.source_path.to_string_lossy().to_string(),
+            compiled_unit.source_path.clone(),
         ));
     }
     let errs = insensitive_mapping
@@ -335,7 +338,7 @@ fn check_filepaths_ok(
             if occurence_infos.len() > 1 {
                 let name_conflict_error_msg = occurence_infos
                     .into_iter()
-                    .map(|(name, fpath)| format!("\tModule '{}' at path '{}'", name, fpath))
+                    .map(|(name, fpath)| format!("\tModule '{}' at path '{}'", name, fpath.as_str()))
                     .collect::<Vec<_>>()
                     .join("\n");
                 Some(format!(

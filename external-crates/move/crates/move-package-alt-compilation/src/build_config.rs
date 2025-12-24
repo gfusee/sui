@@ -5,7 +5,7 @@
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use clap::ArgAction;
@@ -24,14 +24,14 @@ use move_package_alt::{
 };
 use move_symbol_pool::Symbol;
 
-use move_package_alt::{flavor::MoveFlavor, package::RootPackage, schema::Environment};
-
 use crate::{
     build_plan::BuildPlan,
     compiled_package::{BuildNamedAddresses, CompiledPackage},
     migrate::migrate,
     model_builder,
 };
+use move_package_alt::{flavor::MoveFlavor, package::RootPackage, schema::Environment};
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 use super::lint_flag::LintFlag;
 
@@ -127,7 +127,7 @@ pub struct BuildConfig {
 impl BuildConfig {
     pub async fn compile_package<F: MoveFlavor, W: Write + Send>(
         &self,
-        path: &Path,
+        path: VirtualPath,
         env: &Environment,
         writer: &mut W,
     ) -> anyhow::Result<CompiledPackage> {
@@ -138,7 +138,7 @@ impl BuildConfig {
     /// Migrate the package at `path`.
     pub async fn migrate_package<F: MoveFlavor, W: Write + Send, R: BufRead>(
         mut self,
-        path: &Path,
+        path: VirtualPath,
         env: Environment,
         writer: &mut W,
         reader: &mut R,
@@ -154,7 +154,7 @@ impl BuildConfig {
 
     pub async fn move_model_from_path<F: MoveFlavor, W: Write + Send>(
         &self,
-        path: &Path,
+        path: VirtualPath,
         env: Environment,
         writer: &mut W,
     ) -> anyhow::Result<source_model::Model> {

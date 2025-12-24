@@ -16,8 +16,8 @@ use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
 use toml::value::Value as TV;
-use vfs::VfsFileType;
-use crate::vfs::wrappers::VirtualPath;
+use move_package_alt_vfs::VfsFileType;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 pub type LegacyVersion = (u64, u64, u64);
 pub type LegacySubstitution = BTreeMap<String, LegacySubstOrRename>;

@@ -15,7 +15,6 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use tar::Archive;
-use tempfile::TempDir;
 use tracing::{debug, info};
 
 use sui_package_alt::SuiFlavor;
@@ -40,6 +39,8 @@ use move_package_alt::{
 };
 use move_package_alt_compilation::compiled_package::CompiledUnitWithSource;
 use move_package_alt_compilation::layout::CompiledPackageLayout;
+use move_package_alt_vfs::tempdir::TempDir;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 
 pub(crate) const CURRENT_COMPILER_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -287,7 +288,7 @@ pub(crate) fn units_for_toolchain(
             bail!("Expected one or more modules, but none found");
         }
         let package_root = SourcePackageLayout::try_find_root(&local_units[0].source_path)?;
-        let install_dir = tempfile::tempdir()?; // place compiled packages in this temp dir, don't pollute this packages build dir
+        let install_dir = TempDir::new(&local_units[0].source_path)?; // place compiled packages in this temp dir, don't pollute this packages build dir
         download_and_compile(
             package_root.clone(),
             &install_dir,
@@ -301,9 +302,9 @@ pub(crate) fn units_for_toolchain(
         })?;
         let build_path = install_dir
             .path()
-            .join(CompiledPackageLayout::path(&CompiledPackageLayout::Root))
-            .join(package.as_str());
-        debug!("build path is {}", build_path.display());
+            .join(CompiledPackageLayout::path(&CompiledPackageLayout::Root))?
+            .join(package.as_str())?;
+        debug!("build path is {}", build_path.as_str());
 
         // Add all units compiled with the previous compiler.
         for bytecode_path in compiled_units {
@@ -481,7 +482,7 @@ fn set_executable_permission(path: &OsStr) -> anyhow::Result<()> {
 }
 
 fn decode_bytecode_file(
-    root_path: PathBuf,
+    root_path: VirtualPath,
     package_name: &Symbol,
     bytecode_path_str: &str,
 ) -> anyhow::Result<CompiledUnitWithSource> {
@@ -491,16 +492,16 @@ fn decode_bytecode_file(
     let bytecode_bytes = std::fs::read(bytecode_path)?;
     let source_map = source_map_from_file(
         &root_path
-            .join(CompiledPackageLayout::DebugInfo.path())
-            .join(&path_to_file)
-            .with_extension(DEBUG_INFO_EXTENSION),
+            .join(CompiledPackageLayout::DebugInfo.path())?
+            .join(&path_to_file)?
+            .with_extension(DEBUG_INFO_EXTENSION)?,
     )?;
     let source_path = &root_path
-        .join(CompiledPackageLayout::Sources.path())
-        .join(path_to_file)
-        .with_extension(MOVE_EXTENSION);
+        .join(CompiledPackageLayout::Sources.path())?
+        .join(path_to_file)?
+        .with_extension(MOVE_EXTENSION)?;
     ensure!(
-        source_path.is_file(),
+        source_path.is_file()?,
         "Error decoding package: Unable to find corresponding source file for '{bytecode_path_str}' in package {package_name}"
     );
     let module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)?;

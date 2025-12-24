@@ -9,13 +9,14 @@ use move_package_alt::{
     package::RootPackage,
     schema::{Environment, EnvironmentID, EnvironmentName},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_sdk::{SuiClient, wallet_context::WalletContext};
 
 use crate::SuiFlavor;
 
 /// Binds together the context for `find_environment` for helper functions
 struct EnvFinder<'a> {
-    package_path: &'a Path,
+    package_path: &'a VirtualPath,
     explicit_env: Option<EnvironmentName>,
     wallet: &'a WalletContext,
     manifest_envs: IndexMap<EnvironmentName, EnvironmentID>,
@@ -26,7 +27,7 @@ struct EnvFinder<'a> {
 ///  - the `-e <env>` argument that was passed, if any
 ///  - the CLI's active environment (`wallet`)
 pub async fn find_environment(
-    package_path: &Path,
+    package_path: &VirtualPath,
     explicit_env: Option<EnvironmentName>,
     wallet: &WalletContext,
 ) -> anyhow::Result<Environment> {

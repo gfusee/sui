@@ -8,6 +8,7 @@ use move_binary_format::{
     compatibility::{self, Compatibility, InclusionCheck},
     normalized,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 
 pub const TEST_DIR: &str = "tests";
@@ -18,14 +19,17 @@ async fn run_test(path: &Path) -> datatest_stable::Result<()> {
     let mut pathbuf = path.to_path_buf();
     pathbuf.pop();
     pathbuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(pathbuf);
-    let base_path = pathbuf.join("base");
-    let upgraded_path = pathbuf.join("upgraded");
+
+    let virtual_pathbuf = VirtualPath::physical()?.join(pathbuf.clone())?;
+
+    let base_path = virtual_pathbuf.join("base")?;
+    let upgraded_path = virtual_pathbuf.join("upgraded")?;
 
     let pool = &mut normalized::RcPool::new();
-    let base = compile(&base_path).await?;
+    let base = compile(base_path).await?;
     let base_normalized = normalize(pool, &base);
 
-    let upgraded = compile(&upgraded_path).await?;
+    let upgraded = compile(upgraded_path).await?;
     let upgraded_normalized = normalize(pool, &upgraded);
 
     check_all_compatibilities(
@@ -35,7 +39,7 @@ async fn run_test(path: &Path) -> datatest_stable::Result<()> {
     )
 }
 
-async fn compile(path: &Path) -> anyhow::Result<Vec<CompiledModule>> {
+async fn compile(path: VirtualPath) -> anyhow::Result<Vec<CompiledModule>> {
     Ok(BuildConfig::new_for_testing()
         .build_async(path)
         .await

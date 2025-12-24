@@ -13,6 +13,7 @@ move-ir-types.workspace = true
 move-symbol-pool.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
+move-package-alt-vfs.workspace = true
 
 bcs.workspace = true
 

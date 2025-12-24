@@ -13,6 +13,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 pub mod bytecode_viewer;
 pub mod interfaces;
@@ -54,7 +55,13 @@ impl BytecodeViewerConfig {
         let compiled_module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)
             .expect("Module blob can't be deserialized");
 
-        let source_map = source_map_from_file(&self.module_sourcemap_path).unwrap();
+        let path = VirtualPath::physical()
+            .expect("Physical filesystem should be available")
+            .join(&self.module_sourcemap_path)
+            .expect(&format!("Path should be valid {}", self.module_binary_path.to_string_lossy()));
+
+        let source_map = source_map_from_file(&path)
+            .expect("Unable to read source map from file");
 
         let source_path = Path::new(&self.source_file_path);
         start_viewer_in_memory(compiled_module, source_map, source_path)

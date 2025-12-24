@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// References file for documentation generation
 pub const REFERENCE_TEMPLATE_FILENAME: &str = "references.md";
@@ -36,16 +37,16 @@ impl SourcePackageLayout {
         self.location_str()
     }
 
-    pub fn try_find_root(starting_path: &Path) -> Result<PathBuf> {
-        let mut current_path = starting_path.to_path_buf();
+    pub fn try_find_root(starting_path: VirtualPath) -> Result<VirtualPath> {
+        let mut current_path = starting_path.clone();
         loop {
-            if current_path.join(Self::Manifest.path()).is_file() {
+            if current_path.join(Self::Manifest.path())?.is_file()? {
                 break Ok(current_path);
             }
-            if !current_path.pop() {
+            if !current_path.pop()? {
                 bail!(
                     "Unable to find package manifest at '{}/{}' or in its parents",
-                    starting_path.to_string_lossy(),
+                    starting_path.as_str(),
                     Self::Manifest.path().to_string()
                 )
             }

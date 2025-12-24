@@ -1,12 +1,11 @@
-use fs4::fs_std::FileExt;
 use sha2::{Digest, Sha256};
-use std::fs::{File, OpenOptions};
 use thiserror::Error;
 use tracing::debug;
-use vfs::{VfsError, VfsResult};
+use move_package_alt_vfs::VfsResult;
 use crate::git::get_cache_path;
 use crate::logging::user_error;
-use crate::vfs::wrappers::{Lock, Lockable, VirtualPath};
+use move_package_alt_vfs::VfsError;
+use move_package_alt_vfs::wrappers::{Lock, Lockable, VirtualPath};
 
 #[derive(Debug, Error)]
 pub enum LockError {

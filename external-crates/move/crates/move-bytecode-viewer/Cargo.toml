@@ -17,6 +17,7 @@ regex.workspace = true
 move-bytecode-source-map.workspace = true
 move-binary-format.workspace = true
 move-disassembler.workspace = true
+move-package-alt-vfs.workspace = true
 
 [features]
 default = []

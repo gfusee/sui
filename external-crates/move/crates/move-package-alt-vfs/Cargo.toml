@@ -1,0 +1,11 @@
+[package]
+name = "move-package-alt-vfs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fs4.workspace = true
+move-symbol-pool.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+vfs.workspace = true
