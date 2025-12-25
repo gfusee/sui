@@ -37,7 +37,7 @@ pub struct UpdateDeps {
 impl UpdateDeps {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let path = self.path.clone().unwrap_or(PathBuf::from("."));
-        let vfs_path = VirtualPath::physical()?.join(&path)?;
+        let vfs_path = VirtualPath::physical()?.cwd().join(&path)?;
 
         let envs = RootPackage::<Vanilla>::environments(&vfs_path)?;
 

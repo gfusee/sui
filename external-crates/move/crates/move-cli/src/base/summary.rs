@@ -22,6 +22,7 @@ use move_package_alt::{flavor::MoveFlavor, package::RootPackage};
 use move_package_alt_compilation::{
     build_config::BuildConfig, compiled_package::BuildNamedAddresses, find_env,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 
 const COMMAND_NAME: &str = "summary";
@@ -106,7 +107,7 @@ impl Summary {
         } else {
             let path = reroot_path(path)?;
             let env = find_env::<F>(&path, &config)?;
-            let root_pkg = RootPackage::<F>::load(&path, env, config.mode_set()).await?;
+            let root_pkg = RootPackage::<F>::load(path, env, config.mode_set()).await?;
             // Get named addresses from the root package graph
             let named_addresses: BuildNamedAddresses =
                 root_pkg.package_info().named_addresses()?.into();

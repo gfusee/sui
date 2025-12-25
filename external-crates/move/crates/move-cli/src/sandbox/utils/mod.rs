@@ -139,12 +139,12 @@ pub(crate) fn explain_publish_error(
 ) -> Result<()> {
     use StatusCode::*;
     let mut files = HashMap::new();
-    let file_contents = std::fs::read_to_string(&unit.source_path)?;
+    let file_contents = unit.source_path.read_to_string()?;
     let file_hash = FileHash::new(&file_contents);
     files.insert(
         file_hash,
         (
-            FileName::from(unit.source_path.to_string_lossy()),
+            FileName::from(unit.source_path.as_str()),
             Arc::from(file_contents),
         ),
     );

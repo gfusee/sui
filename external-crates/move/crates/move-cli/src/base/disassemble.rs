@@ -11,6 +11,7 @@ use move_package_alt_compilation::{
     build_config::BuildConfig, compiled_package::CompiledUnitWithSource, find_env,
 };
 use std::path::Path;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Disassemble the Move bytecode pointed to
 #[derive(Parser)]
@@ -50,7 +51,7 @@ impl Disassemble {
         } = self;
         // Make sure the package is built
         let package = config
-            .compile_package::<F, _>(&rerooted_path, &env, &mut Vec::new())
+            .compile_package::<F, _>(rerooted_path, &env, &mut Vec::new())
             .await?;
         let needle_package = package_name
             .as_deref()

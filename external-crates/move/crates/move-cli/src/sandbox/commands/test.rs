@@ -29,6 +29,8 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+use move_package_alt_vfs::VfsResult;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use tempfile::tempdir;
 use tracing::debug;
 
@@ -61,23 +63,21 @@ const DEFAULT_TRACE_FILE: &str = "trace";
 const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(
-    trace_file: &Path,
-    build_dir: &Path,
+    trace_file: &VirtualPath,
+    build_dir: VirtualPath,
 ) -> anyhow::Result<ExecCoverageMapWithModules> {
-    let canonical_build = build_dir.canonicalize().unwrap();
-
-    let pkg_root = &SourcePackageLayout::try_find_root(&canonical_build).unwrap();
+    let pkg_root = &SourcePackageLayout::try_find_root(build_dir.clone()).unwrap();
     let package_name = move_package_alt::read_name_from_manifest(pkg_root)?;
 
     let pkg_path = &build_dir
-        .join(package_name)
-        .join(CompiledPackageLayout::BuildInfo.path());
+        .join(package_name)?
+        .join(CompiledPackageLayout::BuildInfo.path())?;
     let pkg = OnDiskCompiledPackage::from_path(pkg_path)?.into_compiled_package()?;
 
     let src_modules = pkg
         .all_compiled_units_with_source()
         .map(|unit| {
-            let absolute_path = path_to_string(&unit.source_path.canonicalize()?)?;
+            let absolute_path = unit.source_path.as_str().to_string();
             Ok((absolute_path, unit.unit.module.clone()))
         })
         .collect::<anyhow::Result<HashMap<_, _>>>()?;
@@ -127,12 +127,12 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
 /// Copy `pkg_dir` and all of its dependencies into `tmp_dir`, keeping all of the relative
 /// paths the same. This may require copying into a subdirectory of `tmp_dir` if the local paths
 /// start with `..`; the actual subdirectory containing the copied files is returned.
-fn copy_pkg_and_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> {
+fn copy_pkg_and_deps(tmp_dir: &VirtualPath, pkg_dir: VirtualPath) -> anyhow::Result<VirtualPath> {
     let paths = match package_paths(pkg_dir) {
         Ok(paths) => paths,
         Err(e) => {
             debug!("couldn't find packages: {e}");
-            [pkg_dir.to_path_buf()].into()
+            [pkg_dir].into()
         }
     };
 
@@ -141,8 +141,8 @@ fn copy_pkg_and_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> 
     debug!("copying {paths:?}");
 
     for path in paths {
-        debug!("cp {:?} {:?}", &path, tmp_dir.join(&prefix).join(&path));
-        simple_copy_dir(&tmp_dir.join(&prefix).join(&path), &path)?;
+        debug!("cp {:?} {:?}", &path, tmp_dir.join(&prefix)?.join(&path)?);
+        simple_copy_dir(&tmp_dir.join(&prefix)?.join(&path)?, &path)?;
     }
 
     Ok(tmp_dir.join(prefix).join(pkg_dir))
@@ -155,7 +155,7 @@ fn copy_pkg_and_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> 
 /// We copy as if `--mode test` were passed, so that `dev-dependencies` will be included; if tests
 /// use moded dependencies with any other modes, those dependencies won't be copied and this code
 /// will need to be fixed.
-fn package_paths(pkg_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+fn package_paths(pkg_dir: VirtualPath) -> anyhow::Result<Vec<VirtualPath>> {
     let rt = tokio::runtime::Runtime::new()?;
 
     let root_pkg = rt.block_on(RootPackage::<Vanilla>::load(
@@ -168,21 +168,19 @@ fn package_paths(pkg_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 
     Ok(packages
         .iter()
-        .map(|pkg| pkg.path().path().to_path_buf())
+        .map(|pkg| pkg.path().path().clone())
         .collect())
 }
 
 /// Recursively copy all files in `src` into `dir`
-fn simple_copy_dir(dst: &Path, src: &Path) -> io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
-        let src_entry = entry?;
-        let src_entry_path = src_entry.path();
-        let dst_entry_path = dst.join(src_entry.file_name());
-        if src_entry_path.is_dir() {
-            simple_copy_dir(&dst_entry_path, &src_entry_path)?;
+fn simple_copy_dir(dst: &VirtualPath, src: &VirtualPath) -> VfsResult<()> {
+    dst.create_dir_all()?;
+    for src_entry in src.read_dir()? {
+        let dst_entry_path = dst.join(src_entry.filename())?;
+        if src_entry.is_dir()? {
+            simple_copy_dir(&dst_entry_path, &src_entry)?;
         } else {
-            fs::copy(&src_entry_path, &dst_entry_path)?;
+            &src_entry.copy_file(&dst_entry_path)?;
         }
     }
     Ok(())
@@ -303,7 +301,11 @@ pub fn run_one(
         None => None,
         Some(trace_path) => {
             if trace_path.exists() {
-                Some(collect_coverage(trace_path, &build_output)?)
+                let virtual_cwd = VirtualPath::physical()?.cwd();
+                Some(collect_coverage(
+                    &virtual_cwd.join(&trace_path)?,
+                    &virtual_cwd.join(&build_output)?
+                )?)
             } else {
                 eprintln!(
                     "Trace file {:?} not found: coverage is only available with at least one `run` \

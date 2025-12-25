@@ -20,7 +20,7 @@ async fn run_test(path: &Path) -> datatest_stable::Result<()> {
     pathbuf.pop();
     pathbuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(pathbuf);
 
-    let virtual_pathbuf = VirtualPath::physical()?.join(pathbuf.clone())?;
+    let virtual_pathbuf = VirtualPath::physical()?.cwd().join(pathbuf.clone())?;
 
     let base_path = virtual_pathbuf.join("base")?;
     let upgraded_path = virtual_pathbuf.join("upgraded")?;

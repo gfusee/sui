@@ -73,6 +73,7 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
     let env = move_package_alt::flavor::vanilla::default_environment();
 
     let modules_full_path = VirtualPath::physical()?
+        .cwd()
         .join(modules_full_path())?;
 
     let model = config

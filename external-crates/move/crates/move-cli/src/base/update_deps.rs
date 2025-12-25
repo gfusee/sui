@@ -12,6 +12,7 @@ use move_package_alt::{
     schema::{Environment, EnvironmentName},
 };
 use move_package_alt_compilation::build_config::BuildConfig;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Re-pin the dependencies of this package.
 #[derive(Debug, Clone, Parser)]
@@ -29,8 +30,12 @@ impl UpdateDeps {
         build_config: &BuildConfig,
         env: Environment,
     ) -> anyhow::Result<()> {
-        let default = PathBuf::from(".");
-        let path = path.unwrap_or(&default);
+        let mut virtual_path = VirtualPath::physical()?.cwd();
+
+        if let Some(path) = path {
+            virtual_path = virtual_path.join(path)?;
+        }
+
         let modes = build_config
             .modes
             .clone()
@@ -38,7 +43,7 @@ impl UpdateDeps {
             .map(|x| x.to_string())
             .collect::<Vec<_>>();
 
-        let mut root_package = RootPackage::<F>::load_force_repin(&path, env, modes).await?;
+        let mut root_package = RootPackage::<F>::load_force_repin(virtual_path, env, modes).await?;
         root_package.save_lockfile_to_disk()?;
         Ok(())
     }

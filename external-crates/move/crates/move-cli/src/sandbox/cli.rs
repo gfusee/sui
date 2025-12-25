@@ -20,6 +20,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 fn parse_move_value(s: &str) -> Result<MoveValue> {
     let x: ParsedValue<()> = ParsedValue::parse(s)?;
@@ -193,6 +194,12 @@ impl SandboxCommand {
         move_args: &Move,
         storage_dir: &Path,
     ) -> Result<()> {
+        let mut package_context_path = VirtualPath::physical()?.cwd();
+
+        if let Some(package_path) = &move_args.package_path {
+            package_context_path = package_context_path.join(package_path)?;
+        }
+
         match self {
             SandboxCommand::Publish {
                 ignore_breaking_changes,
@@ -201,7 +208,7 @@ impl SandboxCommand {
                 override_ordering,
             } => {
                 let context =
-                    PackageContext::new::<F>(&move_args.package_path, &move_args.build_config)
+                    PackageContext::new::<F>(package_context_path, &move_args.build_config)
                         .await?;
                 let state = context.prepare_state(storage_dir)?;
                 sandbox::commands::publish(
@@ -226,7 +233,7 @@ impl SandboxCommand {
                 dry_run,
             } => {
                 let context =
-                    PackageContext::new::<F>(&move_args.package_path, &move_args.build_config)
+                    PackageContext::new::<F>(package_context_path, &move_args.build_config)
                         .await?;
                 let state = context.prepare_state(storage_dir)?;
                 sandbox::commands::run(
@@ -258,7 +265,7 @@ impl SandboxCommand {
             ),
             SandboxCommand::View { file } => {
                 let state =
-                    PackageContext::new::<F>(&move_args.package_path, &move_args.build_config)
+                    PackageContext::new::<F>(package_context_path, &move_args.build_config)
                         .await?
                         .prepare_state(storage_dir)?;
                 sandbox::commands::view(&state, file)
@@ -286,14 +293,14 @@ impl SandboxCommand {
             }
             SandboxCommand::Doctor {} => {
                 let state =
-                    PackageContext::new::<F>(&move_args.package_path, &move_args.build_config)
+                    PackageContext::new::<F>(package_context_path, &move_args.build_config)
                         .await?
                         .prepare_state(storage_dir)?;
                 sandbox::commands::doctor(&state)
             }
             SandboxCommand::Generate { cmd } => {
                 let state =
-                    PackageContext::new::<F>(&move_args.package_path, &move_args.build_config)
+                    PackageContext::new::<F>(package_context_path, &move_args.build_config)
                         .await?
                         .prepare_state(storage_dir)?;
                 handle_generate_commands(cmd, &state)

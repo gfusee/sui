@@ -40,7 +40,7 @@ pub struct BytecodeViewerConfig {
 pub fn start_viewer_in_memory(
     compiled_module: CompiledModule,
     source_map: SourceMap,
-    source_path: &Path,
+    source_path: &VirtualPath,
 ) {
     let module_viewer = ModuleViewer::new(compiled_module.clone(), source_map.clone(), source_path);
     let bytecode_viewer = BytecodeViewer::new(source_map, &compiled_module);
@@ -55,15 +55,20 @@ impl BytecodeViewerConfig {
         let compiled_module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)
             .expect("Module blob can't be deserialized");
 
-        let path = VirtualPath::physical()
-            .expect("Physical filesystem should be available")
+        let root_path = VirtualPath::physical()
+            .expect("Physical filesystem should be available");
+
+        let module_sourcemap_path = root_path
             .join(&self.module_sourcemap_path)
             .expect(&format!("Path should be valid {}", self.module_binary_path.to_string_lossy()));
 
-        let source_map = source_map_from_file(&path)
+        let source_map = source_map_from_file(&module_sourcemap_path)
             .expect("Unable to read source map from file");
 
-        let source_path = Path::new(&self.source_file_path);
-        start_viewer_in_memory(compiled_module, source_map, source_path)
+        let source_path = root_path
+            .join(&self.source_file_path)
+            .expect(&format!("Source file path should be valid {}", self.source_file_path.to_string_lossy()));
+
+        start_viewer_in_memory(compiled_module, source_map, &source_path)
     }
 }

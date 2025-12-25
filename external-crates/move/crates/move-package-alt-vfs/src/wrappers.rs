@@ -208,6 +208,10 @@ impl VirtualPath {
         }.map(|e| self.with_vfs_path(e))
     }
 
+    pub fn filename(&self) -> String {
+        self.path.filename()
+    }
+
     pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.path.open_file()
     }
@@ -254,6 +258,14 @@ impl VirtualPath {
         self.path.create_file()
     }
 
+    pub fn copy_file(&self, destination: &VirtualPath) -> VfsResult<()> {
+        self.path.copy_file(&destination.path)
+    }
+
+    pub fn copy_dir(&self, destination: &VirtualPath) -> VfsResult<u64> {
+        self.path.copy_dir(&destination.path)
+    }
+
     pub fn read_to_string(&self) -> VfsResult<String> {
         self.path.read_to_string()
     }
@@ -288,6 +300,14 @@ impl VirtualPath {
 
     pub fn open_and_lock_exclusive(&self, should_truncate: bool) -> VfsResult<Lockable> {
         self.filesystem.open_lockable(self.path.as_str(), should_truncate)
+    }
+
+    pub fn with_current_dir(&self, cwd: VirtualPath) -> Self {
+        Self {
+            path: self.path.clone(),
+            cwd: cwd.cwd,
+            filesystem: self.filesystem.clone(),
+        }
     }
 
     fn with_vfs_path(&self, path: VfsPath) -> Self {

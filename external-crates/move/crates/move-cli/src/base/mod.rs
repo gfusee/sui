@@ -15,15 +15,18 @@ pub mod update_deps;
 
 use move_package_alt::package::layout::SourcePackageLayout;
 use std::path::{Path, PathBuf};
+use move_package_alt_vfs::wrappers::VirtualPath;
 
-/// Reroot the path if none is given
-pub fn reroot_path(path: Option<&Path>) -> anyhow::Result<PathBuf> {
-    let path = path
-        .map(Path::canonicalize)
-        .unwrap_or_else(|| PathBuf::from(".").canonicalize())?;
+/// Reroot the path if none is given, and convert it to a physical VirtualPath.
+pub fn reroot_path(path: Option<&Path>) -> anyhow::Result<VirtualPath> {
+    let virtual_cwd = VirtualPath::physical()?.cwd();
+
+    let path = match path {
+        Some(path) => virtual_cwd.join(path)?,
+        None => virtual_cwd,
+    };
     // Always root ourselves to the package root, and then compile relative to that.
-    let rooted_path = SourcePackageLayout::try_find_root(&path)?;
-    std::env::set_current_dir(&rooted_path).unwrap();
+    let rooted_path = SourcePackageLayout::try_find_root(path.clone())?;
 
-    Ok(PathBuf::from("."))
+    Ok(path.with_current_dir(rooted_path))
 }

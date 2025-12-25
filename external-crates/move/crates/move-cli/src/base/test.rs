@@ -33,6 +33,8 @@ use std::{
     path::Path,
     process::ExitStatus,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
+
 // if not windows nor unix
 #[cfg(not(any(target_family = "windows", target_family = "unix")))]
 compile_error!("Unsupported OS, currently we only support windows and unix family");
@@ -96,7 +98,7 @@ impl Test {
         // save disassembly if trace execution is enabled
         let save_disassembly = self.trace;
         let result = run_move_unit_tests::<F, Stdout>(
-            &rerooted_path,
+            rerooted_path,
             config,
             self.unit_test_config(),
             natives,
@@ -150,7 +152,7 @@ pub enum UnitTestResult {
 }
 
 pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
-    pkg_path: &Path,
+    pkg_path: VirtualPath,
     mut build_config: move_package_alt_compilation::build_config::BuildConfig,
     mut unit_test_config: UnitTestingConfig,
     natives: Vec<NativeFunctionRecord>,
@@ -165,9 +167,9 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
 
     // Load the package (package graph diagnostics are only needed for CLI commands so
     // ignore them by passing a vector as the writer)
-    let env = find_env::<F>(pkg_path, &build_config)?;
+    let env = find_env::<F>(&pkg_path, &build_config)?;
     let root_pkg =
-        RootPackage::<F>::load(pkg_path.to_path_buf(), env, build_config.mode_set()).await?;
+        RootPackage::<F>::load(pkg_path.clone(), env, build_config.mode_set()).await?;
     let root_pkg_name = Symbol::from(root_pkg.name().as_str());
 
     let mut addresses: Vec<(String, NumericalAddress)> = vec![];
@@ -215,13 +217,13 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
     let no_tests = test_plan.is_empty();
     let test_plan = TestPlan::new(test_plan, mapped_files, units, vec![]);
 
-    let trace_path = pkg_path.join(".trace");
+    let trace_path = pkg_path.join(".trace")?;
     let coverage_map_path = pkg_path
-        .join(".coverage_map")
-        .with_extension(MOVE_COVERAGE_MAP_EXTENSION);
+        .join(".coverage_map")?
+        .with_extension(MOVE_COVERAGE_MAP_EXTENSION)?;
     let cleanup_trace = || {
-        if compute_coverage && trace_path.exists() {
-            std::fs::remove_file(&trace_path).unwrap();
+        if compute_coverage && trace_path.exists().unwrap() {
+            &trace_path.remove_file().unwrap();
         }
     };
 
@@ -230,7 +232,7 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
     // If we need to compute test coverage set the VM tracking environment variable since we will
     // need this trace to construct the coverage information.
     if compute_coverage {
-        unsafe { std::env::set_var("MOVE_VM_TRACE", &trace_path) };
+        unsafe { std::env::set_var("MOVE_VM_TRACE", &trace_path.as_str()) };
     }
 
     // Run the tests. If any of the tests fail, then we don't produce a coverage report, so cleanup
@@ -245,8 +247,8 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
 
     // Compute the coverage map. This will be used by other commands after this.
     if compute_coverage && !no_tests {
-        let coverage_map = CoverageMap::from_trace_file(trace_path);
-        output_map_to_file(coverage_map_path, &coverage_map).unwrap();
+        let coverage_map = CoverageMap::from_trace_file(&trace_path);
+        output_map_to_file(&coverage_map_path, &coverage_map).unwrap();
     }
     Ok((UnitTestResult::Success, warning_diags))
 }

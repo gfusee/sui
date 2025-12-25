@@ -8167,6 +8167,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-ir-types",
+ "move-package-alt-vfs",
  "move-trace-format",
  "petgraph 0.8.1",
  "serde",

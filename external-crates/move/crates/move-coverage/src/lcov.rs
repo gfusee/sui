@@ -17,6 +17,7 @@ use std::{
     io::Read,
     path::PathBuf,
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 pub type LineNumber = usize;
 pub type HitCount = usize;
@@ -33,7 +34,7 @@ pub struct PackageRecordKeeper {
 // A coverage record keeper for a single file.
 pub struct FileRecordKeeper {
     // Path to source file (or generated disassembl file if source is not available)
-    pub source_file_path: PathBuf,
+    pub source_file_path: VirtualPath,
     // Functions that exist
     pub functions_found: BTreeMap<String, LineNumber>,
     // Lines that are instrumented (that appear in bytecode)
@@ -79,7 +80,7 @@ impl BranchInfo {
 }
 
 impl PackageRecordKeeper {
-    pub fn new(units: Vec<(CompiledUnit, PathBuf)>, file_mapping: MappedFiles) -> Self {
+    pub fn new(units: Vec<(CompiledUnit, VirtualPath)>, file_mapping: MappedFiles) -> Self {
         let mut file_record_keepers = BTreeMap::new();
         for (unit, source_path) in units.into_iter() {
             let module_id = unit.module.self_id();
@@ -189,7 +190,7 @@ impl PackageRecordKeeper {
 }
 
 impl FileRecordKeeper {
-    pub fn new(unit: CompiledUnit, source_path: PathBuf, file_mapping: &MappedFiles) -> Self {
+    pub fn new(unit: CompiledUnit, source_path: VirtualPath, file_mapping: &MappedFiles) -> Self {
         let functions_found = BTreeMap::new();
         let instrumented_lines = BTreeSet::new();
 
@@ -199,7 +200,7 @@ impl FileRecordKeeper {
         let branches = BTreeMap::new();
 
         let mut information = Self {
-            source_file_path: source_path.canonicalize().unwrap(),
+            source_file_path: source_path,
             functions_found,
             functions_hit,
             instrumented_lines,
@@ -224,7 +225,7 @@ impl FileRecordKeeper {
 
         let mut records = vec![
             LRecord::SourceFile {
-                path: source_file_path.clone(),
+                path: PathBuf::from(source_file_path.as_str()),
             },
             LRecord::FunctionsFound {
                 found: functions_found.len() as u32,

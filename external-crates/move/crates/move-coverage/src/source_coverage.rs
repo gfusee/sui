@@ -23,6 +23,8 @@ use std::{
     io::{self, Write},
     path::Path,
 };
+use std::ffi::OsString;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct FunctionSourceCoverage {
@@ -138,14 +140,14 @@ impl<'a> SourceCoverageBuilder<'a> {
         }
     }
 
-    pub fn compute_source_coverage(&self, file_path: &Path) -> SourceCoverage {
-        let file_contents = fs::read_to_string(file_path).unwrap();
+    pub fn compute_source_coverage(&self, file_path: &VirtualPath) -> SourceCoverage {
+        let file_contents = file_path.read_to_string().unwrap();
         assert!(
             self.source_map.check(&file_contents),
             "File contents out of sync with source map"
         );
         let mut files = Files::new();
-        let file_id = files.add(file_path.as_os_str().to_os_string(), file_contents.clone());
+        let file_id = files.add(file_path.as_str(), file_contents.clone());
 
         let mut uncovered_segments = BTreeMap::new();
 
