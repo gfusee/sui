@@ -29,6 +29,7 @@ tempfile.workspace = true
 tokio.workspace = true
 url.workspace = true
 
+move-package-alt-vfs.workspace = true
 simulacrum.workspace = true
 sui-futures.workspace = true
 sui-indexer-alt.workspace = true

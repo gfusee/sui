@@ -1,10 +1,8 @@
 use crate::errors::TempDirResult;
-use std::{env, io, mem};
-use std::fs::remove_dir_all;
-use std::path::PathBuf;
+use crate::wrappers::VirtualPath;
+use std::{env, mem};
 use uuid::Uuid;
 use vfs::VfsResult;
-use crate::wrappers::VirtualPath;
 
 pub struct TempDir {
     path: Option<VirtualPath> // Always Some excepted after a call to close, useful to not leak memory

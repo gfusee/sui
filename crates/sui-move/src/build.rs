@@ -4,7 +4,8 @@
 use clap::Parser;
 use move_cli::base::{self};
 use move_package_alt_compilation::build_config::BuildConfig as MoveBuildConfig;
-use std::{fs, path::Path};
+use move_package_alt_vfs::wrappers::VirtualPath;
+use std::path::Path;
 use sui_move_build::BuildConfig;
 use sui_package_alt::find_environment;
 use sui_sdk::wallet_context::WalletContext;
@@ -40,7 +41,7 @@ impl Build {
     ) -> anyhow::Result<()> {
         let rerooted_path = base::reroot_path(path)?;
         Self::execute_internal(
-            &rerooted_path,
+            rerooted_path,
             build_config,
             self.generate_struct_layouts,
             wallet,
@@ -49,31 +50,31 @@ impl Build {
     }
 
     pub async fn execute_internal(
-        rerooted_path: &Path,
+        rerooted_path: VirtualPath,
         config: MoveBuildConfig,
         generate_struct_layouts: bool,
         wallet: &WalletContext,
     ) -> anyhow::Result<()> {
         let environment =
-            find_environment(rerooted_path, config.environment.clone(), wallet).await?;
+            find_environment(&rerooted_path, config.environment.clone(), wallet).await?;
         let pkg = BuildConfig {
             config,
             run_bytecode_verifier: true,
             print_diags_to_stderr: true,
             environment,
         }
-        .build(rerooted_path)?;
+        .build(rerooted_path.clone())?;
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();
             // store under <package_path>/build/<package_name>/layouts/struct_layouts.yaml
             let dir_name = rerooted_path
-                .join("build")
-                .join(pkg.package.compiled_package_info.package_name.as_str())
-                .join(LAYOUTS_DIR);
-            let layout_filename = dir_name.join(STRUCT_LAYOUTS_FILENAME);
-            fs::create_dir_all(dir_name)?;
-            fs::write(layout_filename, layout_str)?
+                .join("build")?
+                .join(pkg.package.compiled_package_info.package_name.as_str())?
+                .join(LAYOUTS_DIR)?;
+            let layout_filename = dir_name.join(STRUCT_LAYOUTS_FILENAME)?;
+            dir_name.create_dir_all()?;
+            write!(layout_filename.create_file()?, "{layout_str}")?
         }
 
         Ok(())

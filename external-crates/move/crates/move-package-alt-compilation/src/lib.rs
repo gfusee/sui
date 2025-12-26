@@ -94,7 +94,6 @@ pub use compilation::compile_package;
 use move_package_alt::flavor::MoveFlavor;
 use move_package_alt::package::RootPackage;
 use move_package_alt::schema::Environment;
-use std::path::Path;
 use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// If no environment is passed, it will use the default implicit environment. If an environment

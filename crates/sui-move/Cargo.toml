@@ -28,6 +28,7 @@ move-disassembler.workspace = true
 move-ir-types.workspace = true
 move-package-alt.workspace = true
 move-package-alt-compilation.workspace = true
+move-package-alt-vfs.workspace = true
 move-bytecode-source-map.workspace = true
 move-unit-test.workspace = true
 move-core-types.workspace = true

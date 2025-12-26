@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use sui_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
@@ -37,8 +38,13 @@ impl PackagePublishTxGenerator {
             info!("Publishing dependent package {}", name);
             let target_path = dir.join(&path);
             let module_bytes = if is_source_code {
+                let virtual_target_path = VirtualPath::physical()
+                    .unwrap()
+                    .cwd()
+                    .join(&target_path)
+                    .unwrap();
                 let compiled_package = BuildConfig::new_for_testing()
-                    .build_async(&target_path)
+                    .build_async(virtual_target_path)
                     .await
                     .unwrap();
                 compiled_package.get_package_bytes(false)
@@ -82,10 +88,16 @@ impl PackagePublishTxGenerator {
         let target_path = dir.join(path);
         let published_deps = dep_map.clone();
 
+        let virtual_target_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(&target_path)
+            .unwrap();
+
         let mut compiled_package = BuildConfig::new_for_testing_replace_addresses(
             dep_map.into_iter().map(|(k, v)| (k.to_string(), v)),
         )
-        .build_async(&target_path)
+        .build_async(virtual_target_path)
         .await
         .unwrap();
 

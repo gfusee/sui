@@ -2,9 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::{Path, PathBuf};
-
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// References file for documentation generation

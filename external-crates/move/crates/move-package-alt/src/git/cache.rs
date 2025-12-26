@@ -30,7 +30,7 @@ static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 // TODO: this should be moved into [crate::dependency::git]
 pub(crate) fn get_cache_path(base: &VirtualPath) -> &'static VirtualPath {
     CONFIG.get_or_init(|| {
-        base.root()
+        base.cwd()
             .join(move_command_line_common::env::MOVE_HOME.clone())
             .expect("joining root path with MOVE_HOME should work")
             .join("git")

@@ -9,22 +9,21 @@ use codespan::{Files, Span};
 use colored::*;
 use indexmap::IndexSet;
 use move_binary_format::{
-    CompiledModule,
     file_format::{CodeOffset, FunctionDefinitionIndex},
+    CompiledModule,
 };
 use move_bytecode_source_map::source_map::SourceMap;
 use move_command_line_common::files::FileHash;
 use move_core_types::identifier::Identifier;
 use move_ir_types::location::Loc;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
-    fs,
-    io::{self, Write},
-    path::Path,
+    collections::BTreeMap
+    ,
+    io::{self, Write}
+    ,
 };
-use std::ffi::OsString;
-use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct FunctionSourceCoverage {

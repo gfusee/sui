@@ -6,7 +6,6 @@ use clap::*;
 use move_package_alt::flavor::MoveFlavor;
 use move_package_alt_compilation::{build_config::BuildConfig, find_env};
 use std::path::Path;
-use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Build the package at `path`. If no path is provided defaults to current directory.
 #[derive(Parser)]

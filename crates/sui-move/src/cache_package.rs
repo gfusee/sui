@@ -6,6 +6,7 @@ use move_package_alt::{
     cache_package,
     schema::{Environment, ManifestDependencyInfo},
 };
+use move_package_alt_vfs::wrappers::VirtualPath;
 use serde::Deserialize;
 use vfs::PhysicalFS;
 use sui_package_alt::SuiFlavor;
@@ -41,7 +42,7 @@ impl CachePackage {
         let info = cache_package::<SuiFlavor>(
             &env,
             &dep.dep,
-            PhysicalFS::new("/").into()
+            &VirtualPath::physical()?
         ).await?;
         println!("{}", serde_json::to_string(&info)?);
 

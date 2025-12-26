@@ -1,11 +1,9 @@
 use std::cmp::Ordering;
-use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use move_symbol_pool::Symbol;
 use vfs::{FileSystem, OverlayFS, PhysicalFS, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 
 pub trait FileSystemExt: FileSystem {
@@ -26,7 +24,7 @@ pub struct ArcFileSystem {
 
 #[derive(Debug)]
 pub struct Lockable {
-    inner: Box<dyn LockableAndDebuggable + Send>
+    inner: Box<dyn LockableAndDebuggable + Send + Sync>
 }
 
 impl Lock for Lockable {
@@ -225,7 +223,7 @@ impl VirtualPath {
         self.join(path_buf_with_extension)
     }
 
-    pub fn root(&self) -> Self {
+    pub(crate) fn root(&self) -> Self {
         self.with_vfs_path(self.path.root())
     }
 

@@ -2,30 +2,29 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use std::io::Write;
 use anyhow::ensure;
 use move_binary_format::CompiledModule;
 use move_compiler::{
     compiled_unit::NamedCompiledModule,
     shared::{
-        NumericalAddress,
         files::{FileName, MappedFiles},
+        NumericalAddress,
     },
 };
 use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crate::{compiled_package::CompiledPackage, layout::CompiledPackageLayout};
 use move_bytecode_source_map::utils::{
     serialize_to_json, serialize_to_json_string, source_map_from_file,
 };
 use move_command_line_common::files::{
-    DEBUG_INFO_EXTENSION, FileHash, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION,
-    MOVE_EXTENSION, extension_equals, find_filenames, try_exists,
+    extension_equals, find_filenames, FileHash, DEBUG_INFO_EXTENSION,
+    MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
 };
 use move_disassembler::disassembler::Disassembler;
 use move_package_alt_vfs::wrappers::VirtualPath;

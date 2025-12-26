@@ -29,6 +29,8 @@ use move_core_types::{
 };
 use move_package_alt_compilation::build_config::BuildConfig as MoveBuildConfig;
 use std::{collections::BTreeMap, path::Path};
+use move_package_alt_vfs::wrappers::VirtualPath;
+use tower::ServiceExt;
 use sui_json::{is_receiving_argument, primitive_type};
 use sui_json_rpc_types::{SuiObjectData, SuiObjectDataOptions, SuiRawData};
 use sui_sdk::{apis::ReadApi, wallet_context::WalletContext};
@@ -932,8 +934,14 @@ impl<'a> PTBBuilder<'a> {
                 }
 
                 let build_config = MoveBuildConfig::default();
+
+                let virtual_package_path = VirtualPath::physical()
+                    .map(|path| path.cwd().join(&package_path))
+                    .flatten()
+                    .map_err(|e| err!(pkg_loc, "Cannot create virtual path: {e}"))?;
+
                 let root_pkg =
-                    load_root_pkg_for_publish_upgrade(self.wallet, &build_config, package_path)
+                    load_root_pkg_for_publish_upgrade(self.wallet, &build_config, virtual_package_path)
                         .await
                         .map_err(|e| err!(pkg_loc, "Cannot compile package: {e}"))?;
 
@@ -982,9 +990,14 @@ impl<'a> PTBBuilder<'a> {
                 };
 
                 let package_path = Path::new(&package_path);
+                let virtual_package = VirtualPath::physical()
+                    .map(|path| path.cwd().join(package_path))
+                    .flatten()
+                    .map_err(|e| err!(path_loc, "Cannot create a virtual path for: {}", package_path.to_string_lossy()))?;
+
                 let build_config = MoveBuildConfig::default();
                 let root_pkg =
-                    load_root_pkg_for_publish_upgrade(self.wallet, &build_config, package_path)
+                    load_root_pkg_for_publish_upgrade(self.wallet, &build_config, virtual_package)
                         .await
                         .map_err(|e| err!(path_loc, "Cannot compile package: {e}"))?;
 

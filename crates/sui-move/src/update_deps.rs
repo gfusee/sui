@@ -28,7 +28,7 @@ impl UpdateDeps {
         let path = reroot_path(path)?;
         let environment = find_environment(&path, build_config.environment.clone(), wallet).await?;
         self.update_deps
-            .execute::<SuiFlavor>(Some(&path), &build_config, environment)
+            .execute::<SuiFlavor>(path, &build_config, environment)
             .await
     }
 }

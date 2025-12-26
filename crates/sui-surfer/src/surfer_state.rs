@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
 use sui_move_build::BuildConfig;
 use sui_protocol_config::{Chain, ProtocolConfig};
@@ -333,8 +334,13 @@ impl SurferState {
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
     pub async fn publish_package(&mut self, path: &Path) {
         let rgp = self.cluster.get_reference_gas_price().await;
+        let virtual_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path)
+            .unwrap();
         let package = BuildConfig::new_for_testing()
-            .build_async(path)
+            .build_async(virtual_path)
             .await
             .unwrap();
         let modules = package.get_package_bytes(false);

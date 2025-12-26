@@ -2,18 +2,18 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use move_command_line_common::files::{MOVE_EXTENSION, extension_equals, find_filenames};
+use move_command_line_common::files::{extension_equals, find_filenames, MOVE_EXTENSION};
 use move_core_types::parsing::address::NumericalAddress;
 use move_docgen::DocgenOptions;
 use move_package_alt::flavor::Vanilla;
 use move_package_alt_compilation::build_config::BuildConfig;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use std::{
     collections::BTreeMap,
     fs,
     io::Stdout,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
 
 #[cfg(test)]
 mod tests;

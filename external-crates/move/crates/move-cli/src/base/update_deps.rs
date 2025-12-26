@@ -26,16 +26,10 @@ pub struct UpdateDeps {
 impl UpdateDeps {
     pub async fn execute<F: MoveFlavor>(
         &self,
-        path: Option<&Path>,
+        path: VirtualPath,
         build_config: &BuildConfig,
         env: Environment,
     ) -> anyhow::Result<()> {
-        let mut virtual_path = VirtualPath::physical()?.cwd();
-
-        if let Some(path) = path {
-            virtual_path = virtual_path.join(path)?;
-        }
-
         let modes = build_config
             .modes
             .clone()
@@ -43,7 +37,7 @@ impl UpdateDeps {
             .map(|x| x.to_string())
             .collect::<Vec<_>>();
 
-        let mut root_package = RootPackage::<F>::load_force_repin(virtual_path, env, modes).await?;
+        let mut root_package = RootPackage::<F>::load_force_repin(path, env, modes).await?;
         root_package.save_lockfile_to_disk()?;
         Ok(())
     }
