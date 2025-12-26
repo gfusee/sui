@@ -29,6 +29,8 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+use anyhow::{anyhow, bail};
+use move_package_alt_vfs::tempdir::TempDir;
 use move_package_alt_vfs::VfsResult;
 use move_package_alt_vfs::wrappers::VirtualPath;
 use tempfile::tempdir;
@@ -127,8 +129,10 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
 /// Copy `pkg_dir` and all of its dependencies into `tmp_dir`, keeping all of the relative
 /// paths the same. This may require copying into a subdirectory of `tmp_dir` if the local paths
 /// start with `..`; the actual subdirectory containing the copied files is returned.
-fn copy_pkg_and_deps(tmp_dir: &VirtualPath, pkg_dir: VirtualPath) -> anyhow::Result<VirtualPath> {
-    let paths = match package_paths(pkg_dir) {
+fn copy_pkg_and_deps(cwd: VirtualPath, tmp_dir: &VirtualPath, pkg_dir: VirtualPath) -> anyhow::Result<VirtualPath> {
+    let pkg_dir_path_buf = PathBuf::from(pkg_dir.as_str().to_string());
+
+    let paths = match package_paths(pkg_dir.clone()) {
         Ok(paths) => paths,
         Err(e) => {
             debug!("couldn't find packages: {e}");
@@ -136,16 +140,26 @@ fn copy_pkg_and_deps(tmp_dir: &VirtualPath, pkg_dir: VirtualPath) -> anyhow::Res
         }
     };
 
-    let prefix = make_dir_prefix(&paths);
+    let cwd_path_buf = PathBuf::from(cwd.as_str().to_string());
+
+    let relative_paths_from_pkg_dir = paths
+        .iter()
+        .map(|pkg_path| {
+            pathdiff::diff_paths(&cwd_path_buf, pkg_path.as_str())
+                .ok_or_else(|| anyhow!("failed to diff paths: {pkg_path:?}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let prefix = make_dir_prefix(&relative_paths_from_pkg_dir);
 
     debug!("copying {paths:?}");
 
-    for path in paths {
-        debug!("cp {:?} {:?}", &path, tmp_dir.join(&prefix)?.join(&path)?);
-        simple_copy_dir(&tmp_dir.join(&prefix)?.join(&path)?, &path)?;
+    for (virtual_path, relative_path) in paths.iter().zip(relative_paths_from_pkg_dir) {
+        debug!("cp {:?} {:?}", &relative_path, tmp_dir.join(&prefix)?.join(&relative_path)?);
+        simple_copy_dir(&tmp_dir.join(&prefix)?.join(&relative_path)?, &virtual_path)?;
     }
 
-    Ok(tmp_dir.join(prefix).join(pkg_dir))
+    Ok(tmp_dir.join(prefix)?.join(pkg_dir_path_buf)?)
 }
 
 /// Return the paths to all the packages needed by the package at `pkg_dir` (including itself); if
@@ -186,46 +200,48 @@ fn simple_copy_dir(dst: &VirtualPath, src: &VirtualPath) -> VfsResult<()> {
     Ok(())
 }
 
-/// Run the `args_path` batch file with`cli_binary`
+/// Run the `args_path` batch file with`cli_binary`.
+/// VirtualPath parameters are assumed to be in the physical FS.
 pub fn run_one(
-    args_path: &Path,
+    args_path: &VirtualPath,
     cli_binary: &Path,
     use_temp_dir: bool,
     track_cov: bool,
 ) -> anyhow::Result<Option<ExecCoverageMapWithModules>> {
-    let args_file = io::BufReader::new(File::open(args_path)?).lines();
-    let cli_binary_path = cli_binary.canonicalize()?;
+    let args_file = io::BufReader::new(args_path.open_file()?).lines();
 
     // path where we will run the binary
-    let exe_dir = args_path.parent().unwrap();
+    let exe_dir = args_path.parent();
     let temp_dir = if use_temp_dir {
         // copy everything in the exe_dir into the temp_dir
-        let dir = tempdir()?;
-        let padded_dir = copy_pkg_and_deps(dir.path(), exe_dir)?;
-        simple_copy_dir(&padded_dir, exe_dir)?;
+        let dir = TempDir::new(args_path)?;
+        let padded_dir = copy_pkg_and_deps(args_path.cwd(), dir.path(), exe_dir.clone())?;
+        simple_copy_dir(&padded_dir, &exe_dir)?;
         Some((dir, padded_dir))
     } else {
         None
     };
-    let wks_dir = temp_dir.as_ref().map_or(exe_dir, |t| &t.1);
+    let wks_dir = temp_dir.as_ref().map_or(exe_dir.clone(), |t| t.1.clone());
 
-    let storage_dir = wks_dir.join(DEFAULT_STORAGE_DIR);
+    let storage_dir = wks_dir.join(DEFAULT_STORAGE_DIR)?;
     let build_output = wks_dir
-        .join(DEFAULT_BUILD_DIR)
-        .join(CompiledPackageLayout::Root.path());
+        .join(DEFAULT_BUILD_DIR)?
+        .join(CompiledPackageLayout::Root.path())?;
 
     // template for preparing a cli command
     let cli_command_template = || {
-        let mut command = Command::new(cli_binary_path.clone());
+        let mut command = Command::new(cli_binary.clone());
+
+        // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         if let Some(work_dir) = temp_dir.as_ref() {
-            command.current_dir(&work_dir.1);
+            command.current_dir(&work_dir.1.as_str());
         } else {
-            command.current_dir(exe_dir);
+            command.current_dir(exe_dir.as_str());
         }
         command
     };
 
-    if storage_dir.exists() || build_output.exists() {
+    if storage_dir.exists()? || build_output.exists()? {
         // need to clean before testing
         cli_command_template()
             .arg("sandbox")
@@ -236,7 +252,7 @@ pub fn run_one(
 
     // always use the absolute path for the trace file as we may change dirs in the process
     let trace_file = if track_cov {
-        Some(wks_dir.canonicalize()?.join(DEFAULT_TRACE_FILE))
+        Some(wks_dir.join(DEFAULT_TRACE_FILE)?)
     } else {
         None
     };
@@ -250,10 +266,11 @@ pub fn run_one(
             let external_cmd = external_cmd.trim_start();
             let mut command = Command::new("sh");
             command.arg("-c").arg(external_cmd);
+            // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
             if let Some(work_dir) = temp_dir.as_ref() {
-                command.current_dir(&work_dir.1);
+                command.current_dir(&work_dir.1.as_str());
             } else {
-                command.current_dir(exe_dir);
+                command.current_dir(exe_dir.as_str());
             }
             let cmd_output = command.output()?;
 
@@ -284,7 +301,7 @@ pub fn run_one(
                 // then, when running <args-B.txt>, coverage will not be tracked nor printed
                 unsafe { env::remove_var(MOVE_VM_TRACING_ENV_VAR_NAME) };
             }
-            Some(path) => unsafe { env::set_var(MOVE_VM_TRACING_ENV_VAR_NAME, path.as_os_str()) },
+            Some(path) => unsafe { env::set_var(MOVE_VM_TRACING_ENV_VAR_NAME, path.as_str()) }, // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         }
 
         let cmd_output = cli_command_template().args(args_iter).output()?;
@@ -300,11 +317,10 @@ pub fn run_one(
     let cov_info = match &trace_file {
         None => None,
         Some(trace_path) => {
-            if trace_path.exists() {
-                let virtual_cwd = VirtualPath::physical()?.cwd();
+            if trace_path.exists()? {
                 Some(collect_coverage(
-                    &virtual_cwd.join(&trace_path)?,
-                    &virtual_cwd.join(&build_output)?
+                    trace_path,
+                    build_output.clone()
                 )?)
             } else {
                 eprintln!(
@@ -329,21 +345,21 @@ pub fn run_one(
 
         // check that build and storage was deleted
         assert!(
-            !storage_dir.exists(),
+            !storage_dir.exists()?,
             "`move clean` failed to eliminate {} directory",
             DEFAULT_STORAGE_DIR
         );
         assert!(
-            !build_output.exists(),
+            !build_output.exists()?,
             "`move clean` failed to eliminate {} directory",
             DEFAULT_BUILD_DIR
         );
 
         // clean the trace file as well if it exists
         if let Some(trace_path) = &trace_file
-            && trace_path.exists()
+            && trace_path.exists()?
         {
-            fs::remove_file(trace_path)?;
+            trace_path.remove_file()?;
         }
     }
 
@@ -354,13 +370,13 @@ pub fn run_one(
 
     // compare output and exp_file
     let update_baseline = read_env_update_baseline();
-    let exp_path = args_path.with_extension(EXP_EXT);
+    let exp_path = args_path.with_extension(EXP_EXT)?;
     if update_baseline {
-        fs::write(exp_path, &output)?;
+        write!(exp_path.create_file()?, "{output}")?;
         return Ok(cov_info);
     }
 
-    let expected_output = fs::read_to_string(exp_path).unwrap_or_else(|_| "".to_string());
+    let expected_output = exp_path.read_to_string().unwrap_or_else(|_| "".to_string());
     if expected_output != output {
         let msg = format!(
             "Expected output differs from actual output:\n{}",
@@ -403,7 +419,11 @@ pub fn run_all(
             entry_path.exists()
         );
 
-        match run_one(entry_path, cli_binary, use_temp_dir, track_cov) {
+        let virtual_entry_path = VirtualPath::physical()?
+            .cwd()
+            .join(&entry)?;
+
+        match run_one(&virtual_entry_path, cli_binary, use_temp_dir, track_cov) {
             Ok(cov_opt) => {
                 test_passed = test_passed.checked_add(1).unwrap();
                 if let Some(cov) = cov_opt {

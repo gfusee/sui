@@ -1,16 +1,18 @@
 use crate::errors::TempDirResult;
-use std::env;
+use std::{env, io, mem};
+use std::fs::remove_dir_all;
 use std::path::PathBuf;
 use uuid::Uuid;
+use vfs::VfsResult;
 use crate::wrappers::VirtualPath;
 
 pub struct TempDir {
-    path: VirtualPath
+    path: Option<VirtualPath> // Always Some excepted after a call to close, useful to not leak memory
 }
 
 impl Drop for TempDir {
     fn drop(&mut self) {
-        _ = self.path.remove_dir_all();
+        _ = self.path.as_ref().unwrap().remove_dir_all();
     }
 }
 
@@ -19,21 +21,32 @@ impl TempDir {
         let tempdir_name = format!("tmp-{}", Uuid::new_v4());
 
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
-        let os_tempdir = env::temp_dir().canonicalize()?;
+        let tmp_base = env::temp_dir().canonicalize()?;
 
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         let tmp_base = PathBuf::from("tmp".to_string());
 
         let tempdir = base.root()
-            .join(&os_tempdir)?
+            .join(&tmp_base)?
             .join(&tempdir_name)?;
 
         tempdir.create_dir_all()?;
 
-        Ok(Self { path: tempdir })
+        Ok(Self { path: Some(tempdir) })
     }
 
     pub fn path(&self) -> &VirtualPath {
-        &self.path
+        &self.path.as_ref().unwrap()
+    }
+
+    pub fn close(mut self) -> VfsResult<()> {
+        self.path().remove_dir_all()?;
+
+        // Avoids memory leaks
+        self.path = None;
+
+        mem::forget(self); // Drop should NOT be called after a call to close
+
+        Ok(())
     }
 }

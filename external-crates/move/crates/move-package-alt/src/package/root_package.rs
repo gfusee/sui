@@ -255,7 +255,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
 
         debug!(
             "creating RootPackage (CWD: {:?})\n{config:#?}",
-            std::env::current_dir()
+            config.input_path.cwd().as_str()
         );
 
         debug!("getting ephemeral files");

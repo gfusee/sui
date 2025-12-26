@@ -177,17 +177,20 @@ impl VirtualPath {
     }
 
     pub fn physical() -> VfsResult<Self> {
-        let physical_filesystem = ArcFileSystem::new(PhysicalFS::new("/"));
         let cwd = std::env::current_dir()
             .ok()
             .map(|e| e.canonicalize().ok())
             .flatten()
             .map(|e| e.to_string_lossy().to_string());
 
-        VirtualPath::new(
+        let physical_filesystem = ArcFileSystem::new(PhysicalFS::new("/"));
+
+        let result_root = VirtualPath::new(
             cwd,
             physical_filesystem
-        )
+        )?;
+
+        Ok(result_root.cwd())
     }
 
     pub fn pop(&mut self) -> VfsResult<bool> {
