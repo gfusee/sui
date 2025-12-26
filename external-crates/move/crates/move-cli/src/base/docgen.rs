@@ -12,7 +12,6 @@ use crate::base::reroot_path;
 use move_docgen::{DocgenFlags, DocgenOptions};
 use move_package_alt::flavor::MoveFlavor;
 use move_package_alt_compilation::{build_config::BuildConfig, find_env};
-use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Generate Rust style documentation for Move packages
 #[derive(Parser)]
@@ -45,7 +44,7 @@ impl Docgen {
         let rerooted_path = reroot_path(path)?;
         let env = find_env::<F>(&rerooted_path, &config)?;
         let model = config
-            .move_model_from_path::<F, _>(rerooted_path, env, &mut std::io::stdout())
+            .move_model_from_path::<F, _>(rerooted_path.clone(), env, &mut std::io::stdout())
             .await?;
 
         let mut options = DocgenOptions {
@@ -64,7 +63,7 @@ impl Docgen {
 
         let docgen = move_docgen::Docgen::new(&model, &options);
 
-        for (file, content) in docgen.generate(&model)? {
+        for (file, content) in docgen.generate(&rerooted_path.cwd(), &model)? {
             let path = PathBuf::from(&file);
             fs::create_dir_all(path.parent().unwrap())?;
             fs::write(path.as_path(), content)?;

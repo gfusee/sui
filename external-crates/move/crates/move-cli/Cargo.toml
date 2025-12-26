@@ -56,7 +56,7 @@ move-trace-format.workspace = true
 treeline.workspace = true
 tokio.workspace = true
 path-clean.workspace = true
-pathdiff = "0.2.3"
+pathdiff.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true

@@ -223,7 +223,7 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
         .with_extension(MOVE_COVERAGE_MAP_EXTENSION)?;
     let cleanup_trace = || {
         if compute_coverage && trace_path.exists().unwrap() {
-            &trace_path.remove_file().unwrap();
+            trace_path.remove_file().unwrap();
         }
     };
 

@@ -2,6 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use move_package_alt_vfs::wrappers::VirtualPath;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -32,7 +33,8 @@ impl CompiledPackageLayout {
         }
     }
 
-    pub fn path_to_file_after_category(path: &Path) -> PathBuf {
+    pub fn path_to_file_after_category(virtual_path: &VirtualPath) -> PathBuf {
+        let path = PathBuf::from(virtual_path.as_str());
         let mut suffix_components = vec![];
         // reverse iterate until Root is found
         for component in path.components().rev() {

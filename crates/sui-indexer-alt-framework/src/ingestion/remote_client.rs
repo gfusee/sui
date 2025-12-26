@@ -3,7 +3,7 @@
 
 use reqwest::{Client, StatusCode};
 use std::time::Duration;
-use tracing::{debug, error};
+use tracing::debug;
 use url::Url;
 
 use crate::ingestion::Result as IngestionResult;

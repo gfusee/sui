@@ -72,9 +72,8 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
 
     let env = move_package_alt::flavor::vanilla::default_environment();
 
-    let modules_full_path = VirtualPath::physical()?
-        .cwd()
-        .join(modules_full_path())?;
+    let virtual_cwd = VirtualPath::physical()?.cwd();
+    let modules_full_path = virtual_cwd.join(modules_full_path())?;
 
     let model = config
         .move_model_from_path::<Vanilla, Stdout>(
@@ -99,7 +98,7 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
         ..DocgenOptions::default()
     };
     let docgen = move_docgen::Docgen::new(&model, &options);
-    for (file, content) in docgen.generate(&model)? {
+    for (file, content) in docgen.generate(&virtual_cwd, &model)? {
         let path = PathBuf::from(&file);
         fs::create_dir_all(path.parent().unwrap())?;
         fs::write(path.as_path(), content)?;

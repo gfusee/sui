@@ -77,6 +77,24 @@ pub struct VirtualPath {
     filesystem: ArcFileSystem,
 }
 
+/// An iterator for recursively walking a file hierarchy
+pub struct WalkDirIterator {
+    base: VirtualPath,
+    /// the path iterator of the current directory
+    inner: vfs::WalkDirIterator
+}
+
+impl Iterator for WalkDirIterator {
+    type Item = VfsResult<VirtualPath>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.inner.next()?
+            .map(|vfs_path| self.base.with_vfs_path(vfs_path).clone());
+
+        Some(result)
+    }
+}
+
 impl ArcFileSystem {
     fn new<FS: FileSystemExt>(fs: FS) -> Self {
         Self {
@@ -277,6 +295,15 @@ impl VirtualPath {
 
     pub fn remove_dir_all(&self) -> VfsResult<()> {
         self.path.remove_dir_all()
+    }
+
+    pub fn walk_dir(&self) -> VfsResult<WalkDirIterator> {
+        let inner = self.path.walk_dir()?;
+
+        Ok(WalkDirIterator {
+            base: self.cwd(),
+            inner
+        })
     }
 
     pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VirtualPath> + Send>> {

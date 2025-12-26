@@ -12,12 +12,9 @@ use move_disassembler::disassembler::Disassembler;
 use move_package_alt_compilation::{build_config::BuildConfig, find_env};
 
 use move_package_alt::{flavor::MoveFlavor, schema::Environment};
-use move_trace_format::format::MoveTraceReader;
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
 use move_package_alt_vfs::wrappers::VirtualPath;
+use move_trace_format::format::MoveTraceReader;
+use std::path::Path;
 
 const COVERAGE_FILE_NAME: &str = "lcov.info";
 const DIFFERENTIAL: &str = "diff";
@@ -165,12 +162,12 @@ impl Coverage {
             let trace_substr_name = format!("{}.", sanitize_name(test_name));
             traces.read_dir()?
                 .filter_map(|entry| {
-                    if path.is_file().ok()?
-                        && path
+                    if entry.is_file().ok()?
+                        && entry
                             .filename()
                             .contains(&trace_substr_name)
                     {
-                        Some(path.clone())
+                        Some(entry)
                     } else {
                         None
                     }
@@ -209,12 +206,12 @@ impl Coverage {
                 .transpose()?;
 
             for entry in traces.read_dir()? {
-                if path.is_file()?
+                if entry.is_file()?
                     && differential_test_path
                         .as_ref()
-                        .is_none_or(|diff_path| diff_path != &path)
+                        .is_none_or(|diff_path| diff_path != &entry)
                 {
-                    let file = path.open_file()?;
+                    let file = entry.open_file()?;
                     let move_trace_reader = MoveTraceReader::new(file)?;
                     coverage.calculate_coverage(move_trace_reader);
                 }

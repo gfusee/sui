@@ -11,7 +11,6 @@ use move_package_alt_compilation::{
     build_config::BuildConfig, compiled_package::CompiledUnitWithSource, find_env,
 };
 use std::path::Path;
-use move_package_alt_vfs::wrappers::VirtualPath;
 
 /// Disassemble the Move bytecode pointed to
 #[derive(Parser)]

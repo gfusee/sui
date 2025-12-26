@@ -993,7 +993,7 @@ impl<'a> PTBBuilder<'a> {
                 let virtual_package = VirtualPath::physical()
                     .map(|path| path.cwd().join(package_path))
                     .flatten()
-                    .map_err(|e| err!(path_loc, "Cannot create a virtual path for: {}", package_path.to_string_lossy()))?;
+                    .map_err(|e| err!(path_loc, "Cannot create a virtual path for {}: {e}", package_path.to_string_lossy()))?;
 
                 let build_config = MoveBuildConfig::default();
                 let root_pkg =

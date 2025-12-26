@@ -2,8 +2,6 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::{Path, PathBuf};
-
 use clap::Parser;
 
 use move_package_alt::{

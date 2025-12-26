@@ -8,7 +8,6 @@ use move_package_alt::{
 };
 use move_package_alt_vfs::wrappers::VirtualPath;
 use serde::Deserialize;
-use vfs::PhysicalFS;
 use sui_package_alt::SuiFlavor;
 
 /// Download a package and return information about it. Note that local packages must use the

@@ -12,7 +12,7 @@ use move_compiler::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -22,10 +22,7 @@ use crate::{compiled_package::CompiledPackage, layout::CompiledPackageLayout};
 use move_bytecode_source_map::utils::{
     serialize_to_json, serialize_to_json_string, source_map_from_file,
 };
-use move_command_line_common::files::{
-    extension_equals, find_filenames, FileHash, DEBUG_INFO_EXTENSION,
-    MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
-};
+use move_command_line_common::files::{find_filenames_vfs, FileHash, DEBUG_INFO_EXTENSION, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION};
 use move_disassembler::disassembler::Disassembler;
 use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
@@ -100,13 +97,25 @@ impl OnDiskCompiledPackage {
             .join(CompiledPackageLayout::CompiledDocs.path())?;
         let compiled_docs = if docs_path.is_dir()? {
             Some(
-                find_filenames(&[docs_path.as_str().to_string()], |path| {
-                    extension_equals(path, "md")
+                find_filenames_vfs(&[docs_path.clone()], |path| {
+                    path.extension().is_some_and(|p| p.as_str() == "md")
                 })?
                 .into_iter()
                 .map(|path| {
-                    let contents = std::fs::read_to_string(&path).unwrap();
-                    (path, contents)
+                    let contents = path.read_to_string().unwrap();
+
+                    let path_diff = pathdiff::diff_paths(
+                        path.as_str(),
+                        docs_path.as_str()
+                    )
+                        .unwrap(); // TODO: can this fail?
+
+                    let relative_path = PathBuf::from(CompiledPackageLayout::CompiledDocs.path())
+                        .join(path_diff)
+                        .to_string_lossy()
+                        .to_string();
+
+                    (relative_path, contents)
                 })
                 .collect(),
             )
@@ -126,12 +135,12 @@ impl OnDiskCompiledPackage {
     fn decode_unit(
         &self,
         package_name: Symbol,
-        bytecode_path_str: &str,
+        bytecode_path: &VirtualPath,
     ) -> anyhow::Result<CompiledUnitWithSource> {
         let package_name_opt = Some(package_name);
-        let bytecode_path = Path::new(bytecode_path_str);
         let path_to_file = CompiledPackageLayout::path_to_file_after_category(bytecode_path);
-        let bytecode_bytes = std::fs::read(bytecode_path)?;
+        let mut bytecode_bytes = vec![];
+        bytecode_path.open_file()?.read(&mut bytecode_bytes)?;
         let source_map = source_map_from_file(
             &self
                 .root_path
@@ -149,7 +158,7 @@ impl OnDiskCompiledPackage {
             "Error decoding package: {}. \
             Unable to find corresponding source file for '{}' in package {}",
             self.package.compiled_package_info.package_name,
-            bytecode_path_str,
+            bytecode_path.as_str(),
             package_name
         );
         let module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)?;
@@ -260,7 +269,7 @@ impl OnDiskCompiledPackage {
         )
     }
 
-    fn get_compiled_units_paths(&self, package_name: Symbol) -> anyhow::Result<Vec<String>> {
+    fn get_compiled_units_paths(&self, package_name: Symbol) -> anyhow::Result<Vec<VirtualPath>> {
         let package_dir = if self.package.compiled_package_info.package_name == package_name {
             self.root_path.clone()
         } else {
@@ -271,10 +280,12 @@ impl OnDiskCompiledPackage {
         let mut compiled_unit_paths = vec![];
         let module_path = package_dir.join(CompiledPackageLayout::CompiledModules.path())?;
         if module_path.exists()? {
-            compiled_unit_paths.push(module_path.as_str());
+            compiled_unit_paths.push(module_path);
         }
-        find_filenames(&compiled_unit_paths, |path| {
-            extension_equals(path, MOVE_COMPILED_EXTENSION)
-        })
+        let mv_filenames = find_filenames_vfs(&compiled_unit_paths, |path| {
+            path.extension().is_some_and(|ext| ext.as_str() == MOVE_COMPILED_EXTENSION)
+        })?;
+
+        Ok(mv_filenames)
     }
 }

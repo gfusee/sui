@@ -6,7 +6,7 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{self, Read},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     str::FromStr,
 };
@@ -24,10 +24,10 @@ use move_bytecode_source_map::utils::source_map_from_file;
 use move_command_line_common::{
     env::MOVE_HOME,
     files::{
-        DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, extension_equals,
-        find_filenames,
+        DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
     },
 };
+use move_command_line_common::files::find_filenames_vfs;
 use move_compiler::{
     compiled_unit::NamedCompiledModule,
     editions::{Edition, Flavor},
@@ -297,8 +297,8 @@ pub(crate) fn units_for_toolchain(
         )?;
 
         let compiled_unit_paths = vec![package_root.clone()];
-        let compiled_units = find_filenames(&compiled_unit_paths.iter().map(|e| e.as_str().to_string()).collect::<Vec<_>>(), |path| {
-            extension_equals(path, MOVE_COMPILED_EXTENSION)
+        let compiled_units = find_filenames_vfs(&compiled_unit_paths, |path| {
+            path.extension().is_some_and(|ext| ext == MOVE_COMPILED_EXTENSION)
         })?;
         let build_path = install_dir
             .path()
@@ -308,7 +308,7 @@ pub(crate) fn units_for_toolchain(
 
         // Add all units compiled with the previous compiler.
         for bytecode_path in compiled_units {
-            info!("bytecode path {bytecode_path}, {package}");
+            info!("bytecode path {}, {package}", bytecode_path.as_str());
             let local_unit = decode_bytecode_file(build_path.clone(), &package, &bytecode_path)?;
             units.push((package, local_unit))
         }
@@ -484,12 +484,12 @@ fn set_executable_permission(path: &OsStr) -> anyhow::Result<()> {
 fn decode_bytecode_file(
     root_path: VirtualPath,
     package_name: &Symbol,
-    bytecode_path_str: &str,
+    bytecode_path: &VirtualPath,
 ) -> anyhow::Result<CompiledUnitWithSource> {
     let package_name_opt = Some(*package_name);
-    let bytecode_path = Path::new(bytecode_path_str);
     let path_to_file = CompiledPackageLayout::path_to_file_after_category(bytecode_path);
-    let bytecode_bytes = std::fs::read(bytecode_path)?;
+    let mut bytecode_bytes = vec![];
+    bytecode_path.open_file()?.read(&mut bytecode_bytes)?;
     let source_map = source_map_from_file(
         &root_path
             .join(CompiledPackageLayout::DebugInfo.path())?
@@ -502,7 +502,8 @@ fn decode_bytecode_file(
         .with_extension(MOVE_EXTENSION)?;
     ensure!(
         source_path.is_file()?,
-        "Error decoding package: Unable to find corresponding source file for '{bytecode_path_str}' in package {package_name}"
+        "Error decoding package: Unable to find corresponding source file for '{}' in package {package_name}",
+        bytecode_path.as_str()
     );
     let module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)?;
     let (address_bytes, module_name) = {

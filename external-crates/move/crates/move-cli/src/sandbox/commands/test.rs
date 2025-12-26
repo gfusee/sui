@@ -6,7 +6,7 @@ use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
 use move_command_line_common::{
     env::read_bool_env_var,
-    files::{find_filenames, path_to_string},
+    files::find_filenames,
 };
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
 use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
@@ -24,16 +24,14 @@ use std::{
     collections::{BTreeMap, HashMap},
     env,
     fmt::Write as FmtWrite,
-    fs::{self, File},
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
     process::Command,
 };
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use move_package_alt_vfs::tempdir::TempDir;
 use move_package_alt_vfs::VfsResult;
 use move_package_alt_vfs::wrappers::VirtualPath;
-use tempfile::tempdir;
 use tracing::debug;
 
 // Basic datatest testing framework for the CLI. The `run_one` entrypoint expects
@@ -194,7 +192,7 @@ fn simple_copy_dir(dst: &VirtualPath, src: &VirtualPath) -> VfsResult<()> {
         if src_entry.is_dir()? {
             simple_copy_dir(&dst_entry_path, &src_entry)?;
         } else {
-            &src_entry.copy_file(&dst_entry_path)?;
+            src_entry.copy_file(&dst_entry_path)?;
         }
     }
     Ok(())
@@ -230,7 +228,7 @@ pub fn run_one(
 
     // template for preparing a cli command
     let cli_command_template = || {
-        let mut command = Command::new(cli_binary.clone());
+        let mut command = Command::new(cli_binary);
 
         // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         if let Some(work_dir) = temp_dir.as_ref() {
