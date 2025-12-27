@@ -426,8 +426,13 @@ fn test_basic_args_linter_pure_args_good() {
 #[tokio::test]
 async fn test_basic_args_linter_top_level() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
+    let virtual_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(path)
+        .unwrap();
     let compiled_modules = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(&virtual_path)
         .await
         .unwrap()
         .into_modules();

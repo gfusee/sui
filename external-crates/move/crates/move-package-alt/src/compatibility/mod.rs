@@ -194,9 +194,9 @@ fn strip_comments(source: &str) -> String {
 
 /// Return legacy package metadata; this is needed for tests in sui side
 pub fn parse_legacy_package_info(
-    package_path: &Path,
+    package_path: &VirtualPath,
 ) -> Result<LegacyPackageMetadata, anyhow::Error> {
-    let manifest_string = std::fs::read_to_string(package_path.join("Move.toml"))?;
+    let manifest_string = package_path.join("Move.toml")?.read_to_string()?;
     let tv =
         toml::from_str::<TV>(&manifest_string).context("Unable to parse Move package manifest")?;
 

@@ -642,11 +642,11 @@ impl PackageDependencies {
     }
 }
 
-pub fn parse_legacy_pkg_info(package_path: &Path) -> Result<LegacyPackageMetadata, anyhow::Error> {
+pub fn parse_legacy_pkg_info(package_path: &VirtualPath) -> Result<LegacyPackageMetadata, anyhow::Error> {
     parse_legacy_package_info(package_path)
 }
 
-pub fn published_at_property(package_path: &Path) -> Result<ObjectID, PublishedAtError> {
+pub fn published_at_property(package_path: &VirtualPath) -> Result<ObjectID, PublishedAtError> {
     let parsed_manifest =
         parse_legacy_package_info(package_path).expect("should read the manifest");
 
