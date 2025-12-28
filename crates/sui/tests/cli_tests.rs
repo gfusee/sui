@@ -37,6 +37,7 @@ use mysten_common::tempdir;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::{fs, io};
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui::{
     client_commands::{
         SuiClientCommandResult, SuiClientCommands, SwitchResponse, estimate_gas_budget,
@@ -225,7 +226,13 @@ upgrade-capability = "{}""#,
         let mut build_config = BuildConfig::new_for_testing();
         build_config.config.environment = Some(environment.name.clone());
         build_config.environment = environment.clone();
-        let compiled_package = build_config.build_async(&package_path).await.unwrap();
+
+        let virtual_package_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(&package_path)
+            .unwrap();
+        let compiled_package = build_config.build_async(virtual_package_path).await.unwrap();
 
         let context = self.test_cluster.wallet_mut();
 

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use move_core_types::{ident_str, language_storage::StructTag};
+use move_package_alt_vfs::wrappers::VirtualPath;
 use reqwest::Client;
 use serde_json::{Value, json};
 use simulacrum::Simulacrum;
@@ -164,8 +165,14 @@ impl TypeLimitCluster {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.extend(["packages", "type_limits"]);
 
+        let virtual_path = VirtualPath::physical()
+            .expect("Can't get physical path")
+            .cwd()
+            .join(path)
+            .expect("Can't join physical path");
+
         let pkg = BuildConfig::new_for_testing()
-            .build(&path)
+            .build(virtual_path)
             .expect("Failed to compile package");
 
         // (3) Create an address and fund it to be able to run transactions

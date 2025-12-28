@@ -5,7 +5,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{Result, anyhow};
-
+use move_package_alt_vfs::wrappers::VirtualPath;
 use shared_crypto::intent::Intent;
 use sui_keys::keystore::{AccountKeystore, Keystore};
 use sui_move_build::BuildConfig;
@@ -41,7 +41,10 @@ pub async fn init_package(
         .map_err(|e| anyhow!("Failed to canonicalize path {}: {}", path.display(), e))?;
 
     let move_build_config = BuildConfig::new_for_testing();
-    let compiled_modules = move_build_config.build(&path_buf)?;
+    let virtual_path_buf = VirtualPath::physical()?
+        .cwd()
+        .join(&path_buf)?;
+    let compiled_modules = move_build_config.build(virtual_path_buf)?;
     let modules_bytes = compiled_modules.get_package_bytes(false);
 
     let pt = {

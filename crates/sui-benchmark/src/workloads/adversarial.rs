@@ -22,6 +22,7 @@ use rand::distributions::{Distribution, Standard};
 use regex::Regex;
 use std::str::FromStr;
 use std::sync::Arc;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
 use sui_move_build::{BuildConfig, CompiledPackage};
@@ -576,8 +577,13 @@ struct AdversarialPayloadArgs {
 async fn get_max_package_published_compiled_package() -> CompiledPackage {
     let mut path = benchmark_move_base_dir();
     path.push("src/workloads/data/really_big_package");
+    let virtual_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(path)
+        .unwrap();
     BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap()
 }

@@ -6,6 +6,7 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::{Context as _, ensure};
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use move_core_types::ident_str;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use reqwest::Client;
 use serde_json::{Value, json};
 use simulacrum::Simulacrum;
@@ -304,8 +305,14 @@ impl SuiNSCluster {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.extend(["packages", "suins"]);
 
+        let virtual_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path)
+            .unwrap();
+
         let pkg = BuildConfig::new_for_testing()
-            .build(&path)
+            .build(virtual_path)
             .expect("Failed to compile package");
 
         // (3) Create an address and fund it to be able to run transactions.

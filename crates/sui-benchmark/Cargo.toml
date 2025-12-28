@@ -47,6 +47,7 @@ regex.workspace = true
 fastcrypto-zkp.workspace = true
 
 move-core-types.workspace = true
+move-package-alt-vfs.workspace = true
 mysten-metrics.workspace = true
 test-cluster.workspace = true
 sysinfo.workspace = true

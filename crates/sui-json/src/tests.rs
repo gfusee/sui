@@ -9,6 +9,7 @@ use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTy
 use move_core_types::language_storage::StructTag;
 use move_core_types::u256::U256;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
+use move_package_alt_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;
@@ -432,7 +433,7 @@ async fn test_basic_args_linter_top_level() {
         .join(path)
         .unwrap();
     let compiled_modules = BuildConfig::new_for_testing()
-        .build_async(&virtual_path)
+        .build_async(virtual_path)
         .await
         .unwrap()
         .into_modules();
