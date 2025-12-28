@@ -24,16 +24,30 @@ use sui_types::{
 
 use move_core_types::language_storage::TypeTag;
 
-use sui_move_build::BuildConfig;
+use move_package_alt_vfs::wrappers::VirtualPath;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::{
     crypto::{AccountKeyPair, get_key_pair},
     error::SuiError,
 };
 
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::{Path, PathBuf}};
 use std::{env, str::FromStr};
 use sui_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
 use sui_types::move_package::UpgradeCap;
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+async fn build_async_physical(
+    config: BuildConfig,
+    path: &Path,
+) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
 
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
@@ -2777,14 +2791,13 @@ fn ascii_tag() -> TypeTag {
     resolved_struct(RESOLVED_ASCII_STR, vec![])
 }
 
-pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Vec<u8>> {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["src", "unit_tests", "data", test_dir]);
-    BuildConfig::new_for_testing()
-        .build(&path)
-        .unwrap()
-        .get_package_bytes(with_unpublished_deps)
-}
+    pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Vec<u8>> {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["src", "unit_tests", "data", test_dir]);
+        build_physical(BuildConfig::new_for_testing(), &path)
+            .unwrap()
+            .get_package_bytes(with_unpublished_deps)
+    }
 
 pub fn build_package(
     code_dir: &str,
@@ -2792,7 +2805,7 @@ pub fn build_package(
 ) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", code_dir]);
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = build_physical(BuildConfig::new_for_testing(), &path).unwrap();
     let digest = compiled_package.get_package_digest(with_unpublished_deps);
     let modules = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
@@ -2815,7 +2828,7 @@ pub async fn build_and_try_publish_test_package(
     let mut config = BuildConfig::new_for_testing();
     config.config.set_unpublished_deps_to_zero = with_unpublished_deps;
 
-    let compiled_package = config.build_async(&path).await.unwrap();
+    let compiled_package = build_async_physical(config, &path).await.unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 

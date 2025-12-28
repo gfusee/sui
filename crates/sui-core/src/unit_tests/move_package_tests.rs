@@ -3,8 +3,12 @@
 
 use move_binary_format::file_format::CompiledModule;
 use move_core_types::account_address::AccountAddress;
+use move_package_alt_vfs::wrappers::VirtualPath;
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_protocol_config::{Chain, ProtocolConfig};
 use sui_types::{
@@ -42,6 +46,19 @@ macro_rules! linkage_table {
         )*
         table
     }}
+}
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+async fn build_async_physical(
+    config: BuildConfig,
+    path: &Path,
+) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
 }
 
 #[tokio::test]
@@ -711,8 +728,7 @@ async fn test_fail_on_upgrade_missing_type() {
 pub async fn build_test_package(test_dir: &str) -> CompiledPackage {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "move_package", test_dir]);
-    BuildConfig::new_for_testing()
-        .build_async(&path)
+    build_async_physical(BuildConfig::new_for_testing(), &path)
         .await
         .unwrap()
 }

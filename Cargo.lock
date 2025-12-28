@@ -15341,6 +15341,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "move-package-alt-vfs",
  "schemars 0.8.21",
  "serde",
  "serde_json",

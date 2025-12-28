@@ -3,14 +3,30 @@
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::crypto::Signature;
 use sui_types::move_package::UpgradePolicy;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::utils::to_sender_signed_transaction;
+use std::path::Path;
 
 use super::authority_test_utils::*;
 use super::*;
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+#[allow(dead_code)]
+async fn build_async_physical(
+    config: BuildConfig,
+    path: &Path,
+) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
 
 /// Compiles the package at path with the dep original addresses. It updates the compiled package
 /// dependencies' information to set the addresses of the package's dependencies to those in
@@ -27,7 +43,7 @@ pub fn build_test_modules_with_dep_addr(
             .additional_named_addresses
             .insert(addr_name.to_string(), AccountAddress::from(obj_id));
     }
-    let mut package = build_config.build(path).unwrap();
+    let mut package = build_physical(build_config, path).unwrap();
 
     let dep_id_mapping: BTreeMap<_, _> = dep_ids
         .into_iter()
@@ -75,7 +91,9 @@ pub async fn publish_package_on_single_authority(
             .additional_named_addresses
             .insert(addr_name.to_string(), AccountAddress::from(obj_id));
     }
-    let modules = build_config.build(path).unwrap().get_package_bytes(false);
+    let modules = build_physical(build_config, path)
+        .unwrap()
+        .get_package_bytes(false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
     let cap = builder.publish_upgradeable(modules, dep_ids);

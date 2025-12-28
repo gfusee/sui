@@ -5,10 +5,11 @@ use crate::authority::authority_store_tables::AuthorityPerpetualTables;
 
 use super::*;
 use futures::FutureExt;
+use move_package_alt_vfs::wrappers::VirtualPath;
 use std::path::Path;
 use std::time::Duration;
 use sui_framework::BuiltInFramework;
-use sui_move_build::BuildConfig;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_swarm_config::network_config_builder::ConfigBuilder;
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
@@ -16,6 +17,20 @@ use sui_types::object::{Object, Owner};
 use sui_types::storage::InputKey;
 use tempfile::tempdir;
 use tokio::time::timeout;
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+#[allow(dead_code)]
+async fn build_async_physical(
+    config: BuildConfig,
+    path: &Path,
+) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
 
 async fn create_writeback_cache() -> Arc<WritebackCache> {
     let path = tempdir().unwrap();
@@ -209,8 +224,7 @@ async fn test_wait_for_package() {
     let cache = create_writeback_cache().await;
 
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
-    let compiled_modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let compiled_modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .into_modules();
     let package = Object::new_package_for_testing(
