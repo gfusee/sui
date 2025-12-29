@@ -2637,7 +2637,7 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
- "move-package-alt-vfs",
+ "move-vfs",
  "move-symbol-pool",
  "named-lock",
  "once_cell",
@@ -2679,7 +2679,7 @@ dependencies = [
  "move-docgen",
  "move-model-2",
  "move-package-alt",
- "move-package-alt-vfs",
+ "move-vfs",
  "move-symbol-pool",
  "once_cell",
  "petgraph",
@@ -2692,7 +2692,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-package-alt-vfs"
+name = "move-vfs"
 version = "0.1.0"
 dependencies = [
  "fs4",

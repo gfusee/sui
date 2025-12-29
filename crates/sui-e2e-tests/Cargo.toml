@@ -38,6 +38,7 @@ telemetry-subscribers.workspace = true
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 move-core-types.workspace = true
+move-vfs.workspace = true
 
 mysten-common.workspace = true
 sui-core.workspace = true

@@ -1813,6 +1813,7 @@ mod tests {
     use sui_types::transaction::ObjectArg;
 
     use move_compiler::compiled_unit::NamedCompiledModule;
+    use move_vfs::wrappers::VirtualPath;
     use sui_move_build::{BuildConfig, CompiledPackage};
 
     use super::*;
@@ -3135,7 +3136,8 @@ mod tests {
     fn build_package(dir: &str) -> CompiledPackage {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.extend(["tests", "packages", dir]);
-        BuildConfig::new_for_testing().build(&path).unwrap()
+        let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
+        BuildConfig::new_for_testing().build(virtual_path).unwrap()
     }
 
     fn addr(a: &str) -> AccountAddress {

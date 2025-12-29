@@ -13,6 +13,7 @@ workspace = true
 
 [dev-dependencies]
 move-core-types.workspace = true
+move-vfs.workspace = true
 sui-config.workspace = true
 sui-core.workspace = true
 sui-keys.workspace = true

@@ -3,13 +3,13 @@
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
+use std::path::Path;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::crypto::Signature;
 use sui_types::move_package::UpgradePolicy;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::utils::to_sender_signed_transaction;
-use std::path::Path;
 
 use super::authority_test_utils::*;
 use super::*;
@@ -20,10 +20,7 @@ fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPa
 }
 
 #[allow(dead_code)]
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path,
-) -> anyhow::Result<CompiledPackage> {
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
     let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }

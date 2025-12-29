@@ -32,12 +32,12 @@ use sui_types::transaction::{
 use tokio::time::sleep;
 
 use move_package_alt::schema::{Environment, ParsedPublishedFile};
+use move_vfs::wrappers::VirtualPath;
 use mysten_common::random_util::TempDir;
 use mysten_common::tempdir;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::{fs, io};
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui::{
     client_commands::{
         SuiClientCommandResult, SuiClientCommands, SwitchResponse, estimate_gas_budget,
@@ -232,7 +232,10 @@ upgrade-capability = "{}""#,
             .cwd()
             .join(&package_path)
             .unwrap();
-        let compiled_package = build_config.build_async(virtual_package_path).await.unwrap();
+        let compiled_package = build_config
+            .build_async(virtual_package_path)
+            .await
+            .unwrap();
 
         let context = self.test_cluster.wallet_mut();
 

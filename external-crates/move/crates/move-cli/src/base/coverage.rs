@@ -12,7 +12,7 @@ use move_disassembler::disassembler::Disassembler;
 use move_package_alt_compilation::{build_config::BuildConfig, find_env};
 
 use move_package_alt::{flavor::MoveFlavor, schema::Environment};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use move_trace_format::format::MoveTraceReader;
 use std::path::Path;
 

@@ -4,7 +4,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     io::Write,
-    path::Path,
     str::FromStr,
 };
 
@@ -36,8 +35,8 @@ use move_package_alt_compilation::compiled_package::CompiledPackage as MoveCompi
 use move_package_alt_compilation::{
     build_config::BuildConfig as MoveBuildConfig, build_plan::BuildPlan,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 
 use sui_package_alt::{SuiFlavor, testnet_environment};
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -57,8 +56,8 @@ mod build_tests;
 
 pub mod test_utils {
     use crate::{BuildConfig, CompiledPackage};
+    use move_vfs::wrappers::VirtualPath;
     use std::path::PathBuf;
-    use move_package_alt_vfs::wrappers::VirtualPath;
 
     pub async fn compile_basics_package() -> CompiledPackage {
         compile_example_package("../../examples/move/basics").await
@@ -72,10 +71,7 @@ pub mod test_utils {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
-        let virtual_path = VirtualPath::physical()
-            .unwrap()
-            .join(path)
-            .unwrap();
+        let virtual_path = VirtualPath::physical().unwrap().join(path).unwrap();
 
         BuildConfig::new_for_testing()
             .build_async(virtual_path)
@@ -193,12 +189,9 @@ impl BuildConfig {
     }
 
     pub async fn build_async(self, path: VirtualPath) -> anyhow::Result<CompiledPackage> {
-        let mut root_pkg = RootPackage::<SuiFlavor>::load(
-            path,
-            self.environment.clone(),
-            self.config.mode_set(),
-        )
-        .await?;
+        let mut root_pkg =
+            RootPackage::<SuiFlavor>::load(path, self.environment.clone(), self.config.mode_set())
+                .await?;
 
         self.internal_build(&mut root_pkg)
     }
@@ -642,7 +635,9 @@ impl PackageDependencies {
     }
 }
 
-pub fn parse_legacy_pkg_info(package_path: &VirtualPath) -> Result<LegacyPackageMetadata, anyhow::Error> {
+pub fn parse_legacy_pkg_info(
+    package_path: &VirtualPath,
+) -> Result<LegacyPackageMetadata, anyhow::Error> {
     parse_legacy_package_info(package_path)
 }
 

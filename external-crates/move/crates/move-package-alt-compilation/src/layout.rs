@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ impl CompiledPackageLayout {
         // reverse iterate until Root is found
         for component in path.components().rev() {
             let component_path: &Path = component.as_ref();
-            if component_path == Self::Root.path() {
+            if component_path.to_string_lossy() == Self::Root.path() {
                 break;
             }
             suffix_components.push(component);

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use fastcrypto::ed25519::Ed25519KeyPair;
 use move_core_types::{ident_str, language_storage::StructTag};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 use sui_types::{
     Identifier, SUI_COIN_REGISTRY_OBJECT_ID, SUI_FRAMEWORK_PACKAGE_ID, TypeTag,
@@ -42,11 +42,7 @@ pub async fn publish(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["packages", "coin_registry", package]);
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
 
     let pkg = BuildConfig::new_for_testing()
         .build(virtual_path)

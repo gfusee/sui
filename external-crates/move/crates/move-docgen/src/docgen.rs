@@ -33,7 +33,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// The maximum number of subheadings that are allowed
 const MAX_SUBSECTIONS: usize = 6;

@@ -98,8 +98,8 @@ use move_package_alt::{
     package::RootPackage,
     schema::{OriginalID, Publication, PublishAddresses, PublishedID},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use sui_keys::key_derive;
 use sui_package_alt::{BuildParams, SuiFlavor, find_environment};
 use sui_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -900,9 +900,7 @@ impl SuiClientCommands {
                     }
                 })?;
 
-                let virtual_package_path = VirtualPath::physical()?
-                    .cwd()
-                    .join(&package_path)?;
+                let virtual_package_path = VirtualPath::physical()?.cwd().join(&package_path)?;
 
                 let mut root_pkg =
                     load_root_pkg_for_publish_upgrade(context, &build_config, virtual_package_path)
@@ -1825,13 +1823,14 @@ impl SuiClientCommands {
                     (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
                 };
 
-                let virtual_package_path = VirtualPath::physical()?
-                    .cwd()
-                    .join(package_path)?;
+                let virtual_package_path = VirtualPath::physical()?.cwd().join(package_path)?;
 
-                let environment =
-                    find_environment(&virtual_package_path, build_config.environment.clone(), context)
-                        .await?;
+                let environment = find_environment(
+                    &virtual_package_path,
+                    build_config.environment.clone(),
+                    context,
+                )
+                .await?;
 
                 let mut root_pkg =
                     load_root_pkg_for_publish_upgrade(context, &build_config, virtual_package_path)
@@ -3551,9 +3550,7 @@ async fn load_root_pkg_for_test_publish(
     let pubfile_path =
         pubfile_path.unwrap_or_else(|| PathBuf::from(format!("Pub.{active_env}.toml")));
 
-    let virtual_pubfile = VirtualPath::physical()?
-        .cwd()
-        .join(pubfile_path)?;
+    let virtual_pubfile = VirtualPath::physical()?.cwd().join(pubfile_path)?;
 
     Ok(RootPackage::<SuiFlavor>::load_ephemeral(
         package_path,

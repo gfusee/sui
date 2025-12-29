@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_bytecode_verifier_meter::Scope;
+use move_vfs::wrappers::VirtualPath;
 use prometheus::Registry;
 use std::{path::Path, sync::Arc, time::Instant};
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_adapter::adapter::run_metered_move_bytecode_verifier;
 use sui_config::verifier_signing_config::VerifierSigningConfig;
 use sui_framework::BuiltInFramework;
@@ -19,11 +19,7 @@ use crate::setup_examples;
 fn build(path: &Path) -> anyhow::Result<CompiledPackage> {
     let mut config = sui_move_build::BuildConfig::new_for_testing();
     config.config.warnings_are_errors = true;
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
     config.build(virtual_path)
 }
 

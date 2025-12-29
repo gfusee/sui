@@ -5,7 +5,7 @@ use crate::authority::authority_store_tables::AuthorityPerpetualTables;
 
 use super::*;
 use futures::FutureExt;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::path::Path;
 use std::time::Duration;
 use sui_framework::BuiltInFramework;
@@ -24,10 +24,7 @@ fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPa
 }
 
 #[allow(dead_code)]
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path,
-) -> anyhow::Result<CompiledPackage> {
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
     let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }

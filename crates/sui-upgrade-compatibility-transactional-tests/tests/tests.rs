@@ -8,7 +8,7 @@ use move_binary_format::{
     compatibility::{self, Compatibility, InclusionCheck},
     normalized,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 
 pub const TEST_DIR: &str = "tests";

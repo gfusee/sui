@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use std::str::FromStr;
 use std::{path::PathBuf, time::Duration};
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_graphql_rpc::{
     config::{ConnectionConfig, ServiceConfig},
     test_infra::cluster::{
@@ -370,7 +370,7 @@ async fn upgrade_pkg(
     let virtual_package_path = VirtualPath::physical()
         .unwrap()
         .cwd()
-        .join(&PathBuf::from(package_path))
+        .join(PathBuf::from(package_path))
         .unwrap();
     // build the package upgrade to V2.
     let compiled_package = BuildConfig::new_for_testing()

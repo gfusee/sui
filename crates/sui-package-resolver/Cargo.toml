@@ -25,6 +25,7 @@ serde.workspace = true
 lru.workspace = true
 
 [dev-dependencies]
+move-vfs.workspace = true
 hyper.workspace = true
 insta.workspace = true
 move-compiler.workspace = true

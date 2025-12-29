@@ -8,7 +8,7 @@ use move_compiler::editions::{Edition, Flavor};
 use move_package_alt_compilation::{
     build_config::BuildConfig as MoveBuildConfig, lint_flag::LintFlag,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::{
     collections::BTreeMap,
     env, fs,
@@ -124,6 +124,11 @@ async fn build_packages(
     .await;
 }
 
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
+
 async fn build_packages_with_move_config(
     bridge_path: &Path,
     deepbook_path: &Path,
@@ -138,16 +143,6 @@ async fn build_packages_with_move_config(
     stdlib_dir: &str,
     config: MoveBuildConfig,
 ) {
-    fn build_async_physical(
-        config: BuildConfig,
-        path: &Path,
-    ) -> impl std::future::Future<Output = anyhow::Result<CompiledPackage>> {
-        async move {
-            let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
-            config.build_async(virtual_path).await
-        }
-    }
-
     let stdlib_pkg = build_async_physical(
         BuildConfig {
             config: config.clone(),

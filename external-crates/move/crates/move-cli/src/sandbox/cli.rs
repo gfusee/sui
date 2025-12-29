@@ -20,7 +20,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 fn parse_move_value(s: &str) -> Result<MoveValue> {
     let x: ParsedValue<()> = ParsedValue::parse(s)?;

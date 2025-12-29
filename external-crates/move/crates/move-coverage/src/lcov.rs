@@ -17,7 +17,7 @@ use std::{
     io::Read,
     path::PathBuf,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 pub type LineNumber = usize;
 pub type HitCount = usize;

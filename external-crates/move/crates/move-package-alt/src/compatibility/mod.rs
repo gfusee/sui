@@ -3,7 +3,6 @@ pub mod legacy_lockfile;
 pub mod legacy_parser;
 
 use std::collections::{BTreeMap, HashSet};
-use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use move_core_types::account_address::{AccountAddress, AccountAddressParseError};
@@ -16,8 +15,8 @@ use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
 use toml::value::Value as TV;
-use move_package_alt_vfs::VfsFileType;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::VfsFileType;
+use move_vfs::wrappers::VirtualPath;
 
 pub type LegacyVersion = (u64, u64, u64);
 pub type LegacySubstitution = BTreeMap<String, LegacySubstOrRename>;

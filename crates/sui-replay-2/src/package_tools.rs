@@ -15,10 +15,10 @@ use move_package_alt::{
     schema::{Environment, EnvironmentName},
 };
 use move_package_alt_compilation::build_config::BuildConfig as MoveBuildConfig;
+use move_vfs::wrappers::VirtualPath;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 use sui_package_alt::SuiFlavor;
 use sui_types::{

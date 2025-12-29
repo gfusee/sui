@@ -24,7 +24,7 @@ use move_bytecode_source_map::utils::{
 };
 use move_command_line_common::files::{find_filenames_vfs, FileHash, DEBUG_INFO_EXTENSION, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION};
 use move_disassembler::disassembler::Disassembler;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 
 use super::compiled_package::{CompiledPackageInfo, CompiledUnitWithSource};

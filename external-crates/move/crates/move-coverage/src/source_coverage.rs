@@ -16,7 +16,7 @@ use move_bytecode_source_map::source_map::SourceMap;
 use move_command_line_common::files::FileHash;
 use move_core_types::identifier::Identifier;
 use move_ir_types::location::Loc;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use std::{
     collections::BTreeMap

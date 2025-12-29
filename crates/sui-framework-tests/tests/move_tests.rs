@@ -5,8 +5,8 @@ use std::path::Path;
 
 use move_cli::base::test::UnitTestResult;
 use move_package_alt_compilation::lint_flag::LintFlag;
-use move_package_alt_vfs::wrappers::VirtualPath;
 use move_unit_test::UnitTestingConfig;
+use move_vfs::wrappers::VirtualPath;
 use sui_framework_tests::setup_examples;
 use sui_move::unit_test::run_move_unit_tests;
 use sui_move_build::BuildConfig;
@@ -46,11 +46,7 @@ pub(crate) async fn build(path: &Path) -> datatest_stable::Result<()> {
     config.config.silence_warnings = false;
     config.config.lint_flag = LintFlag::LEVEL_DEFAULT;
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(&path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
 
     config
         .build_async(virtual_path)
@@ -86,16 +82,18 @@ pub(crate) async fn tests(path: &Path) -> datatest_stable::Result<()> {
     let mut testing_config = UnitTestingConfig::default_with_bound(Some(3_000_000));
     testing_config.filter = std::env::var("FILTER").ok().map(|s| s.to_string());
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
 
     assert_eq!(
-        run_move_unit_tests(virtual_path, move_config, Some(testing_config), false, false)
-            .await
-            .unwrap(),
+        run_move_unit_tests(
+            virtual_path,
+            move_config,
+            Some(testing_config),
+            false,
+            false
+        )
+        .await
+        .unwrap(),
         UnitTestResult::Success
     );
 

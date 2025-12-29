@@ -3,7 +3,7 @@
 
 use move_binary_format::file_format::CompiledModule;
 use move_core_types::account_address::AccountAddress;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 use std::{
     collections::BTreeMap,
@@ -48,15 +48,7 @@ macro_rules! linkage_table {
     }}
 }
 
-fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
-    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
-    config.build(virtual_path)
-}
-
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path,
-) -> anyhow::Result<CompiledPackage> {
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
     let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }

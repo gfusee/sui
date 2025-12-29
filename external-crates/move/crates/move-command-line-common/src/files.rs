@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail, *};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::{collections::BTreeMap, path::Path};

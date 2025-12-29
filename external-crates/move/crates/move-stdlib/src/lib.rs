@@ -7,7 +7,7 @@ use move_core_types::parsing::address::NumericalAddress;
 use move_docgen::DocgenOptions;
 use move_package_alt::flavor::Vanilla;
 use move_package_alt_compilation::build_config::BuildConfig;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::{
     collections::BTreeMap,
     fs,

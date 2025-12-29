@@ -24,14 +24,17 @@ use sui_types::{
 
 use move_core_types::language_storage::TypeTag;
 
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::{
     crypto::{AccountKeyPair, get_key_pair},
     error::SuiError,
 };
 
-use std::{collections::HashSet, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 use std::{env, str::FromStr};
 use sui_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
 use sui_types::move_package::UpgradeCap;
@@ -41,10 +44,7 @@ fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPa
     config.build(virtual_path)
 }
 
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path,
-) -> anyhow::Result<CompiledPackage> {
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
     let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }
@@ -2791,13 +2791,13 @@ fn ascii_tag() -> TypeTag {
     resolved_struct(RESOLVED_ASCII_STR, vec![])
 }
 
-    pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Vec<u8>> {
-        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.extend(["src", "unit_tests", "data", test_dir]);
-        build_physical(BuildConfig::new_for_testing(), &path)
-            .unwrap()
-            .get_package_bytes(with_unpublished_deps)
-    }
+pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Vec<u8>> {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["src", "unit_tests", "data", test_dir]);
+    build_physical(BuildConfig::new_for_testing(), &path)
+        .unwrap()
+        .get_package_bytes(with_unpublished_deps)
+}
 
 pub fn build_package(
     code_dir: &str,

@@ -31,7 +31,7 @@ use crate::{
     model_builder,
 };
 use move_package_alt::{flavor::MoveFlavor, package::RootPackage, schema::Environment};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 use super::lint_flag::LintFlag;
 

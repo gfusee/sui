@@ -30,8 +30,8 @@ use crate::{
     package::manifest::Digest,
     schema::{Environment, OriginalID, PackageMetadata, PackageName, PublishedID},
 };
-use move_package_alt_vfs::tempdir::TempDir;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 
 // TODO: is this the right way to handle this?
 static DUMMY_ADDRESSES: LazyLock<Mutex<u16>> = LazyLock::new(|| Mutex::new(0x1000));

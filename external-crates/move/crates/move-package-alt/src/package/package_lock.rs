@@ -1,11 +1,11 @@
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tracing::debug;
-use move_package_alt_vfs::VfsResult;
+use move_vfs::VfsResult;
 use crate::git::get_cache_path;
 use crate::logging::user_error;
-use move_package_alt_vfs::VfsError;
-use move_package_alt_vfs::wrappers::{Lock, Lockable, VirtualPath};
+use move_vfs::VfsError;
+use move_vfs::wrappers::{Lock, Lockable, VirtualPath};
 
 #[derive(Debug, Error)]
 pub enum LockError {

@@ -27,7 +27,7 @@ tracing.workspace = true
 
 move-binary-format.workspace = true
 move-core-types.workspace = true
-move-package-alt-vfs.workspace = true
+move-vfs.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

@@ -5,7 +5,7 @@
 use crate::source_map::SourceMap;
 use anyhow::{format_err, Result};
 use move_ir_types::location::Loc;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::io::{Read, Write};
 
 pub type Error = (Loc, String);

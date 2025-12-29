@@ -52,7 +52,7 @@ use move_package_alt_compilation::{
     find_env,
     source_discovery::get_sources,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 pub const MANIFEST_FILE_NAME: &str = "Move.toml";
 

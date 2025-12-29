@@ -22,7 +22,7 @@ use crate::toolchain::CURRENT_COMPILER_VERSION;
 use crate::{BytecodeSourceVerifier, ValidationMode};
 use move_package_alt::package::RootPackage;
 use move_package_alt::schema::{Environment, OriginalID, PublishAddresses, PublishedID};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_package_alt::{BuildParams, PublishedMetadata, SuiFlavor};
 use sui_types::digests::get_testnet_chain_identifier;
 use sui_types::supported_protocol_versions::Chain;
@@ -768,11 +768,11 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         // setup b as a bytecode package
         let pkg_path = copy_published_package(&tempdir, "b", b_ref.0.into()).await?;
 
-        let virtual_pkg_path = VirtualPath::physical()?
-            .cwd()
-            .join(pkg_path.clone())?;
+        let virtual_pkg_path = VirtualPath::physical()?.cwd().join(pkg_path.clone())?;
 
-        BuildConfig::new_for_testing().build(virtual_pkg_path).unwrap();
+        BuildConfig::new_for_testing()
+            .build(virtual_pkg_path)
+            .unwrap();
 
         fs::remove_dir_all(pkg_path.join("sources"))?;
     };
@@ -1011,10 +1011,9 @@ async fn write_published_toml(
     let env_name = Chain::Testnet.as_str().to_string();
     let chain_id = get_testnet_chain_identifier().to_string();
     let env = Environment::new(env_name, chain_id.clone());
-    let virtual_pkg_path = VirtualPath::physical()?
-        .cwd()
-        .join(pkg_path)?;
-    let mut root_pkg = RootPackage::<SuiFlavor>::load(virtual_pkg_path, env.clone(), vec![]).await?;
+    let virtual_pkg_path = VirtualPath::physical()?.cwd().join(pkg_path)?;
+    let mut root_pkg =
+        RootPackage::<SuiFlavor>::load(virtual_pkg_path, env.clone(), vec![]).await?;
     root_pkg.write_publish_data(move_package_alt::schema::Publication {
         chain_id,
         addresses: PublishAddresses {

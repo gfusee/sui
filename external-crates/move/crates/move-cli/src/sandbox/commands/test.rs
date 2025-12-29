@@ -29,9 +29,9 @@ use std::{
     process::Command,
 };
 use anyhow::anyhow;
-use move_package_alt_vfs::tempdir::TempDir;
-use move_package_alt_vfs::VfsResult;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::tempdir::TempDir;
+use move_vfs::VfsResult;
+use move_vfs::wrappers::VirtualPath;
 use tracing::debug;
 
 // Basic datatest testing framework for the CLI. The `run_one` entrypoint expects

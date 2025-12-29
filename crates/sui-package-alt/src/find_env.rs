@@ -9,7 +9,7 @@ use move_package_alt::{
     package::RootPackage,
     schema::{Environment, EnvironmentID, EnvironmentName},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_sdk::{SuiClient, wallet_context::WalletContext};
 
 use crate::SuiFlavor;

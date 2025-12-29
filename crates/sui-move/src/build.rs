@@ -4,7 +4,7 @@
 use clap::Parser;
 use move_cli::base::{self};
 use move_package_alt_compilation::build_config::BuildConfig as MoveBuildConfig;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::path::Path;
 use sui_move_build::BuildConfig;
 use sui_package_alt::find_environment;

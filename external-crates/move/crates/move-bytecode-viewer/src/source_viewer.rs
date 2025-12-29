@@ -12,7 +12,7 @@ use crate::{
     interfaces::{RightScreen, SourceContext},
 };
 use move_binary_format::file_format::CompiledModule;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::cmp;
 
 const CONTEXT_SIZE: usize = 1000;

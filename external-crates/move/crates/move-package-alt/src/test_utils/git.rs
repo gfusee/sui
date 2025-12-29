@@ -41,10 +41,10 @@
 //! [`repo()`] can be used to create a [`RepoBuilder`] which provides a way of
 //! adding files to a blank repository and committing them.
 
-use move_package_alt_vfs::VfsResult;
+use move_vfs::VfsResult;
 use crate::git::{run_git_cmd_with_args, GitResult};
-use move_package_alt_vfs::tempdir::TempDir;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 use super::graph_builder::TestPackageGraph;
 
 /// A [RepoProject] represents a bare repository in a temporary directory. You can add new commits

@@ -11,7 +11,7 @@ use crate::{
     package::RootPackage,
     schema::{Environment, EnvironmentName, ModeName},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// Re-pin the dependencies of this package.
 #[derive(Debug, Clone, Parser)]

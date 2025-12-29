@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use prometheus::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::{
@@ -14,7 +15,6 @@ use std::{
     time::{Duration, Instant},
 };
 use sui_framework::BuiltInFramework;
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_test_transaction_builder::TestTransactionBuilder;
 use sui_types::{
@@ -41,10 +41,7 @@ fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPa
 }
 
 #[allow(dead_code)]
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path,
-) -> anyhow::Result<CompiledPackage> {
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
     let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }

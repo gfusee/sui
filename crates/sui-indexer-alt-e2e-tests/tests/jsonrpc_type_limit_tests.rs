@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use move_core_types::{ident_str, language_storage::StructTag};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use reqwest::Client;
 use serde_json::{Value, json};
 use simulacrum::Simulacrum;

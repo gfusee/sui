@@ -16,6 +16,7 @@ use move_core_types::language_storage::StructTag;
 use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::Identifier, language_storage::TypeTag,
 };
+use move_vfs::wrappers::VirtualPath;
 use rand::seq::SliceRandom;
 use rand::{SeedableRng, prelude::StdRng};
 use serde_json::json;
@@ -23,7 +24,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::str::FromStr;
 use std::{convert::TryInto, env};
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_test_transaction_builder::TestTransactionBuilder;
 
 use sui_json_rpc_types::{
@@ -140,23 +140,13 @@ impl TestCallArg {
     }
 }
 
-fn build_physical(
-    config: BuildConfig,
-    path: &Path
-) -> anyhow::Result<CompiledPackage> {
-    let virtual_path = VirtualPath::physical()?
-        .cwd()
-        .join(path)?;
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build(virtual_path)
 }
 
-async fn build_async_physical(
-    config: BuildConfig,
-    path: &Path
-) -> anyhow::Result<CompiledPackage> {
-    let virtual_path = VirtualPath::physical()?
-        .cwd()
-        .join(path)?;
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
     config.build_async(virtual_path).await
 }
 

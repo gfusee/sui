@@ -15,7 +15,7 @@ use move_compiler::diagnostics::report_diagnostics_to_buffer;
 use move_compiler::shared::files::{FileName, FilesSourceText};
 use move_core_types::account_address::AccountAddress;
 use move_core_types::identifier::Identifier;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 use sui_move_build::CompiledPackage;
 use sui_types::move_package::UpgradePolicy;
@@ -289,11 +289,7 @@ fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
     path.push("src/unit_tests/fixtures/upgrade_errors/");
     path.push(format!("{}_v1", name));
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
 
     let mods_v1 = BuildConfig::new_for_testing()
         .build(virtual_path)
@@ -304,11 +300,7 @@ fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
     path.push("src/unit_tests/fixtures/upgrade_errors/");
     path.push(format!("{}_v2", name));
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(&path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
 
     let pkg_v2 = BuildConfig::new_for_testing().build(virtual_path).unwrap();
 

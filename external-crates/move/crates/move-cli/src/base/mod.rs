@@ -14,7 +14,7 @@ pub mod test;
 pub mod update_deps;
 
 use move_package_alt::package::layout::SourcePackageLayout;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::path::Path;
 
 /// Reroot the path if none is given, and convert it to a physical VirtualPath.

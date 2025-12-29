@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::debug;
-use move_package_alt_vfs::{VfsError, VfsResult};
+use move_vfs::{VfsError, VfsResult};
 
 /// Lock file version written by this version of the compiler.  Backwards compatibility is
 /// guaranteed (the compiler can read lock files with older versions), forward compatibility is not
@@ -36,7 +36,7 @@ use crate::{
         RenderToml,
     },
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use super::{
     EnvironmentName,
     package_lock::{LockError, PackageSystemLock},

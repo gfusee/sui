@@ -6,7 +6,7 @@ use std::{
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::SimpleFile;
 use serde::de::DeserializeOwned;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// A wrapper around [PathBuf] that implements [Display]
 #[derive(Clone)]

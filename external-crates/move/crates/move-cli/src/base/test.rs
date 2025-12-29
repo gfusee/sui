@@ -33,7 +33,7 @@ use std::{
     path::Path,
     process::ExitStatus,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 // if not windows nor unix
 #[cfg(not(any(target_family = "windows", target_family = "unix")))]

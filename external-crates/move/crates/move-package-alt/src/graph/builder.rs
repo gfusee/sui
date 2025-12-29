@@ -23,7 +23,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use super::PackageGraph;
 
 #[derive(Error, Debug)]

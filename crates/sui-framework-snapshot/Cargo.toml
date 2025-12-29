@@ -21,3 +21,4 @@ sui-types.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 sui-move-build.workspace = true
+move-vfs.workspace = true

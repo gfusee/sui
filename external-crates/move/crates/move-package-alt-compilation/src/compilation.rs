@@ -40,7 +40,7 @@ use move_package_alt::{
 use move_symbol_pool::Symbol;
 use std::{collections::BTreeMap, io::Write, path::PathBuf, str::FromStr};
 use tracing::debug;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 pub async fn compile_package<W: Write + Send, F: MoveFlavor>(
     path: VirtualPath,

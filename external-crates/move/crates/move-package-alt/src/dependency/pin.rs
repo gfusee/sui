@@ -17,7 +17,7 @@ use crate::{
     },
 };
 use crate::git::GitResult;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use super::{CombinedDependency, Dependency};
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,

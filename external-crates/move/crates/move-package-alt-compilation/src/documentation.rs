@@ -8,8 +8,8 @@ use move_command_line_common::files::find_filenames_vfs;
 use move_docgen::{Docgen, DocgenFlags, DocgenOptions};
 use move_model_2::source_model;
 use move_package_alt::package::layout::SourcePackageLayout;
-use move_package_alt_vfs::wrappers::VirtualPath;
-use move_package_alt_vfs::{VfsError, VfsResult};
+use move_vfs::wrappers::VirtualPath;
+use move_vfs::{VfsError, VfsResult};
 use move_symbol_pool::Symbol;
 
 /// References file for documentation generation

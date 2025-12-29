@@ -11,7 +11,7 @@ use crate::{
 };
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]

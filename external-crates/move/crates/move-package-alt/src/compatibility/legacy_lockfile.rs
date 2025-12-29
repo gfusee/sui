@@ -11,7 +11,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use toml::Value as TV;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// Parse the legacy lockfile in `path` (i.e. version 3 or less) and return the extracted
 /// information.

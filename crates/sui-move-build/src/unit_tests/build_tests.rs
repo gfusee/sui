@@ -3,10 +3,10 @@
 
 use std::path::Path;
 
+use crate::BuildConfig;
 use fs_extra::dir::CopyOptions;
 use move_compiler::editions::Edition;
-use move_package_alt_vfs::wrappers::VirtualPath;
-use crate::BuildConfig;
+use move_vfs::wrappers::VirtualPath;
 
 #[tokio::test]
 async fn generate_struct_layouts() {
@@ -59,10 +59,7 @@ async fn development_mode_not_allowed() {
         .join("data")
         .join("no_development_mode");
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().join(path).unwrap();
 
     let err = BuildConfig::new_for_testing()
         .build_async(virtual_path)

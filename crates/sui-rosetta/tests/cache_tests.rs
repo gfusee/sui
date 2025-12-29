@@ -4,11 +4,11 @@
 mod test_utils;
 
 use anyhow::anyhow;
+use move_vfs::wrappers::VirtualPath;
 use shared_crypto::intent::Intent;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str::FromStr;
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_keys::keystore::AccountKeystore;
 use sui_move_build::BuildConfig;
 use sui_rosetta::CoinMetadataCache;
@@ -34,11 +34,7 @@ async fn test_cache() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["..", "..", "examples", "move", "coin"]);
 
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
     let compiled_package = BuildConfig::new_for_testing().build(virtual_path).unwrap();
     let compiled_modules_bytes =
         compiled_package.get_package_bytes(/* with_unpublished_deps */ false);

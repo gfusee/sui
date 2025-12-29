@@ -6,7 +6,7 @@ use move_package_alt::{
     cache_package,
     schema::{Environment, ManifestDependencyInfo},
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use serde::Deserialize;
 use sui_package_alt::SuiFlavor;
 
@@ -38,11 +38,7 @@ impl CachePackage {
             name: self.environment_name.clone(),
             id: self.environment_id.clone(),
         };
-        let info = cache_package::<SuiFlavor>(
-            &env,
-            &dep.dep,
-            &VirtualPath::physical()?
-        ).await?;
+        let info = cache_package::<SuiFlavor>(&env, &dep.dep, &VirtualPath::physical()?).await?;
         println!("{}", serde_json::to_string(&info)?);
 
         Ok(())

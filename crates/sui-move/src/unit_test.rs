@@ -8,10 +8,10 @@ use move_cli::base::{
 };
 use move_package_alt_compilation::build_config::BuildConfig;
 use move_unit_test::{UnitTestingConfig, extensions::set_extension_hook};
+use move_vfs::wrappers::VirtualPath;
 use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, collections::BTreeMap, path::Path, rc::Rc, sync::Arc};
-use move_package_alt_vfs::wrappers::VirtualPath;
 use sui_move_build::decorate_warnings;
 use sui_move_natives::{
     NativesCostTable, object_runtime::ObjectRuntime, test_scenario::InMemoryTestStore,

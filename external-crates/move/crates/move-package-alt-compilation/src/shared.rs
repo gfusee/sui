@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{build_config::BuildConfig, layout::CompiledPackageLayout};
-use move_package_alt_vfs::VfsResult;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::VfsResult;
+use move_vfs::wrappers::VirtualPath;
 
 /// Computes the base directory for the build output based on the install_dir configuration.
 /// If install_dir is specified, it will be used as the base (resolved relative to project_root if relative).

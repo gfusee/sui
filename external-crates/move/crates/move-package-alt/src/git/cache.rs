@@ -22,8 +22,8 @@ use super::errors::{GitError, GitResult};
 
 use once_cell::sync::OnceCell;
 use path_clean::PathClean;
-use move_package_alt_vfs::VfsResult;
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::VfsResult;
+use move_vfs::wrappers::VirtualPath;
 
 static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 
@@ -211,7 +211,7 @@ impl GitTree {
             .await?;
         }
 
-        if self.path_in_repo() == "" || self.path_in_repo() == "." {
+        if self.path_in_repo().to_string_lossy() == "" || self.path_in_repo().to_string_lossy() == "." {
             self.run_git(&["sparse-checkout", "disable"]).await?;
         }
 

@@ -17,7 +17,7 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     path::Path,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 pub type FunctionCoverage = BTreeMap<u64, u64>;
 

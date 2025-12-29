@@ -11,7 +11,7 @@ use move_package_alt::flavor::MoveFlavor;
 use move_package_alt_compilation::{
     build_config::BuildConfig, compiled_package::CompiledPackage, find_env,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 
 /// The PackageContext controls the package that the CLI is executing with respect to, and handles the
 /// creation of the `OnDiskStateView` with the package's dependencies.

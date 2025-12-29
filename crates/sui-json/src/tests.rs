@@ -9,7 +9,7 @@ use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTy
 use move_core_types::language_storage::StructTag;
 use move_core_types::u256::U256;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;
@@ -427,11 +427,7 @@ fn test_basic_args_linter_pure_args_good() {
 #[tokio::test]
 async fn test_basic_args_linter_top_level() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
-    let virtual_path = VirtualPath::physical()
-        .unwrap()
-        .cwd()
-        .join(path)
-        .unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
     let compiled_modules = BuildConfig::new_for_testing()
         .build_async(virtual_path)
         .await

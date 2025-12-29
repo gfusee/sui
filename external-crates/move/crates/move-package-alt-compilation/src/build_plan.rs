@@ -28,7 +28,7 @@ use move_package_alt::{
     package::{layout::SourcePackageLayout, RootPackage},
     schema::PackageID,
 };
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 use toml_edit::{value, DocumentMut};
 

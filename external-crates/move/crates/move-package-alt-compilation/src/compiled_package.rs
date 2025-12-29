@@ -11,7 +11,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::Modules;
 use move_compiler::{compiled_unit::CompiledUnit, shared::files::MappedFiles};
 use move_core_types::{account_address::AccountAddress, parsing::address::NumericalAddress};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};

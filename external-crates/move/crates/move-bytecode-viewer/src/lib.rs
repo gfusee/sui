@@ -9,7 +9,7 @@ use crate::{
 use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::{source_map::SourceMap, utils::source_map_from_file};
-use move_package_alt_vfs::wrappers::VirtualPath;
+use move_vfs::wrappers::VirtualPath;
 use std::{
     fs,
     path::PathBuf,

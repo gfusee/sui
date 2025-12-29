@@ -1,6 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::{Context, Result, anyhow, bail, ensure};
+use colored::Colorize;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -10,10 +14,6 @@ use std::{
     process::Command,
     str::FromStr,
 };
-use std::fmt::Display;
-use anyhow::{Context, Result, anyhow, bail, ensure};
-use colored::Colorize;
-use serde::{Deserialize, Serialize};
 use tar::Archive;
 use tracing::{debug, info};
 
@@ -21,13 +21,11 @@ use sui_package_alt::SuiFlavor;
 
 use move_binary_format::CompiledModule;
 use move_bytecode_source_map::utils::source_map_from_file;
+use move_command_line_common::files::find_filenames_vfs;
 use move_command_line_common::{
     env::MOVE_HOME,
-    files::{
-        DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
-    },
+    files::{DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION},
 };
-use move_command_line_common::files::find_filenames_vfs;
 use move_compiler::{
     compiled_unit::NamedCompiledModule,
     editions::{Edition, Flavor},
@@ -39,9 +37,9 @@ use move_package_alt::{
 };
 use move_package_alt_compilation::compiled_package::CompiledUnitWithSource;
 use move_package_alt_compilation::layout::CompiledPackageLayout;
-use move_package_alt_vfs::tempdir::TempDir;
-use move_package_alt_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 
 pub(crate) const CURRENT_COMPILER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const LEGACY_COMPILER_VERSION: &str = CURRENT_COMPILER_VERSION; // TODO: update this when Move 2024 is released
@@ -116,13 +114,17 @@ impl ToolchainVersion {
     /// Read toolchain version info from the root project directory. Tries to read Published.toml
     /// first (new pkg-alt format), then falls back to Move.lock (old format). Returns None if
     /// neither file exists or if no toolchain info is found.
-    pub fn read(root_path: &VirtualPath, env: &Environment) -> anyhow::Result<Option<ToolchainVersion>> {
+    pub fn read(
+        root_path: &VirtualPath,
+        env: &Environment,
+    ) -> anyhow::Result<Option<ToolchainVersion>> {
         let published_path = root_path.join("Published.toml")?;
         let lock_path = root_path.join(SourcePackageLayout::Lock.path())?;
 
         if published_path.exists()? {
-            let contents =
-                published_path.read_to_string().context("Reading Published.toml file")?;
+            let contents = published_path
+                .read_to_string()
+                .context("Reading Published.toml file")?;
             let parsed: ParsedPublishedFile<SuiFlavor> =
                 toml::de::from_str(&contents).context("Deserializing Published.toml")?;
 
@@ -152,7 +154,9 @@ impl ToolchainVersion {
 
         if lock_path.exists()? {
             debug!("Found Move.lock file, reading toolchain version from it");
-            let contents = lock_path.read_to_string().context("Reading Move.lock file")?;
+            let contents = lock_path
+                .read_to_string()
+                .context("Reading Move.lock file")?;
             let _ = LockfileHeader::from_str(&contents)?;
 
             #[derive(serde::Deserialize)]
@@ -298,7 +302,8 @@ pub(crate) fn units_for_toolchain(
 
         let compiled_unit_paths = vec![package_root.clone()];
         let compiled_units = find_filenames_vfs(&compiled_unit_paths, |path| {
-            path.extension().is_some_and(|ext| ext == MOVE_COMPILED_EXTENSION)
+            path.extension()
+                .is_some_and(|ext| ext == MOVE_COMPILED_EXTENSION)
         })?;
         let build_path = install_dir
             .path()
@@ -332,7 +337,11 @@ fn download_and_compile(
     dest_canonical_path.extend(["target", "release"]);
     let mut dest_canonical_binary = dest_canonical_path.clone();
 
-    let platform = detect_platform(&root.as_str(), compiler_version, &dest_canonical_path.to_string_lossy())?;
+    let platform = detect_platform(
+        root.as_str(),
+        compiler_version,
+        dest_canonical_path.to_string_lossy(),
+    )?;
     if platform == "windows-x86_64" {
         dest_canonical_binary.push(CANONICAL_WIN_BINARY_NAME);
     } else {
@@ -489,7 +498,9 @@ fn decode_bytecode_file(
     let package_name_opt = Some(*package_name);
     let path_to_file = CompiledPackageLayout::path_to_file_after_category(bytecode_path);
     let mut bytecode_bytes = vec![];
-    bytecode_path.open_file()?.read(&mut bytecode_bytes)?;
+    bytecode_path
+        .open_file()?
+        .read_to_end(&mut bytecode_bytes)?;
     let source_map = source_map_from_file(
         &root_path
             .join(CompiledPackageLayout::DebugInfo.path())?
