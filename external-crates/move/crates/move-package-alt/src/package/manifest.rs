@@ -19,8 +19,8 @@ use super::{
     *,
 };
 use indexmap::IndexMap;
-use serde_spanned::Spanned;
 use move_vfs::wrappers::VirtualPath;
+use serde_spanned::Spanned;
 
 // TODO: replace this with something more strongly typed
 pub type Digest = String;
@@ -115,9 +115,7 @@ impl Manifest {
 }
 
 impl ManifestError {
-    pub(crate) fn with_file<T: Into<ManifestErrorKind>>(
-        path: VirtualPath,
-    ) -> impl Fn(T) -> Self {
+    pub(crate) fn with_file<T: Into<ManifestErrorKind>>(path: VirtualPath) -> impl Fn(T) -> Self {
         move |e| ManifestError {
             kind: Box::new(e.into()),
             location: ErrorLocation::WholeFile(path.clone()),

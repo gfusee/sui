@@ -5,11 +5,11 @@
 use std::process::ExitStatus;
 
 use crate::package::package_lock::LockError;
-use thiserror::Error;
-use tokio::process::Command;
 use move_vfs::VfsError;
 use move_vfs::errors::TempDirError;
 use move_vfs::wrappers::VirtualPath;
+use thiserror::Error;
+use tokio::process::Command;
 
 pub type GitResult<T> = std::result::Result<T, GitError>;
 
@@ -73,7 +73,11 @@ impl GitError {
         Self::command_error(cmd, cwd, CommandErrorKind::IoError(error))
     }
 
-    pub fn nonzero_exit_status(cmd: &Command, cwd: &Option<&VirtualPath>, code: ExitStatus) -> Self {
+    pub fn nonzero_exit_status(
+        cmd: &Command,
+        cwd: &Option<&VirtualPath>,
+        code: ExitStatus,
+    ) -> Self {
         Self::command_error(cmd, cwd, CommandErrorKind::ErrorCode(code))
     }
 

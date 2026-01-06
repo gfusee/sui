@@ -14,17 +14,17 @@ use crate::{
     schema::{Environment, PackageID, PackageName},
 };
 
+use super::PackageGraph;
+use bimap::BiBTreeMap;
+use move_vfs::wrappers::VirtualPath;
+use petgraph::graph::{DiGraph, NodeIndex};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     sync::{Arc, Mutex},
 };
-use bimap::BiBTreeMap;
-use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
-use move_vfs::wrappers::VirtualPath;
-use super::PackageGraph;
 
 #[derive(Error, Debug)]
 pub enum LockfileError {

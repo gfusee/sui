@@ -2,9 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
-use std::path::PathBuf;
-use tracing::debug;
+use super::{CombinedDependency, Dependency};
+use crate::git::GitResult;
 use crate::{
     dependency::{ResolvedDependency, combine::Combined, resolve::Resolved},
     errors::{FileHandle, PackageError, PackageResult, fmt_truncated},
@@ -16,9 +15,10 @@ use crate::{
         ManifestGitDependency, ModeName, OnChainDepInfo, PackageName, RootDepInfo,
     },
 };
-use crate::git::GitResult;
 use move_vfs::wrappers::VirtualPath;
-use super::{CombinedDependency, Dependency};
+use std::fmt;
+use std::path::PathBuf;
+use tracing::debug;
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,
 /// a git dependendency with a branch or tag revision may change over time (and is thus not
@@ -55,7 +55,10 @@ pub struct PinnedLocalDependency {
 pub struct PinnedDependencyInfo(pub(super) Dependency<Pinned>);
 
 impl PinnedGitDependency {
-    fn try_from_lockfile_git_dep_info(base: &VirtualPath, value: LockfileGitDepInfo) -> Result<Self, GitError> {
+    fn try_from_lockfile_git_dep_info(
+        base: &VirtualPath,
+        value: LockfileGitDepInfo,
+    ) -> Result<Self, GitError> {
         let cache = GitCache::new(base)?;
         let LockfileGitDepInfo { repo, rev, path } = value;
         let tree = cache.tree_for_sha(repo, rev, path)?;
@@ -209,18 +212,18 @@ impl Pinned {
     ) -> PackageResult<Self> {
         match &pin {
             LockfileDependencyInfo::Local(loc) => Ok(Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: containing_file
-                    .path()
-                    .parent()
-                    .join(&loc.local)?,
+                absolute_path_to_package: containing_file.path().parent().join(&loc.local)?,
                 relative_path_from_root_package: loc.local.clone(),
             })),
             LockfileDependencyInfo::OnChain(chain) => Ok(Pinned::OnChain(chain.clone())),
-            LockfileDependencyInfo::Git(git) => Ok(Pinned::Git(PinnedGitDependency::try_from_lockfile_git_dep_info(containing_file.path(), git.clone())?)),
+            LockfileDependencyInfo::Git(git) => Ok(Pinned::Git(
+                PinnedGitDependency::try_from_lockfile_git_dep_info(
+                    containing_file.path(),
+                    git.clone(),
+                )?,
+            )),
             LockfileDependencyInfo::Root(_) => Ok(Pinned::Root(PackagePath::new(
-                containing_file
-                    .as_ref()
-                    .parent()
+                containing_file.as_ref().parent(),
             )?)),
         }
     }
@@ -262,12 +265,15 @@ impl LocalDepInfo {
     fn pin(self, parent: &Pinned) -> PackageResult<Pinned> {
         let info: Pinned = match &parent {
             Pinned::Git(parent_git) => Pinned::Git(PinnedGitDependency {
-                inner: parent_git.inner.relative_tree(self.local.to_string_lossy())?,
+                inner: parent_git
+                    .inner
+                    .relative_tree(self.local.to_string_lossy())?,
             }),
             Pinned::Local(parent_local) => Pinned::Local(PinnedLocalDependency {
                 absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
-                relative_path_from_root_package: parent_local.relative_path_from_root_package
-                    .join(&self.local)
+                relative_path_from_root_package: parent_local
+                    .relative_path_from_root_package
+                    .join(&self.local),
             }),
             Pinned::Root(_) => Pinned::Local(PinnedLocalDependency {
                 absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,

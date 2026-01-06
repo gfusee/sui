@@ -10,6 +10,7 @@ use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
 };
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -17,7 +18,6 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     path::Path,
 };
-use move_vfs::wrappers::VirtualPath;
 
 pub type FunctionCoverage = BTreeMap<u64, u64>;
 
@@ -60,11 +60,10 @@ pub struct TraceMap {
 
 impl CoverageMap {
     /// Takes in a file containing a raw VM trace, and returns an updated coverage map.
-    pub fn update_coverage_from_trace_file(
-        mut self,
-        filename: &VirtualPath,
-    ) -> Self {
-        let file = filename.as_ref().open_file()
+    pub fn update_coverage_from_trace_file(mut self, filename: &VirtualPath) -> Self {
+        let file = filename
+            .as_ref()
+            .open_file()
             .unwrap_or_else(|_| panic!("Unable to open coverage trace file '{:?}'", filename));
         for line in BufReader::new(file).lines() {
             let line = line.unwrap();
@@ -101,7 +100,9 @@ impl CoverageMap {
     /// Takes in a file containing a serialized coverage map and returns a coverage map.
     pub fn from_binary_file(filename: &VirtualPath) -> Result<Self> {
         let mut bytes = Vec::new();
-        filename.as_ref().open_file()
+        filename
+            .as_ref()
+            .open_file()
             .map_err(|e| format_err!("{}: Coverage map file '{:?}' doesn't exist", e, filename))?
             .read_to_end(&mut bytes)
             .ok()

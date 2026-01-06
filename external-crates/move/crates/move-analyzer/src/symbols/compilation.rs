@@ -331,10 +331,7 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
         .flatten()
         .map(|e| e.to_string_lossy().to_string());
 
-    let overlay_fs_root = VirtualPath::new(
-        cwd,
-        overlay_fs_root
-    )?;
+    let overlay_fs_root = VirtualPath::new(cwd, overlay_fs_root)?;
 
     let manifest_file = overlay_fs_root
         .join(pkg_path)
@@ -853,7 +850,10 @@ fn compute_mapped_files<F: MoveFlavor>(
             if is_dep {
                 hasher.update(fhash.0);
                 dep_hashes.push(fhash);
-                dep_pkg_paths.insert(rpkg.id().clone().into(), PathBuf::from(rpkg.path().path().as_str()));
+                dep_pkg_paths.insert(
+                    rpkg.id().clone().into(),
+                    PathBuf::from(rpkg.path().path().as_str()),
+                );
             }
             // write to top layer of the overlay file system so that the content
             // is immutable for the duration of compilation and symbolication
@@ -1094,8 +1094,7 @@ fn load_root_pkg<F: MoveFlavor>(
     path: VirtualPath,
 ) -> anyhow::Result<RootPackage<F>> {
     let env = find_env::<F>(&path, build_config)?;
-    let mut root_pkg =
-        RootPackage::<F>::load_sync(path, env, build_config.mode_set())?;
+    let mut root_pkg = RootPackage::<F>::load_sync(path, env, build_config.mode_set())?;
 
     root_pkg.save_lockfile_to_disk()?;
 

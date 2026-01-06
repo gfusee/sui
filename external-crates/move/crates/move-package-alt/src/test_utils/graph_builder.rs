@@ -41,14 +41,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use heck::CamelCase;
-use indoc::{formatdoc, indoc};
-use petgraph::{
-    graph::{DiGraph, NodeIndex},
-    visit::EdgeRef,
-};
-use tracing::debug;
-use move_vfs::VfsResult;
 use crate::{
     errors::PackageResult,
     flavor::{
@@ -62,11 +54,19 @@ use crate::{
     schema::{Environment, ModeName, OriginalID, PublishAddresses, PublishedID},
     test_utils::{Project, project},
 };
+use heck::CamelCase;
+use indoc::{formatdoc, indoc};
+use move_vfs::VfsResult;
+use petgraph::{
+    graph::{DiGraph, NodeIndex},
+    visit::EdgeRef,
+};
+use tracing::debug;
 
+use super::git::RepoProject;
 use crate::graph::PackageGraph;
 use move_vfs::tempdir::TempDir;
 use move_vfs::wrappers::VirtualPath;
-use super::git::RepoProject;
 
 pub struct TestPackageGraph {
     // invariant: for all `node` and `id`, `inner[node].id = id` if and only if `nodes[id] = node`
@@ -295,12 +295,22 @@ impl TestPackageGraph {
                 "Generated test manifest for {package_id} ({:?}):\n\n{manifest}",
                 dir.join("Move.toml")
             );
-            write!(dir.join("Move.toml").unwrap().create_file().unwrap(), "{}", manifest).unwrap();
+            write!(
+                dir.join("Move.toml").unwrap().create_file().unwrap(),
+                "{}",
+                manifest
+            )
+            .unwrap();
 
             let pubfile = &self.format_pubfile(*node);
             if !pubfile.is_empty() {
                 debug!("Generated test pubfile for {package_id}:\n\n{pubfile}");
-                write!(dir.join("Published.toml").unwrap().create_file().unwrap(), "{}", pubfile).unwrap();
+                write!(
+                    dir.join("Published.toml").unwrap().create_file().unwrap(),
+                    "{}",
+                    pubfile
+                )
+                .unwrap();
             }
 
             // add extra files
@@ -311,7 +321,10 @@ impl TestPackageGraph {
             }
         }
 
-        Scenario { tempdir, root_path: root_path.clone() }
+        Scenario {
+            tempdir,
+            root_path: root_path.clone(),
+        }
     }
 
     /// Return the contents of a `Move.toml` file for the package represented by `node`
@@ -629,8 +642,7 @@ impl PackageSpec {
     }
 
     pub fn add_file(mut self, path: VirtualPath, contents: impl AsRef<str>) -> Self {
-        self.files
-            .insert(path, contents.as_ref().to_string());
+        self.files.insert(path, contents.as_ref().to_string());
         self
     }
 
@@ -769,9 +781,7 @@ impl Scenario {
     pub async fn root_package_err(&self, package: impl AsRef<str>) -> String {
         match self.try_root_package(package).await {
             Ok(_) => panic!("expected root package to fail to load"),
-            Err(err) => err
-                .to_string()
-                .replace(self.root_path.as_str(), "<ROOT>"),
+            Err(err) => err.to_string().replace(self.root_path.as_str(), "<ROOT>"),
         }
     }
 

@@ -15,22 +15,22 @@ use crate::{
 };
 
 use move_compiler::{
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{report_diagnostics_to_buffer_with_env_color, Migration},
-    editions::Edition,
-    shared::{files::MappedFiles, SaveFlag, SaveHook},
     Compiler,
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{Migration, report_diagnostics_to_buffer_with_env_color},
+    editions::Edition,
+    shared::{SaveFlag, SaveHook, files::MappedFiles},
 };
 use move_package_alt::{
     compatibility::legacy_parser::PACKAGE_NAME,
     errors::PackageResult,
     flavor::MoveFlavor,
-    package::{layout::SourcePackageLayout, RootPackage},
+    package::{RootPackage, layout::SourcePackageLayout},
     schema::PackageID,
 };
-use move_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
-use toml_edit::{value, DocumentMut};
+use move_vfs::wrappers::VirtualPath;
+use toml_edit::{DocumentMut, value};
 
 const EDITION_NAME: &str = "edition";
 
@@ -187,7 +187,10 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
         }
 
         for dir in build_root.read_dir()? {
-            if !keep_paths.iter().any(|name| dir.as_str().ends_with(name.as_str())) {
+            if !keep_paths
+                .iter()
+                .any(|name| dir.as_str().ends_with(name.as_str()))
+            {
                 if dir.is_file()? {
                     dir.remove_file()?;
                 } else {
@@ -247,7 +250,8 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
             .root_pkg
             .package_path()
             .join(SourcePackageLayout::Manifest.path())?;
-        let mut toml = move_toml_path.read_to_string()?
+        let mut toml = move_toml_path
+            .read_to_string()?
             .parse::<DocumentMut>()
             .expect("Failed to read TOML file to update edition");
         toml[PACKAGE_NAME][EDITION_NAME] = value(edition.to_string());

@@ -1,11 +1,11 @@
-use sha2::{Digest, Sha256};
-use thiserror::Error;
-use tracing::debug;
-use move_vfs::VfsResult;
 use crate::git::get_cache_path;
 use crate::logging::user_error;
 use move_vfs::VfsError;
+use move_vfs::VfsResult;
 use move_vfs::wrappers::{Lock, Lockable, VirtualPath};
+use sha2::{Digest, Sha256};
+use thiserror::Error;
+use tracing::debug;
 
 #[derive(Debug, Error)]
 pub enum LockError {
@@ -79,19 +79,18 @@ impl Drop for PackageSystemLock {
     }
 }
 
-fn cache_path_for(
-    base: &VirtualPath,
-    name: &str
-) -> LockResult<VirtualPath> {
+fn cache_path_for(base: &VirtualPath, name: &str) -> LockResult<VirtualPath> {
     let cache_path = get_cache_path(base);
     let project_lock_path = cache_path.join(format!(".{name}.lock"))?;
 
     // create dir if not exists.
-    cache_path.create_dir_all().map_err(|source| LockError::CacheLockError {
-        name: name.to_string(),
-        path: project_lock_path.as_str().to_string(),
-        source,
-    })?;
+    cache_path
+        .create_dir_all()
+        .map_err(|source| LockError::CacheLockError {
+            name: name.to_string(),
+            path: project_lock_path.as_str().to_string(),
+            source,
+        })?;
 
     Ok(project_lock_path)
 }

@@ -4,13 +4,13 @@
 
 use std::path::PathBuf;
 
-use anyhow::bail;
-use clap::{ArgAction, Parser};
 use crate::{
     flavor::Vanilla,
     package::RootPackage,
     schema::{Environment, EnvironmentName, ModeName},
 };
+use anyhow::bail;
+use clap::{ArgAction, Parser};
 use move_vfs::wrappers::VirtualPath;
 
 /// Re-pin the dependencies of this package.

@@ -1,10 +1,10 @@
-use std::{fmt::Debug, fmt::Display};
-use std::path::PathBuf;
 use move_core_types::{
     account_address::{AccountAddress, AccountAddressParseError},
     identifier::Identifier,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::{fmt::Debug, fmt::Display};
 
 use crate::errors::fmt_truncated;
 

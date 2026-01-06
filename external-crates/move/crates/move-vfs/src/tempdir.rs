@@ -5,7 +5,7 @@ use uuid::Uuid;
 use vfs::VfsResult;
 
 pub struct TempDir {
-    path: Option<VirtualPath> // Always Some excepted after a call to close, useful to not leak memory
+    path: Option<VirtualPath>, // Always Some excepted after a call to close, useful to not leak memory
 }
 
 impl Drop for TempDir {
@@ -24,13 +24,13 @@ impl TempDir {
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         let tmp_base = PathBuf::from("tmp".to_string());
 
-        let tempdir = base.root()
-            .join(&tmp_base)?
-            .join(&tempdir_name)?;
+        let tempdir = base.root().join(&tmp_base)?.join(&tempdir_name)?;
 
         tempdir.create_dir_all()?;
 
-        Ok(Self { path: Some(tempdir) })
+        Ok(Self {
+            path: Some(tempdir),
+        })
     }
 
     pub fn path(&self) -> &VirtualPath {

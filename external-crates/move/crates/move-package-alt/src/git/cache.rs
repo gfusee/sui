@@ -2,11 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    io::BufRead,
-    path::PathBuf,
-    process::Stdio,
-};
+use std::{io::BufRead, path::PathBuf, process::Stdio};
 
 use indoc::formatdoc;
 use tokio::process::Command;
@@ -20,10 +16,10 @@ use crate::{
 
 use super::errors::{GitError, GitResult};
 
-use once_cell::sync::OnceCell;
-use path_clean::PathClean;
 use move_vfs::VfsResult;
 use move_vfs::wrappers::VirtualPath;
+use once_cell::sync::OnceCell;
+use path_clean::PathClean;
 
 static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 
@@ -66,15 +62,11 @@ impl GitCache {
     pub fn new(base: &VirtualPath) -> VfsResult<Self> {
         let root_dir = get_cache_path(base).clone();
 
-        Ok(Self {
-            root_dir
-        })
+        Ok(Self { root_dir })
     }
     /// Create or load the cache at `root_dir`
     pub fn new_from_dir(root_dir: VirtualPath) -> Self {
-        Self {
-            root_dir
-        }
+        Self { root_dir }
     }
 
     /// Resolve the git committish `rev` (branch, tag, or sha) from a repository at the remote
@@ -82,7 +74,7 @@ impl GitCache {
     pub async fn find_sha(
         repo: &str,
         rev: &Option<String>,
-        base: &VirtualPath
+        base: &VirtualPath,
     ) -> GitResult<GitSha> {
         find_sha(repo, rev, base).await
     }
@@ -112,7 +104,9 @@ impl GitCache {
         let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"))?;
 
         if path_in_repo.to_string_lossy().starts_with("..") {
-            return Err(GitError::BadPath { path: path_in_repo.to_string_lossy().to_string() });
+            return Err(GitError::BadPath {
+                path: path_in_repo.to_string_lossy().to_string(),
+            });
         }
 
         Ok(GitTree {
@@ -184,9 +178,8 @@ impl GitTree {
         let tree_path = self.path_to_tree()?;
 
         // Checking out at `<repo>_<sha>` is sequential to prevent corruptions.
-        let _lock =
-            PackageSystemLock::new_for_git(&tree_path, &self.repo_id()).map_err(GitError::LockingError)?;
-
+        let _lock = PackageSystemLock::new_for_git(&tree_path, &self.repo_id())
+            .map_err(GitError::LockingError)?;
 
         // create repo if necessary
         if !self.path_to_repo.exists()? {
@@ -211,7 +204,9 @@ impl GitTree {
             .await?;
         }
 
-        if self.path_in_repo().to_string_lossy() == "" || self.path_in_repo().to_string_lossy() == "." {
+        if self.path_in_repo().to_string_lossy() == ""
+            || self.path_in_repo().to_string_lossy() == "."
+        {
             self.run_git(&["sparse-checkout", "disable"]).await?;
         }
 
@@ -231,9 +226,7 @@ impl GitTree {
 
         // check for dirt
         if !allow_dirty && self.is_dirty().await? {
-            Err(GitError::dirty(
-                self.path_to_tree()?.as_str(),
-            ))
+            Err(GitError::dirty(self.path_to_tree()?.as_str()))
         } else {
             Ok(tree_path)
         }
@@ -305,11 +298,7 @@ fn url_to_file_name(url: &str) -> String {
 
 /// Resolve the git committish `rev` (branch, tag, or sha) from a repository at the remote
 /// `repo` to a 40-character commit SHA. This will make a remote call so network is required.
-async fn find_sha(
-    repo: &str,
-    rev: &Option<String>,
-    base: &VirtualPath
-) -> GitResult<GitSha> {
+async fn find_sha(repo: &str, rev: &Option<String>, base: &VirtualPath) -> GitResult<GitSha> {
     if let Some(r) = rev {
         if let Ok(sha) = GitSha::try_from(r.to_string()) {
             return Ok(sha);
@@ -443,11 +432,7 @@ async fn find_branch_or_tag_sha(repo: &str, rev: &str) -> GitResult<GitSha> {
 }
 
 /// If the given rev is a short sha, clone the repository to a temp dir and return the full sha.
-async fn try_find_full_sha(
-    repo: &str,
-    rev: &str,
-    base: &VirtualPath
-) -> GitResult<Option<GitSha>> {
+async fn try_find_full_sha(repo: &str, rev: &str, base: &VirtualPath) -> GitResult<Option<GitSha>> {
     debug!("try_find_full_sha for `{rev}` in `{repo}`");
     if rev.chars().any(|c| !c.is_ascii_hexdigit()) {
         // not a sha!
@@ -458,9 +443,9 @@ async fn try_find_full_sha(
 
     let lookup_path = git_cache_path.join(&"lookups")?;
 
-    lookup_path.create_dir_all().map_err(|error| GitError::TempDirectory(
-        std::io::Error::new(std::io::ErrorKind::Unsupported, error)
-    ))?;
+    lookup_path.create_dir_all().map_err(|error| {
+        GitError::TempDirectory(std::io::Error::new(std::io::ErrorKind::Unsupported, error))
+    })?;
 
     let path_to_clone = lookup_path.join(&url_to_file_name(repo))?;
     let path_to_clone_str = path_to_clone.as_str().to_string();

@@ -38,9 +38,9 @@ use move_package_alt::{
     schema::{Environment, PackageID},
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use std::{collections::BTreeMap, io::Write, path::PathBuf, str::FromStr};
 use tracing::debug;
-use move_vfs::wrappers::VirtualPath;
 
 pub async fn compile_package<W: Write + Send, F: MoveFlavor>(
     path: VirtualPath,
@@ -157,7 +157,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
 
         let install_dir = match &build_config.install_dir {
             Some(install_dir) => Some(project_root.cwd().join(install_dir)?),
-            None => None
+            None => None,
         };
 
         compiled_docs = Some(build_docs(
@@ -232,9 +232,10 @@ pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
     let lint_level = build_config.lint_flag.get();
     let sui_mode = build_config.default_flavor == Some(Flavor::Sui);
     let flags = compiler_flags(build_config);
-    let mut compiler = Compiler::from_package_paths(vfs_root.map(|e| e.as_ref().clone()), package_paths, vec![])
-        .unwrap()
-        .set_flags(flags);
+    let mut compiler =
+        Compiler::from_package_paths(vfs_root.map(|e| e.as_ref().clone()), package_paths, vec![])
+            .unwrap()
+            .set_flags(flags);
     if sui_mode {
         let (filter_attr_name, filters) = sui_mode::linters::known_filters();
         compiler = compiler
@@ -259,7 +260,11 @@ fn save_to_disk(
     under_path: VirtualPath,
 ) -> Result<OnDiskCompiledPackage> {
     check_filepaths_ok(&root_compiled_units, compiled_package_info.package_name)?;
-    assert!(under_path.as_str().ends_with(CompiledPackageLayout::Root.path()));
+    assert!(
+        under_path
+            .as_str()
+            .ends_with(CompiledPackageLayout::Root.path())
+    );
     let on_disk_package = OnDiskCompiledPackage {
         root_path: under_path.join(root_package.to_string())?,
         package: OnDiskPackage {
@@ -327,10 +332,7 @@ fn check_filepaths_ok(
         let entry = insensitive_mapping
             .entry(name.to_lowercase())
             .or_insert_with(Vec::new);
-        entry.push((
-            name,
-            compiled_unit.source_path.clone(),
-        ));
+        entry.push((name, compiled_unit.source_path.clone()));
     }
     let errs = insensitive_mapping
         .into_iter()

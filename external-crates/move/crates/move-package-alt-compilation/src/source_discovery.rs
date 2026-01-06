@@ -6,21 +6,30 @@ use anyhow::Result;
 use move_command_line_common::files::find_move_filenames;
 use move_compiler::shared::files::FileName;
 use move_package_alt::package::{layout::SourcePackageLayout, paths::PackagePath};
-use move_vfs::wrappers::VirtualPath;
 use move_vfs::VfsResult;
+use move_vfs::wrappers::VirtualPath;
 
 // Find all the source files for a package at the given path
 pub fn get_sources(path: &PackagePath, config: &BuildConfig) -> Result<Vec<FileName>> {
     let places_to_look = source_paths_for_config(path.path(), config)?;
-    Ok(find_move_filenames(&places_to_look.iter().map(|e| e.as_str().to_string()).collect::<Vec<_>>(), false)?
-        .into_iter()
-        .map(FileName::from)
-        .collect())
+    Ok(find_move_filenames(
+        &places_to_look
+            .iter()
+            .map(|e| e.as_str().to_string())
+            .collect::<Vec<_>>(),
+        false,
+    )?
+    .into_iter()
+    .map(FileName::from)
+    .collect())
 }
 
 /// Get the source paths to look for source files in a package at the given path, based on the
 /// build config flags.
-fn source_paths_for_config(package_path: &VirtualPath, config: &BuildConfig) -> VfsResult<Vec<VirtualPath>> {
+fn source_paths_for_config(
+    package_path: &VirtualPath,
+    config: &BuildConfig,
+) -> VfsResult<Vec<VirtualPath>> {
     let mut places_to_look = Vec::new();
     let mut add_path = |layout_path: SourcePackageLayout| -> VfsResult<()> {
         let path = package_path.join(layout_path.path())?;

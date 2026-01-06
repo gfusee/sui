@@ -14,9 +14,9 @@ use crate::compatibility::legacy_parser::{LegacyPackageMetadata, parse_package_i
 use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
-use toml::value::Value as TV;
 use move_vfs::VfsFileType;
 use move_vfs::wrappers::VirtualPath;
+use toml::value::Value as TV;
 
 pub type LegacyVersion = (u64, u64, u64);
 pub type LegacySubstitution = BTreeMap<String, LegacySubstOrRename>;
@@ -117,7 +117,7 @@ fn find_files(files: &mut Vec<VirtualPath>, dir: &VirtualPath, extension: &str, 
                         {
                             files.push(entry);
                         }
-                    },
+                    }
                     VfsFileType::Directory => {
                         find_files(files, &entry, extension, max_depth - 1);
                     }

@@ -7,8 +7,8 @@ use move_binary_format::CompiledModule;
 use move_compiler::{
     compiled_unit::NamedCompiledModule,
     shared::{
-        files::{FileName, MappedFiles},
         NumericalAddress,
+        files::{FileName, MappedFiles},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -22,10 +22,13 @@ use crate::{compiled_package::CompiledPackage, layout::CompiledPackageLayout};
 use move_bytecode_source_map::utils::{
     serialize_to_json, serialize_to_json_string, source_map_from_file,
 };
-use move_command_line_common::files::{find_filenames_vfs, FileHash, DEBUG_INFO_EXTENSION, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION};
+use move_command_line_common::files::{
+    DEBUG_INFO_EXTENSION, FileHash, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION,
+    MOVE_EXTENSION, find_filenames_vfs,
+};
 use move_disassembler::disassembler::Disassembler;
-use move_vfs::wrappers::VirtualPath;
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 
 use super::compiled_package::{CompiledPackageInfo, CompiledUnitWithSource};
 
@@ -51,12 +54,17 @@ impl OnDiskCompiledPackage {
             (p.read_to_string()?, p.parent().parent())
         } else {
             (
-                p.join(CompiledPackageLayout::BuildInfo.path())?.read_to_string()?,
+                p.join(CompiledPackageLayout::BuildInfo.path())?
+                    .read_to_string()?,
                 p.parent(),
             )
         };
         let package = serde_yaml::from_str::<OnDiskPackage>(&buf)?;
-        assert!(build_path.as_str().ends_with(CompiledPackageLayout::Root.path()));
+        assert!(
+            build_path
+                .as_str()
+                .ends_with(CompiledPackageLayout::Root.path())
+        );
         let root_path = build_path.join(package.compiled_package_info.package_name.as_str())?;
         Ok(Self { root_path, package })
     }
@@ -104,11 +112,8 @@ impl OnDiskCompiledPackage {
                 .map(|path| {
                     let contents = path.read_to_string().unwrap();
 
-                    let path_diff = pathdiff::diff_paths(
-                        path.as_str(),
-                        docs_path.as_str()
-                    )
-                        .unwrap(); // TODO: can this fail?
+                    let path_diff =
+                        pathdiff::diff_paths(path.as_str(), docs_path.as_str()).unwrap(); // TODO: can this fail?
 
                     let relative_path = PathBuf::from(CompiledPackageLayout::CompiledDocs.path())
                         .join(path_diff)
@@ -203,8 +208,7 @@ impl OnDiskCompiledPackage {
         let file_path = if root_package == package_name {
             PathBuf::new()
         } else {
-            PathBuf::from(CompiledPackageLayout::Dependencies.path())
-                .join(package_name.as_str())
+            PathBuf::from(CompiledPackageLayout::Dependencies.path()).join(package_name.as_str())
         }
         .join(unit.unit.name.as_str());
         let d = Disassembler::from_unit(&unit.unit);
@@ -218,8 +222,11 @@ impl OnDiskCompiledPackage {
         )?;
         // unwrap below is safe as we just successfully saved a file at disassembly_file_path
         let p = self.root_path.join(disassembly_file_path)?.parent();
-        bytecode_map
-            .set_from_file_path(PathBuf::from(p.join(&file_path)?.with_extension(MOVE_BYTECODE_EXTENSION)?.as_str()));
+        bytecode_map.set_from_file_path(PathBuf::from(
+            p.join(&file_path)?
+                .with_extension(MOVE_BYTECODE_EXTENSION)?
+                .as_str(),
+        ));
         self.save_under(
             disassembly_dir.join(&file_path).with_extension("json"),
             serialize_to_json_string(&bytecode_map)?.as_bytes(),
@@ -238,8 +245,7 @@ impl OnDiskCompiledPackage {
         let file_path = if root_pkg_name == package_name {
             PathBuf::new()
         } else {
-            PathBuf::from(CompiledPackageLayout::Dependencies.path())
-                .join(package_name.as_str())
+            PathBuf::from(CompiledPackageLayout::Dependencies.path()).join(package_name.as_str())
         }
         .join(compiled_unit.unit.name.as_str());
 
@@ -283,7 +289,8 @@ impl OnDiskCompiledPackage {
             compiled_unit_paths.push(module_path);
         }
         let mv_filenames = find_filenames_vfs(&compiled_unit_paths, |path| {
-            path.extension().is_some_and(|ext| ext.as_str() == MOVE_COMPILED_EXTENSION)
+            path.extension()
+                .is_some_and(|ext| ext.as_str() == MOVE_COMPILED_EXTENSION)
         })?;
 
         Ok(mv_filenames)

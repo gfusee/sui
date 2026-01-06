@@ -3,15 +3,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    fmt::Debug,
-};
-use std::cmp::Ordering;
+use move_vfs::{VfsError, VfsResult};
 use serde::{Deserialize, de::DeserializeOwned};
+use std::cmp::Ordering;
+use std::{collections::BTreeMap, fmt::Debug};
 use thiserror::Error;
 use tracing::debug;
-use move_vfs::{VfsError, VfsResult};
 
 /// Lock file version written by this version of the compiler.  Backwards compatibility is
 /// guaranteed (the compiler can read lock files with older versions), forward compatibility is not
@@ -24,6 +21,10 @@ use move_vfs::{VfsError, VfsResult};
 /// V4: Package rewrite
 const LOCKFILE_VERSION: usize = 4;
 
+use super::{
+    EnvironmentName,
+    package_lock::{LockError, PackageSystemLock},
+};
 use crate::{
     compatibility::{
         legacy::LegacyEnvironment, legacy_lockfile::load_legacy_lockfile,
@@ -37,10 +38,6 @@ use crate::{
     },
 };
 use move_vfs::wrappers::VirtualPath;
-use super::{
-    EnvironmentName,
-    package_lock::{LockError, PackageSystemLock},
-};
 
 /// A path to a directory containing a loaded Move package (in particular, the directory must have
 /// a Move.toml)
@@ -89,10 +86,7 @@ pub enum FileError {
     InvalidFile { path: String },
 
     #[error("error while loading legacy manifest {file:?}: {source}")]
-    LegacyError {
-        file: String,
-        source: anyhow::Error,
-    },
+    LegacyError { file: String, source: anyhow::Error },
 
     #[error(transparent)]
     LockError(#[from] LockError),
@@ -127,14 +121,20 @@ pub fn read_name_from_manifest(dir: &VirtualPath) -> FileResult<String> {
     }
 
     let path = dir.join("Move.toml")?;
-    let f: File = parse_file(path.clone())?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })?.1;
+    let f: File = parse_file(path.clone())?
+        .ok_or(FileError::InvalidFile {
+            path: path.as_str().to_string(),
+        })?
+        .1;
     Ok(f.package.name)
 }
 
 impl PackagePath {
     pub fn new(dir: VirtualPath) -> PackagePathResult<Self> {
         if !dir.is_dir()? {
-            return Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() });
+            return Err(PackagePathError::InvalidDirectory {
+                path: dir.as_str().to_string(),
+            });
         }
 
         let result = Self(OutputPath(dir));
@@ -162,7 +162,9 @@ impl PackagePath {
         _mtx: &PackageSystemLock,
     ) -> FileResult<(FileHandle, ParsedManifest)> {
         let path = self.manifest_path()?;
-        parse_file(path.clone())?.ok_or(FileError::InvalidFile { path: path.as_str().to_string() })
+        parse_file(path.clone())?.ok_or(FileError::InvalidFile {
+            path: path.as_str().to_string(),
+        })
     }
 
     /// Parse and return the lockfile if it exists, returning None if the file doesn't exist or if
@@ -267,7 +269,9 @@ impl OutputPath {
     /// file.
     pub fn new(dir: VirtualPath) -> PackagePathResult<Self> {
         if !dir.is_dir()? {
-            Err(PackagePathError::InvalidDirectory { path: dir.as_str().to_string() })
+            Err(PackagePathError::InvalidDirectory {
+                path: dir.as_str().to_string(),
+            })
         } else {
             Ok(Self(dir))
         }
@@ -341,7 +345,9 @@ impl EphemeralPubfilePath {
     pub fn new(file: VirtualPath) -> PackagePathResult<Self> {
         if let Err(e) = file.parent().create_dir_all() {
             debug!("unexpected error creating directory: {e:?}");
-            Err(PackagePathError::InvalidFile { path: file.as_str().to_string() })
+            Err(PackagePathError::InvalidFile {
+                path: file.as_str().to_string(),
+            })
         } else {
             Ok(Self(file))
         }

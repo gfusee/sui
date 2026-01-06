@@ -12,8 +12,8 @@ use move_disassembler::disassembler::Disassembler;
 use move_package_alt_compilation::{build_config::BuildConfig, find_env};
 
 use move_package_alt::{flavor::MoveFlavor, schema::Environment};
-use move_vfs::wrappers::VirtualPath;
 use move_trace_format::format::MoveTraceReader;
+use move_vfs::wrappers::VirtualPath;
 use std::path::Path;
 
 const COVERAGE_FILE_NAME: &str = "lcov.info";
@@ -160,13 +160,10 @@ impl Coverage {
         let sanitize_name = |s: &str| s.replace("::", "__");
         let trace_of_test = |test_name: &str| {
             let trace_substr_name = format!("{}.", sanitize_name(test_name));
-            traces.read_dir()?
+            traces
+                .read_dir()?
                 .filter_map(|entry| {
-                    if entry.is_file().ok()?
-                        && entry
-                            .filename()
-                            .contains(&trace_substr_name)
-                    {
+                    if entry.is_file().ok()? && entry.filename().contains(&trace_substr_name) {
                         Some(entry)
                     } else {
                         None
@@ -234,11 +231,7 @@ impl Coverage {
                     sanitize_name(&differential_test_name)
                 ))?;
 
-                write!(
-                    output_path.create_file()?,
-                    "{}",
-                    differential_string,
-                )?;
+                write!(output_path.create_file()?, "{}", differential_string,)?;
             } else {
                 let output_path = path.join(COVERAGE_FILE_NAME)?;
 

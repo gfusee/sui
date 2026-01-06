@@ -21,10 +21,7 @@ pub struct PackageContext {
 }
 
 impl PackageContext {
-    pub async fn new<F: MoveFlavor>(
-        path: VirtualPath,
-        build_config: &BuildConfig,
-    ) -> Result<Self> {
+    pub async fn new<F: MoveFlavor>(path: VirtualPath, build_config: &BuildConfig) -> Result<Self> {
         let env = find_env::<F>(&path, build_config)?;
         let build_dir = build_config
             .install_dir

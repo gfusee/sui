@@ -41,12 +41,10 @@ impl FetchedDependency {
     /// transformed into git dependencies
     pub async fn fetch(pinned: &Pinned) -> FetchResult<PackagePath> {
         let path = match &pinned {
-            Pinned::Git(dep) => dep
-                .inner
-                .fetch()
-                .await,
+            Pinned::Git(dep) => dep.inner.fetch().await,
             _ => pinned.unfetched_path(),
-        }.map_err(FetchError::from_git(pinned))?;
+        }
+        .map_err(FetchError::from_git(pinned))?;
 
         PackagePath::new(path).map_err(FetchError::from_package(pinned))
     }

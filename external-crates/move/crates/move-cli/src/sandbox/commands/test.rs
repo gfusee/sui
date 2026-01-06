@@ -4,13 +4,11 @@
 
 use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
-use move_command_line_common::{
-    env::read_bool_env_var,
-    files::find_filenames,
-};
+use move_command_line_common::{env::read_bool_env_var, files::find_filenames};
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
 use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
 
+use anyhow::anyhow;
 use move_package_alt::{
     flavor::{Vanilla, vanilla},
     package::{RootPackage, layout::SourcePackageLayout},
@@ -18,6 +16,9 @@ use move_package_alt::{
 use move_package_alt_compilation::{
     layout::CompiledPackageLayout, on_disk_package::OnDiskCompiledPackage,
 };
+use move_vfs::VfsResult;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 use path_clean::clean;
 use std::{
     cmp::max,
@@ -28,10 +29,6 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use anyhow::anyhow;
-use move_vfs::tempdir::TempDir;
-use move_vfs::VfsResult;
-use move_vfs::wrappers::VirtualPath;
 use tracing::debug;
 
 // Basic datatest testing framework for the CLI. The `run_one` entrypoint expects
@@ -127,7 +124,11 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
 /// Copy `pkg_dir` and all of its dependencies into `tmp_dir`, keeping all of the relative
 /// paths the same. This may require copying into a subdirectory of `tmp_dir` if the local paths
 /// start with `..`; the actual subdirectory containing the copied files is returned.
-fn copy_pkg_and_deps(cwd: VirtualPath, tmp_dir: &VirtualPath, pkg_dir: VirtualPath) -> anyhow::Result<VirtualPath> {
+fn copy_pkg_and_deps(
+    cwd: VirtualPath,
+    tmp_dir: &VirtualPath,
+    pkg_dir: VirtualPath,
+) -> anyhow::Result<VirtualPath> {
     let pkg_dir_path_buf = PathBuf::from(pkg_dir.as_str().to_string());
 
     let paths = match package_paths(pkg_dir.clone()) {
@@ -153,7 +154,11 @@ fn copy_pkg_and_deps(cwd: VirtualPath, tmp_dir: &VirtualPath, pkg_dir: VirtualPa
     debug!("copying {paths:?}");
 
     for (virtual_path, relative_path) in paths.iter().zip(relative_paths_from_pkg_dir) {
-        debug!("cp {:?} {:?}", &relative_path, tmp_dir.join(&prefix)?.join(&relative_path)?);
+        debug!(
+            "cp {:?} {:?}",
+            &relative_path,
+            tmp_dir.join(&prefix)?.join(&relative_path)?
+        );
         simple_copy_dir(&tmp_dir.join(&prefix)?.join(&relative_path)?, &virtual_path)?;
     }
 
@@ -316,10 +321,7 @@ pub fn run_one(
         None => None,
         Some(trace_path) => {
             if trace_path.exists()? {
-                Some(collect_coverage(
-                    trace_path,
-                    build_output.clone()
-                )?)
+                Some(collect_coverage(trace_path, build_output.clone())?)
             } else {
                 eprintln!(
                     "Trace file {:?} not found: coverage is only available with at least one `run` \
@@ -417,9 +419,7 @@ pub fn run_all(
             entry_path.exists()
         );
 
-        let virtual_entry_path = VirtualPath::physical()?
-            .cwd()
-            .join(&entry)?;
+        let virtual_entry_path = VirtualPath::physical()?.cwd().join(&entry)?;
 
         match run_one(&virtual_entry_path, cli_binary, use_temp_dir, track_cov) {
             Ok(cov_opt) => {

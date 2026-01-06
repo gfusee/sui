@@ -26,6 +26,7 @@ use move_vm_test_utils::gas_schedule::CostTable;
 #[cfg(target_family = "windows")]
 use std::os::windows::process::ExitStatusExt;
 // if unix
+use move_vfs::wrappers::VirtualPath;
 #[cfg(target_family = "unix")]
 use std::os::unix::prelude::ExitStatusExt;
 use std::{
@@ -33,7 +34,6 @@ use std::{
     path::Path,
     process::ExitStatus,
 };
-use move_vfs::wrappers::VirtualPath;
 
 // if not windows nor unix
 #[cfg(not(any(target_family = "windows", target_family = "unix")))]
@@ -168,8 +168,7 @@ pub async fn run_move_unit_tests<F: MoveFlavor, W: Write + Send>(
     // Load the package (package graph diagnostics are only needed for CLI commands so
     // ignore them by passing a vector as the writer)
     let env = find_env::<F>(&pkg_path, &build_config)?;
-    let root_pkg =
-        RootPackage::<F>::load(pkg_path.clone(), env, build_config.mode_set()).await?;
+    let root_pkg = RootPackage::<F>::load(pkg_path.clone(), env, build_config.mode_set()).await?;
     let root_pkg_name = Symbol::from(root_pkg.name().as_str());
 
     let mut addresses: Vec<(String, NumericalAddress)> = vec![];

@@ -9,8 +9,8 @@ use codespan::{Files, Span};
 use colored::*;
 use indexmap::IndexSet;
 use move_binary_format::{
-    file_format::{CodeOffset, FunctionDefinitionIndex},
     CompiledModule,
+    file_format::{CodeOffset, FunctionDefinitionIndex},
 };
 use move_bytecode_source_map::source_map::SourceMap;
 use move_command_line_common::files::FileHash;
@@ -19,10 +19,8 @@ use move_ir_types::location::Loc;
 use move_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use std::{
-    collections::BTreeMap
-    ,
-    io::{self, Write}
-    ,
+    collections::BTreeMap,
+    io::{self, Write},
 };
 
 #[derive(Clone, Debug, Serialize)]

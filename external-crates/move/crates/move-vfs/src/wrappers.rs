@@ -11,20 +11,20 @@ pub trait FileSystemExt: FileSystem {
 }
 
 pub trait Lock {
-    fn lock_exclusive(& self) -> std::io::Result<()>;
-    fn unlock(& self) -> std::io::Result<()>;
+    fn lock_exclusive(&self) -> std::io::Result<()>;
+    fn unlock(&self) -> std::io::Result<()>;
 }
 
 pub trait LockableAndDebuggable: Lock + Debug {}
 
 #[derive(Clone, Debug)]
 pub struct ArcFileSystem {
-    fs: Arc<Box<dyn FileSystemExt>>
+    fs: Arc<Box<dyn FileSystemExt>>,
 }
 
 #[derive(Debug)]
 pub struct Lockable {
-    inner: Box<dyn LockableAndDebuggable + Send + Sync>
+    inner: Box<dyn LockableAndDebuggable + Send + Sync>,
 }
 
 impl Lock for Lockable {
@@ -39,7 +39,7 @@ impl Lock for Lockable {
 
 impl Lock for File {
     fn lock_exclusive(&self) -> std::io::Result<()> {
-       fs4::fs_std::FileExt::lock_exclusive(self)
+        fs4::fs_std::FileExt::lock_exclusive(self)
     }
 
     fn unlock(&self) -> std::io::Result<()> {
@@ -58,7 +58,9 @@ impl FileSystemExt for PhysicalFS {
             .create(true)
             .open(&path)?;
 
-        let lockable = Lockable { inner: Box::new(lock) };
+        let lockable = Lockable {
+            inner: Box::new(lock),
+        };
 
         Ok(lockable)
     }
@@ -81,14 +83,16 @@ pub struct VirtualPath {
 pub struct WalkDirIterator {
     base: VirtualPath,
     /// the path iterator of the current directory
-    inner: vfs::WalkDirIterator
+    inner: vfs::WalkDirIterator,
 }
 
 impl Iterator for WalkDirIterator {
     type Item = VfsResult<VirtualPath>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let result = self.inner.next()?
+        let result = self
+            .inner
+            .next()?
             .map(|vfs_path| self.base.with_vfs_path(vfs_path).clone());
 
         Some(result)
@@ -104,7 +108,7 @@ impl ArcFileSystem {
 }
 
 impl FileSystem for ArcFileSystem {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item=String> + Send>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         self.fs.read_dir(path)
     }
 
@@ -174,15 +178,12 @@ impl AsRef<VfsPath> for VirtualPath {
 }
 
 impl VirtualPath {
-    pub fn new<FS: FileSystemExt>(
-        cwd: Option<impl AsRef<str>>,
-        filesystem: FS,
-    ) -> VfsResult<Self> {
+    pub fn new<FS: FileSystemExt>(cwd: Option<impl AsRef<str>>, filesystem: FS) -> VfsResult<Self> {
         let arc_filesystem = ArcFileSystem::new(filesystem);
         let path = VfsPath::new(arc_filesystem.clone());
         let cwd = match cwd {
             Some(cwd) => path.root().join(cwd)?,
-            None => path.clone()
+            None => path.clone(),
         };
 
         Ok(Self {
@@ -201,10 +202,7 @@ impl VirtualPath {
 
         let physical_filesystem = ArcFileSystem::new(PhysicalFS::new("/"));
 
-        let result_root = VirtualPath::new(
-            cwd,
-            physical_filesystem
-        )?;
+        let result_root = VirtualPath::new(cwd, physical_filesystem)?;
 
         Ok(result_root.cwd())
     }
@@ -224,7 +222,8 @@ impl VirtualPath {
             self.path.root().join(path.to_string_lossy())
         } else {
             self.path.join(path.to_string_lossy())
-        }.map(|e| self.with_vfs_path(e))
+        }
+        .map(|e| self.with_vfs_path(e))
     }
 
     pub fn filename(&self) -> String {
@@ -236,7 +235,8 @@ impl VirtualPath {
     }
 
     pub fn with_extension<S: AsRef<str>>(&self, extension: S) -> VfsResult<VirtualPath> {
-        let path_buf_with_extension = PathBuf::from(self.as_str()).with_extension(extension.as_ref());
+        let path_buf_with_extension =
+            PathBuf::from(self.as_str()).with_extension(extension.as_ref());
 
         self.join(path_buf_with_extension)
     }
@@ -302,20 +302,18 @@ impl VirtualPath {
 
         Ok(WalkDirIterator {
             base: self.cwd(),
-            inner
+            inner,
         })
     }
 
     pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VirtualPath> + Send>> {
         let self_clone = self.clone();
 
-        self.path
-            .read_dir()
-            .map(move |iter| {
-                let self_clone = self_clone.clone();
-                let mapped_iter = iter.map(move |vsf_path| self_clone.with_vfs_path(vsf_path));
-                Box::new(mapped_iter) as Box<dyn Iterator<Item = VirtualPath> + Send>
-            })
+        self.path.read_dir().map(move |iter| {
+            let self_clone = self_clone.clone();
+            let mapped_iter = iter.map(move |vsf_path| self_clone.with_vfs_path(vsf_path));
+            Box::new(mapped_iter) as Box<dyn Iterator<Item = VirtualPath> + Send>
+        })
     }
 
     pub fn metadata(&self) -> VfsResult<VfsMetadata> {
@@ -327,7 +325,8 @@ impl VirtualPath {
     }
 
     pub fn open_and_lock_exclusive(&self, should_truncate: bool) -> VfsResult<Lockable> {
-        self.filesystem.open_lockable(self.path.as_str(), should_truncate)
+        self.filesystem
+            .open_lockable(self.path.as_str(), should_truncate)
     }
 
     pub fn with_current_dir(&self, cwd: VirtualPath) -> Self {

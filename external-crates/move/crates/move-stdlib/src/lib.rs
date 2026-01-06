@@ -2,18 +2,13 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use move_command_line_common::files::{extension_equals, find_filenames, MOVE_EXTENSION};
+use move_command_line_common::files::{MOVE_EXTENSION, extension_equals, find_filenames};
 use move_core_types::parsing::address::NumericalAddress;
 use move_docgen::DocgenOptions;
 use move_package_alt::flavor::Vanilla;
 use move_package_alt_compilation::build_config::BuildConfig;
 use move_vfs::wrappers::VirtualPath;
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Stdout,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, fs, io::Stdout, path::PathBuf};
 
 #[cfg(test)]
 mod tests;
@@ -76,11 +71,7 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
     let modules_full_path = virtual_cwd.join(modules_full_path())?;
 
     let model = config
-        .move_model_from_path::<Vanilla, Stdout>(
-            modules_full_path,
-            env,
-            &mut std::io::stdout(),
-        )
+        .move_model_from_path::<Vanilla, Stdout>(modules_full_path, env, &mut std::io::stdout())
         .await?;
     let options = DocgenOptions {
         output_directory,

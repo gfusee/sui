@@ -8,10 +8,10 @@ use crate::{
     package::EnvironmentName,
     schema::{MoveHeader, OriginalID, ParsedLockfile, PublishAddresses, PublishedID, RenderToml},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use move_vfs::wrappers::VirtualPath;
 use std::collections::BTreeMap;
 use toml::Value as TV;
-use move_vfs::wrappers::VirtualPath;
 
 /// Parse the legacy lockfile in `path` (i.e. version 3 or less) and return the extracted
 /// information.
@@ -64,7 +64,11 @@ pub fn load_legacy_lockfile(
         };
 
         // TODO: this really should be handled by the output path, but that requires effort
-        write!(lockfile_path.create_file()?, "{}", lockfile.render_as_toml())?;
+        write!(
+            lockfile_path.create_file()?,
+            "{}",
+            lockfile.render_as_toml()
+        )?;
 
         return Ok(None);
     };

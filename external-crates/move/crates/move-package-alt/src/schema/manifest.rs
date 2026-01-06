@@ -1,7 +1,7 @@
-use std::{collections::BTreeMap, str::FromStr};
-use std::path::PathBuf;
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_spanned::Spanned;
+use std::path::PathBuf;
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::compatibility::legacy::LegacyData;
 use move_compiler::editions::Edition;

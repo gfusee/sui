@@ -1,12 +1,12 @@
 use std::{
-    fmt::{Debug, Display}
-    , io,
+    fmt::{Debug, Display},
+    io,
 };
 
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::SimpleFile;
-use serde::de::DeserializeOwned;
 use move_vfs::wrappers::VirtualPath;
+use serde::de::DeserializeOwned;
 
 /// A wrapper around [PathBuf] that implements [Display]
 #[derive(Clone)]
@@ -63,13 +63,11 @@ impl<'a> codespan_reporting::files::Files<'a> for Files {
 impl FileHandle {
     /// Reads the file located at [path] into the file cache and returns its ID
     pub fn new(path: VirtualPath) -> io::Result<Self> {
-        let source = path.read_to_string()
+        let source = path
+            .read_to_string()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let id = FILES.push(SimpleFile::new(
-            DisplayVirtualPath(path),
-            source,
-        ));
+        let id = FILES.push(SimpleFile::new(DisplayVirtualPath(path), source));
         Ok(Self { id })
     }
 

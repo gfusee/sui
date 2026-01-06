@@ -11,13 +11,13 @@ use move_compiler::{
 };
 use move_core_types::language_storage::ModuleId;
 use move_trace_format::format::{MoveTraceReader, TraceEvent};
+use move_vfs::wrappers::VirtualPath;
 use std::fmt::Write;
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Read,
     path::PathBuf,
 };
-use move_vfs::wrappers::VirtualPath;
 
 pub type LineNumber = usize;
 pub type HitCount = usize;

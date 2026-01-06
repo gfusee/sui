@@ -115,7 +115,9 @@ impl CombinedDependency {
         replacement: ReplacementDependency,
     ) -> ManifestResult<Self> {
         let Some(dep) = replacement.dependency else {
-            return Err(ManifestError::with_file(file.path().clone())(ManifestErrorKind::NoDepInfo));
+            return Err(ManifestError::with_file(file.path().clone())(
+                ManifestErrorKind::NoDepInfo,
+            ));
         };
 
         Ok(Self(Dependency {

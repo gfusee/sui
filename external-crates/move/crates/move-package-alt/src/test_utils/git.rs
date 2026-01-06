@@ -41,11 +41,11 @@
 //! [`repo()`] can be used to create a [`RepoBuilder`] which provides a way of
 //! adding files to a blank repository and committing them.
 
+use super::graph_builder::TestPackageGraph;
+use crate::git::{GitResult, run_git_cmd_with_args};
 use move_vfs::VfsResult;
-use crate::git::{run_git_cmd_with_args, GitResult};
 use move_vfs::tempdir::TempDir;
 use move_vfs::wrappers::VirtualPath;
-use super::graph_builder::TestPackageGraph;
 
 /// A [RepoProject] represents a bare repository in a temporary directory. You can add new commits
 /// to the repository using [RepoProject::commit].
@@ -130,9 +130,10 @@ impl RepoProject {
         )
         .await
         .unwrap();
-        let mut result = run_git_cmd_with_args(&["rev-parse", "HEAD"], Some(&self.worktree_path()?))
-            .await
-            .unwrap();
+        let mut result =
+            run_git_cmd_with_args(&["rev-parse", "HEAD"], Some(&self.worktree_path()?))
+                .await
+                .unwrap();
 
         // remove trailing newline
         result.pop();
@@ -147,10 +148,8 @@ impl RepoProject {
     /// add all files in the worktree
     async fn add_all(&self) -> GitResult<()> {
         let worktree_path = self.worktree_path()?;
-        run_git_cmd_with_args(&["add", "."], Some(&worktree_path))
-            .await?;
-        run_git_cmd_with_args(&["status"], Some(&worktree_path))
-            .await?;
+        run_git_cmd_with_args(&["add", "."], Some(&worktree_path)).await?;
+        run_git_cmd_with_args(&["status"], Some(&worktree_path)).await?;
 
         Ok(())
     }
@@ -168,8 +167,7 @@ impl RepoProject {
 
     /// update `tag` to refer to `sha`
     async fn tag(&self, sha: &str, tag_name: &str) -> GitResult<()> {
-        run_git_cmd_with_args(&["tag", "-f", tag_name, sha], Some(&self.repo_path()?))
-            .await?;
+        run_git_cmd_with_args(&["tag", "-f", tag_name, sha], Some(&self.repo_path()?)).await?;
 
         Ok(())
     }
@@ -179,18 +177,13 @@ impl RepoProject {
         let repo_path = self.repo_path()?;
 
         repo_path.create_dir_all()?;
+        run_git_cmd_with_args(&["init", "--initial-branch", "main"], Some(&repo_path)).await?;
+        run_git_cmd_with_args(&["config", "user.email", "foo@bar.com"], Some(&repo_path)).await?;
         run_git_cmd_with_args(
-            &["init", "--initial-branch", "main"],
-            Some(&repo_path),
+            &["config", "user.name", "Foo Bar"],
+            Some(&self.repo_path()?),
         )
         .await?;
-        run_git_cmd_with_args(
-            &["config", "user.email", "foo@bar.com"],
-            Some(&repo_path),
-        )
-        .await?;
-        run_git_cmd_with_args(&["config", "user.name", "Foo Bar"], Some(&self.repo_path()?))
-            .await?;
 
         run_git_cmd_with_args(
             &["commit", "-m", "initial commit", "--allow-empty"],
@@ -198,11 +191,9 @@ impl RepoProject {
         )
         .await?;
 
-        run_git_cmd_with_args(&["branch", "empty_commit"], Some(&repo_path))
-            .await?;
+        run_git_cmd_with_args(&["branch", "empty_commit"], Some(&repo_path)).await?;
 
-        run_git_cmd_with_args(&["checkout", "--detach"], Some(&repo_path))
-            .await?;
+        run_git_cmd_with_args(&["checkout", "--detach"], Some(&repo_path)).await?;
 
         Ok(())
     }
@@ -227,17 +218,12 @@ impl RepoProject {
     /// removes the worktree
     async fn delete_worktree(&self) -> GitResult<()> {
         run_git_cmd_with_args(
-            &[
-                "worktree",
-                "remove",
-                self.worktree_path()?.as_str(),
-            ],
+            &["worktree", "remove", self.worktree_path()?.as_str()],
             Some(&self.repo_path()?),
         )
         .await?;
 
-        run_git_cmd_with_args(&["checkout", "--detach", "main"], Some(&self.repo_path()?))
-            .await?;
+        run_git_cmd_with_args(&["checkout", "--detach", "main"], Some(&self.repo_path()?)).await?;
 
         Ok(())
     }

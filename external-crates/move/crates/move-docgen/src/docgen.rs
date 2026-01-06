@@ -22,6 +22,7 @@ use move_model_2::{
     source_model::{self, Model},
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -33,7 +34,6 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use move_vfs::wrappers::VirtualPath;
 
 /// The maximum number of subheadings that are allowed
 const MAX_SUBSECTIONS: usize = 6;
@@ -215,7 +215,11 @@ impl<'env> Docgen<'env> {
     }
 
     /// Generate document contents, returning pairs of output file names and generated contents.
-    pub fn generate(mut self, cwd: &VirtualPath, env: &Model) -> anyhow::Result<Vec<(String, String)>> {
+    pub fn generate(
+        mut self,
+        cwd: &VirtualPath,
+        env: &Model,
+    ) -> anyhow::Result<Vec<(String, String)>> {
         // If there is a root templates, parse them.
         let root_templates = self
             .options
@@ -298,7 +302,10 @@ impl<'env> Docgen<'env> {
     }
 
     /// Parse a root template.
-    fn parse_root_template(&mut self, file_path: &VirtualPath) -> anyhow::Result<Vec<TemplateElement>> {
+    fn parse_root_template(
+        &mut self,
+        file_path: &VirtualPath,
+    ) -> anyhow::Result<Vec<TemplateElement>> {
         static REX: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
                 r"(?xm)^\s*>\s*\{\{

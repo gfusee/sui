@@ -15,7 +15,7 @@ use tracing::debug;
 use crate::base::reroot_path;
 
 use move_binary_format::CompiledModule;
-use move_command_line_common::files::{extension_equals, find_filenames, MOVE_COMPILED_EXTENSION};
+use move_command_line_common::files::{MOVE_COMPILED_EXTENSION, extension_equals, find_filenames};
 use move_core_types::account_address::AccountAddress;
 use move_model_2 as M2;
 use move_package_alt::{flavor::MoveFlavor, package::RootPackage};

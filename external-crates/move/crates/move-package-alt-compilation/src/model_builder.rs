@@ -43,7 +43,9 @@ pub fn build<W: Write + Send, F: MoveFlavor>(
     let all_compiled_units = compiled_package
         .all_compiled_units_with_source()
         .cloned()
-        .map(|CompiledUnitWithSource { unit, source_path }| (PathBuf::from(source_path.as_str()), unit))
+        .map(|CompiledUnitWithSource { unit, source_path }| {
+            (PathBuf::from(source_path.as_str()), unit)
+        })
         .collect::<Vec<_>>();
     source_model::Model::from_source(
         compiled_package.file_map,

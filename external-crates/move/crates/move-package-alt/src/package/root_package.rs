@@ -4,8 +4,6 @@
 
 use std::{collections::BTreeMap, fmt};
 
-use indexmap::IndexMap;
-use tracing::debug;
 use super::paths::{EphemeralPubfilePath, OutputPath, PackagePath};
 use super::{EnvironmentID, manifest::Manifest};
 use crate::graph::PackageInfo;
@@ -22,7 +20,9 @@ use crate::{
     package::EnvironmentName,
     schema::ParsedLockfile,
 };
+use indexmap::IndexMap;
 use move_vfs::wrappers::VirtualPath;
+use tracing::debug;
 
 #[derive(Clone, Debug)]
 pub struct PackageConfig {
@@ -161,7 +161,11 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// A synchronous version of `load` that can be used to load a package while blocking in place.
-    pub fn load_sync(path: VirtualPath, env: Environment, modes: Vec<ModeName>) -> PackageResult<Self> {
+    pub fn load_sync(
+        path: VirtualPath,
+        env: Environment,
+        modes: Vec<ModeName>,
+    ) -> PackageResult<Self> {
         block_on!(Self::load(path, env, modes))
     }
 

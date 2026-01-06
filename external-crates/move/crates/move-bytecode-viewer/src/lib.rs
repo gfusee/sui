@@ -10,10 +10,7 @@ use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::{source_map::SourceMap, utils::source_map_from_file};
 use move_vfs::wrappers::VirtualPath;
-use std::{
-    fs,
-    path::PathBuf,
-};
+use std::{fs, path::PathBuf};
 
 pub mod bytecode_viewer;
 pub mod interfaces;
@@ -55,19 +52,20 @@ impl BytecodeViewerConfig {
         let compiled_module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)
             .expect("Module blob can't be deserialized");
 
-        let root_path = VirtualPath::physical()
-            .expect("Physical filesystem should be available");
+        let root_path = VirtualPath::physical().expect("Physical filesystem should be available");
 
-        let module_sourcemap_path = root_path
-            .join(&self.module_sourcemap_path)
-            .expect(&format!("Path should be valid {}", self.module_binary_path.to_string_lossy()));
+        let module_sourcemap_path = root_path.join(&self.module_sourcemap_path).expect(&format!(
+            "Path should be valid {}",
+            self.module_binary_path.to_string_lossy()
+        ));
 
         let source_map = source_map_from_file(&module_sourcemap_path)
             .expect("Unable to read source map from file");
 
-        let source_path = root_path
-            .join(&self.source_file_path)
-            .expect(&format!("Source file path should be valid {}", self.source_file_path.to_string_lossy()));
+        let source_path = root_path.join(&self.source_file_path).expect(&format!(
+            "Source file path should be valid {}",
+            self.source_file_path.to_string_lossy()
+        ));
 
         start_viewer_in_memory(compiled_module, source_map, &source_path)
     }
