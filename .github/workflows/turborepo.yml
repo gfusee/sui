@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '20'
       - name: Run audit
-        run: echo "Skipped!" # pnpm audit --prod --audit-level high
+        run: pnpm audit --prod --audit-level high
 
   build:
     name: Lint, Build, and Test
