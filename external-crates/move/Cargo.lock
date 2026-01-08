@@ -2044,6 +2044,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-symbol-pool",
+ "move-vfs",
  "once_cell",
  "serde",
  "serde_json",
@@ -2092,6 +2093,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-symbol-pool",
+ "move-vfs",
  "serde",
  "serde_json",
 ]
@@ -2188,6 +2190,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-source-map",
  "move-disassembler",
+ "move-vfs",
  "ratatui",
  "regex",
 ]
@@ -2224,12 +2227,14 @@ dependencies = [
  "move-symbol-pool",
  "move-trace-format",
  "move-unit-test",
+ "move-vfs",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-runtime",
  "move-vm-test-utils",
  "move-vm-types",
  "path-clean",
+ "pathdiff",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2255,6 +2260,7 @@ dependencies = [
  "insta",
  "move-binary-format",
  "move-core-types",
+ "move-vfs",
  "once_cell",
  "packed_struct",
  "proptest",
@@ -2359,6 +2365,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-trace-format",
+ "move-vfs",
  "petgraph",
  "serde",
 ]
@@ -2428,6 +2435,7 @@ dependencies = [
  "move-ir-types",
  "move-model-2",
  "move-symbol-pool",
+ "move-vfs",
  "num",
  "once_cell",
  "regex",
@@ -2598,6 +2606,7 @@ dependencies = [
  "move-docgen",
  "move-model-2",
  "move-symbol-pool",
+ "move-vfs",
  "named-lock",
  "once_cell",
  "petgraph",
@@ -2637,8 +2646,8 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
- "move-vfs",
  "move-symbol-pool",
+ "move-vfs",
  "named-lock",
  "once_cell",
  "path-clean",
@@ -2679,9 +2688,10 @@ dependencies = [
  "move-docgen",
  "move-model-2",
  "move-package-alt",
- "move-vfs",
  "move-symbol-pool",
+ "move-vfs",
  "once_cell",
+ "pathdiff",
  "petgraph",
  "serde",
  "serde_yaml",
@@ -2689,15 +2699,6 @@ dependencies = [
  "tokio",
  "toml_edit 0.22.24",
  "tracing",
-]
-
-[[package]]
-name = "move-vfs"
-version = "0.1.0"
-dependencies = [
- "fs4",
- "thiserror",
- "uuid",
  "vfs",
 ]
 
@@ -2792,6 +2793,7 @@ dependencies = [
  "move-package-alt-compilation",
  "move-stdlib-natives",
  "move-unit-test",
+ "move-vfs",
  "move-vm-runtime",
  "sha2",
  "tempfile",
@@ -2939,6 +2941,17 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "regex",
+]
+
+[[package]]
+name = "move-vfs"
+version = "0.1.0"
+dependencies = [
+ "fs4",
+ "move-symbol-pool",
+ "thiserror",
+ "uuid",
+ "vfs",
 ]
 
 [[package]]
@@ -3446,6 +3459,12 @@ name = "path-clean"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
+
+[[package]]
+name = "pathdiff"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
 name = "percent-encoding"
