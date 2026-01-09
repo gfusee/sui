@@ -324,10 +324,23 @@ mod tests {
     use test_log::test;
 
     use crate::{schema::GitSha, test_utils::git};
+    use move_vfs::wrappers::VirtualPath;
 
     use super::*;
 
     const RANDOM_SHA: &str = "1111111111111111111111111111111111111111"; // 40 characters
+
+    fn vpath(path: impl AsRef<Path>) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path.as_ref())
+            .unwrap()
+    }
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     // Local pinning ///////////////////////////////////////////////////////////////////////////////
 
@@ -342,8 +355,8 @@ mod tests {
         let pinned = dep.pin(&parent).unwrap_as_local().clone();
 
         assert_eq!(
-            pinned.absolute_path_to_package.as_os_str(),
-            tempdir.path().join("child")
+            pinned.absolute_path_to_package.as_str(),
+            tempdir.path().join("child").to_string_lossy()
         );
         assert_eq!(
             pinned.relative_path_from_root_package.as_os_str(),
@@ -363,7 +376,7 @@ mod tests {
         let pinned = dep.pin(&parent).unwrap_as_local().clone();
 
         assert_eq!(
-            pinned.absolute_path_to_package.as_os_str(),
+            pinned.absolute_path_to_package.as_str(),
             "/root/parent/child"
         );
         assert_eq!(
@@ -397,7 +410,7 @@ mod tests {
 
         assert_eq!(
             // path in repo is updated
-            pinned.inner.path_in_repo().as_os_str(),
+            pinned.inner.path_in_repo().to_string_lossy(),
             "parent/child"
         );
     }
@@ -415,7 +428,10 @@ mod tests {
 
         assert_eq!(pinned.inner.repo_url(), parent_git.inner.repo_url());
         assert_eq!(pinned.inner.sha(), parent_git.inner.sha());
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), "packages/bar");
+        assert_eq!(
+            pinned.inner.path_in_repo().to_string_lossy(),
+            "packages/bar"
+        );
     }
 
     /// Pinning a local dep `{local = "../../d"}`
@@ -437,31 +453,34 @@ mod tests {
     /// Pinning a git dep with a full SHA returns it unchanged; the remote is not contacted
     #[test(tokio::test)]
     async fn git_full_sha() {
+        let base = vbase();
         let dep = new_git("child.git", Some(RANDOM_SHA), ".");
-        let pinned = dep.pin().await.unwrap_as_git();
+        let pinned = dep.pin(&base).await.unwrap_as_git();
 
         assert_eq!(pinned.inner.repo_url(), "child.git");
         assert_eq!(pinned.inner.sha().as_ref(), RANDOM_SHA);
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), ".");
+        assert_eq!(pinned.inner.path_in_repo().to_string_lossy(), ".");
     }
 
     /// Pinning a git dep with a partial SHA expands it to 40 characters
     #[test(tokio::test)]
     async fn git_partial_sha() {
-        let git_project = git::new().await;
+        let base = vbase();
+        let git_project = git::new(&base).await.unwrap();
         let commit = git_project
-            .commit(|project| project.add_packages(["a"]))
-            .await;
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
 
-        let repo = git_project.repo_path_str();
+        let repo = git_project.repo_path_str().unwrap();
         let sha = commit.sha();
 
         let dep = new_git(repo, Some(&sha[0..12]), "");
-        let pinned = dep.pin().await.unwrap_as_git();
+        let pinned = dep.pin(&base).await.unwrap_as_git();
 
-        assert_eq!(pinned.inner.repo_url(), git_project.repo_path_str());
+        assert_eq!(pinned.inner.repo_url(), git_project.repo_path_str().unwrap());
         assert_eq!(pinned.inner.sha().as_ref(), sha);
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), ".");
+        assert_eq!(pinned.inner.path_in_repo().to_string_lossy(), ".");
     }
 
     /// Pinning a git dep with a branch converts it to a sha
@@ -566,7 +585,7 @@ mod tests {
     /// Return a pinned dep for `{ local = "<path>" }`
     fn new_pinned_local_from(pkg_root: impl AsRef<Path>, path: impl AsRef<Path>) -> Pinned {
         Pinned::Local(PinnedLocalDependency {
-            absolute_path_to_package: pkg_root.as_ref().join(&path),
+            absolute_path_to_package: vpath(pkg_root.as_ref().join(&path)),
             relative_path_from_root_package: path.as_ref().to_path_buf(),
         })
     }
@@ -578,14 +597,14 @@ mod tests {
         sha: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Pinned {
-        let cache = GitCache::new();
+        let cache = GitCache::new(&vbase()).unwrap();
         let sha = GitSha::try_from(sha.as_ref().to_string()).expect("valid sha");
         Pinned::Git(PinnedGitDependency {
             inner: cache
                 .tree_for_sha(
                     repo.as_ref().to_string(),
                     sha,
-                    Some(path.as_ref().to_path_buf()),
+                    path.as_ref().to_path_buf(),
                 )
                 .unwrap(),
         })
@@ -601,7 +620,7 @@ mod tests {
         std::fs::write(root_dir.join("Move.toml"), "# Dummy Move.toml").unwrap();
 
         let root = Pinned::Root(
-            PackagePath::new(tempdir.path().join(relative_pkg_path.as_ref())).unwrap(),
+            PackagePath::new(vpath(tempdir.path().join(relative_pkg_path.as_ref()))).unwrap(),
         );
         (tempdir, root)
     }

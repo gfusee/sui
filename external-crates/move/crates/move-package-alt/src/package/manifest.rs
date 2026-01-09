@@ -146,12 +146,21 @@ mod tests {
 
     use tempfile::TempDir;
     use test_log::test;
+    use move_vfs::wrappers::VirtualPath;
 
     use crate::{
         flavor::vanilla::default_environment, package::paths::PackagePath, schema::PackageName,
     };
 
     use super::Manifest;
+
+    fn vpath(path_buf: std::path::PathBuf) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path_buf)
+            .unwrap()
+    }
 
     /// Create a file containing `contents` and pass it to `Manifest::read_from_file`
     async fn load_manifest(contents: impl AsRef<[u8]>) -> anyhow::Result<Manifest> {
@@ -160,7 +169,7 @@ mod tests {
 
         let manifest_path = tempdir.path().join("Move.toml");
         std::fs::write(&manifest_path, contents).expect("write succeeds");
-        let package_path = PackagePath::new(tempdir.path().to_path_buf()).unwrap();
+        let package_path = PackagePath::new(vpath(tempdir.path().to_path_buf())).unwrap();
 
         Ok(Manifest::read_from_file(
             &package_path,

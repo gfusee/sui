@@ -412,12 +412,18 @@ mod tests {
         },
         test_utils::graph_builder::TestPackageGraph,
     };
+    use move_vfs::wrappers::VirtualPath;
 
     use super::*;
 
     use indexmap::IndexMap;
     use insta::assert_snapshot;
+    use std::path::PathBuf;
     use test_log::test;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     #[derive(Debug)]
     struct TestFlavor;
@@ -487,10 +493,11 @@ mod tests {
     /// resolved to the right packages
     #[test(tokio::test)]
     async fn test_default_implicit_deps() {
-        let scenario = TestPackageGraph::new(["root", "foo", "bar", "baz"]).build();
+        let base = vbase();
+        let scenario = TestPackageGraph::new(["root", "foo", "bar", "baz"]).build(&base);
 
         let root = RootPackage::<TestFlavor>::load(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             default_environment(),
             vec![],
         )
@@ -521,12 +528,13 @@ mod tests {
     /// resolved to the right packages
     #[test(tokio::test)]
     async fn test_disabled_implicit_deps() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("a", |a| a.implicit_deps(false))
-            .build();
+            .build(&base);
 
         let root =
-            RootPackage::<TestFlavor>::load(scenario.path_for("a"), default_environment(), vec![])
+            RootPackage::<TestFlavor>::load(scenario.path_for("a").unwrap(), default_environment(), vec![])
                 .await
                 .unwrap();
 
@@ -536,18 +544,20 @@ mod tests {
     /// Loading a package with an explicit dep with the same name as an implicit dep fails
     #[test(tokio::test)]
     async fn test_explicit_implicit() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a", "b"])
             .add_dep("a", "b", |dep| dep.name("foo").rename_from("b"))
-            .build();
+            .build(&base);
 
         let err =
-            RootPackage::<TestFlavor>::load(scenario.path_for("a"), default_environment(), vec![])
+            RootPackage::<TestFlavor>::load(scenario.path_for("a").unwrap(), default_environment(), vec![])
                 .await
                 .unwrap_err();
 
+        let path = scenario.path_for("a").unwrap();
         let message = err
             .to_string()
-            .replace(scenario.path_for("a").to_string_lossy().as_ref(), "<DIR>");
+            .replace(path.as_str(), "<DIR>");
 
         assert_snapshot!(message, @"Error while loading dependency <DIR>: The `foo` dependency is implicitly provided and should not be defined in your manifest.");
     }
@@ -556,13 +566,14 @@ mod tests {
     /// implicit deps are disabled
     #[test(tokio::test)]
     async fn test_explicit_with_implicits_disabled() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["dummy"])
             .add_package("a", |pkg| pkg.implicit_deps(false))
             .add_package("b", |pkg| pkg.implicit_deps(false))
             .add_dep("a", "b", |dep| dep.name("foo").rename_from("b"))
-            .build();
+            .build(&base);
 
-        RootPackage::<TestFlavor>::load(scenario.path_for("a"), default_environment(), vec![])
+        RootPackage::<TestFlavor>::load(scenario.path_for("a").unwrap(), default_environment(), vec![])
             .await
             .unwrap();
     }
@@ -575,15 +586,18 @@ mod tests {
     /// the returned fields are correct
     #[test(tokio::test)]
     async fn test_cache_package() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("a", OriginalID::from(1), PublishedID::from(2))
-            .build();
+            .build(&base);
 
-        let path = scenario.path_for("a");
+        let path = scenario.path_for("a").unwrap();
         let env = default_environment();
-        let dep = &ManifestDependencyInfo::Local(LocalDepInfo { local: path });
+        let dep = &ManifestDependencyInfo::Local(LocalDepInfo {
+            local: PathBuf::from(path.as_str()),
+        });
 
-        let info = cache_package::<Vanilla>(&env, dep).await.unwrap();
+        let info = cache_package::<Vanilla>(&env, dep, &base).await.unwrap();
 
         let CachedPackageInfo {
             name,

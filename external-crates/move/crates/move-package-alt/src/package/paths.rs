@@ -433,7 +433,17 @@ mod tests {
 
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
+    use path_clean::PathClean;
     use test_log::test;
+
+    fn vpath(path_buf: PathBuf) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path_buf)
+            .unwrap()
+    }
 
     #[test]
     fn test_new() {
@@ -454,10 +464,10 @@ mod tests {
 
         // Test going from C to B using relative path
         let relative_path = PathBuf::from("../../B");
-        let package_path = PackagePath::new(c.join(relative_path)).unwrap();
+        let package_path = PackagePath::new(vpath(c.join(relative_path))).unwrap();
 
         // The result should be the canonicalized path to B
-        assert_eq!(package_path.0.0, b.clean());
+        assert_eq!(package_path.0.0, vpath(b.clean()));
     }
 
     #[test]
@@ -468,7 +478,7 @@ mod tests {
         // Create a Move.toml file in the temporary directory
         fs::write(&manifest_path, "[package]\nname = 'test_package'\n").unwrap();
 
-        assert!(PackagePath::new(manifest_path).is_err());
+        assert!(PackagePath::new(vpath(manifest_path)).is_err());
     }
 
     /// It is important that the file containing the error is printed
@@ -486,7 +496,7 @@ mod tests {
         )
         .unwrap();
 
-        let path = PackagePath::new(tempdir.path().to_path_buf()).unwrap();
+        let path = PackagePath::new(vpath(tempdir.path().to_path_buf())).unwrap();
         let mtx = path.lock().unwrap();
         let error = path.read_manifest(&mtx).unwrap_err().to_string();
         assert_snapshot!(error.replace(tempdir.path().to_string_lossy().as_ref(), "<TEMPDIR>"),
@@ -518,7 +528,7 @@ mod tests {
         )
         .unwrap();
 
-        let path = PackagePath::new(tempdir.path().to_path_buf()).unwrap();
+        let path = PackagePath::new(vpath(tempdir.path().to_path_buf())).unwrap();
         let mtx = path.lock().unwrap();
         let error = path.read_lockfile(&mtx).unwrap_err().to_string();
         assert_snapshot!(error.replace(tempdir.path().to_string_lossy().as_ref(), "<TEMPDIR>"),

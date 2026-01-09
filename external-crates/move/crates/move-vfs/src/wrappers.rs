@@ -218,12 +218,25 @@ impl VirtualPath {
 
     pub fn join(&self, path: impl AsRef<Path>) -> VfsResult<Self> {
         let path = path.as_ref();
+
+        // VfsPath::join checks that the path doesn't end with /
+        let path = {
+            let s = path.to_string_lossy();
+            if s == "/" {
+                PathBuf::from("/")
+            } else {
+                PathBuf::from(s.trim_end_matches('/'))
+            }
+        };
+
+        let path_str = path.to_string_lossy();
+
         if path.is_absolute() {
-            self.path.root().join(path.to_string_lossy())
+            self.path.root().join(path_str)
         } else {
-            self.path.join(path.to_string_lossy())
+            self.path.join(path_str)
         }
-        .map(|e| self.with_vfs_path(e))
+            .map(|e| self.with_vfs_path(e))
     }
 
     pub fn filename(&self) -> String {

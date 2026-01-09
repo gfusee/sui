@@ -9,12 +9,15 @@
 //!
 //! ```
 //! use move_package_alt::test_utils::graph_builder::TestPackageGraph;
+//! use move_vfs::wrappers::VirtualPath;
+//! use std::path::PathBuf;
 //!
+//! let base = VirtualPath::physical().unwrap();
 //! let graph = TestPackageGraph::new(["a", "b", "c"])
 //!     .add_deps([("a", "b"), ("b", "c")])
-//!     .build();
+//!     .build(&base);
 //!
-//! assert_eq!(graph.read_file("a/Move.toml"), r#"
+//! assert_eq!(graph.read_file("a/Move.toml").unwrap(), r#"
 //! [package]
 //! name = "a"
 //! edition = "2024"
@@ -793,14 +796,14 @@ impl Scenario {
         RootPackage::<Vanilla>::load(self.path_for(package)?, default_environment(), vec![]).await
     }
 
-    pub fn read_file(&self, file: &VirtualPath) -> PackageResult<String> {
-        let path = self.root_path.join(file.as_str())?;
+    pub fn read_file(&self, file: impl AsRef<Path>) -> PackageResult<String> {
+        let path = self.root_path.join(file.as_ref())?;
         debug!("reading file at {path:?}");
         path.read_to_string().map_err(Into::into)
     }
 
-    pub fn extend_file(&self, file: &VirtualPath, contents: impl AsRef<str>) -> PackageResult<()> {
-        let path = self.root_path.join(file.as_str())?;
+    pub fn extend_file(&self, file: impl AsRef<Path>, contents: impl AsRef<str>) -> PackageResult<()> {
+        let path = self.root_path.join(file.as_ref())?;
         debug!("adding to file at {path:?}");
         let mut file_contents = path.read_to_string()?;
         file_contents.push_str(contents.as_ref());
@@ -813,6 +816,7 @@ impl Scenario {
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
+    use std::path::PathBuf;
     use test_log::test;
     use tracing::debug;
 
@@ -821,17 +825,33 @@ mod tests {
         test_utils::git,
     };
 
+    use move_vfs::wrappers::VirtualPath;
     use super::TestPackageGraph;
+
+    fn vpath(path_buf: PathBuf) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path_buf)
+            .unwrap()
+    }
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     /// Ensure that using the basic features of [TestPackageGraph] gives a correct manifest and
     /// lockfile
     #[test]
     fn simple() {
+        let base = vbase();
         let graph = TestPackageGraph::new(["a", "b", "c"])
             .add_deps([("a", "b"), ("a", "c")])
-            .build();
+            .build(&base);
 
-        assert_snapshot!(graph.read_file("a/Move.toml"), @r#"
+        assert_snapshot!(
+            graph.read_file("a/Move.toml").unwrap(),
+            @r#"
         [package]
         name = "a"
         edition = "2024"
@@ -852,13 +872,14 @@ mod tests {
     /// lockfiles
     #[test]
     fn complex() {
+        let base = vbase();
         // TODO: break this into separate tests
         let graph = TestPackageGraph::new(["a", "b"])
             .add_package("c", |c| {
                 c.package_name("c_name")
                     .publish(OriginalID::from(0xcc00), PublishedID::from(0xcccc), None)
                     .version("v1.2.3")
-                    .add_file("sources/extra.move", "// comment")
+                    .add_file(vpath(PathBuf::from("sources/extra.move")), "// comment")
                     .implicit_deps(false)
             })
             .add_deps([("b", "c")])
@@ -870,9 +891,11 @@ mod tests {
                     .use_env("bar")
                     .modes(vec!["test", "spec"])
             })
-            .build();
+            .build(&base);
 
-        assert_snapshot!(graph.read_file("a/Move.toml"), @r#"
+        assert_snapshot!(
+            graph.read_file("a/Move.toml").unwrap(),
+            @r#"
         [package]
         name = "a"
         edition = "2024"
@@ -887,7 +910,9 @@ mod tests {
         foo.a_name_for_b = { local = "../b", override = true, rename-from = "b", use-environment = "bar", modes = ["test", "spec"] }
         "#);
 
-        assert_snapshot!(graph.read_file("b/Move.toml"), @r#"
+        assert_snapshot!(
+            graph.read_file("b/Move.toml").unwrap(),
+            @r#"
         [package]
         name = "b"
         edition = "2024"
@@ -902,7 +927,9 @@ mod tests {
         [dep-replacements]
         "#);
 
-        assert_snapshot!(graph.read_file("c/Move.toml"), @r#"
+        assert_snapshot!(
+            graph.read_file("c/Move.toml").unwrap(),
+            @r#"
         [package]
         name = "c_name"
         edition = "2024"
@@ -918,7 +945,10 @@ mod tests {
         [dep-replacements]
         "#);
 
-        assert_snapshot!(graph.read_file("c/Published.toml"), @r###"
+        assert_snapshot!(
+            graph.read_file("c/Published.toml")
+                .unwrap(),
+            @r###"
         [published._test_env]
         chain-id = "_test_env_id"
         published-at = "0x000000000000000000000000000000000000000000000000000000000000cccc"
@@ -926,7 +956,10 @@ mod tests {
         version = 1
         "###);
 
-        assert_snapshot!(graph.read_file("c/sources/extra.move"), @r###"
+        assert_snapshot!(
+            graph.read_file("c/sources/extra.move")
+                .unwrap(),
+            @r###"
         // comment
         "###);
     }
@@ -934,6 +967,7 @@ mod tests {
     /// Check generation of legacy manifests
     #[test]
     fn legacy() {
+        let base = vbase();
         let graph = TestPackageGraph::new(["a", "c"])
             .add_legacy_packages(["b"])
             .add_package("d", |d| {
@@ -943,9 +977,11 @@ mod tests {
                     .implicit_deps(false)
             })
             .add_deps([("a", "b"), ("b", "c"), ("c", "d")])
-            .build();
+            .build(&base);
 
-        assert_snapshot!(graph.read_file("b/Move.toml"), @r###"
+        assert_snapshot!(
+            graph.read_file("b/Move.toml").unwrap(),
+            @r###"
         [package]
         name = "B"
         edition = "2024"
@@ -959,7 +995,9 @@ mod tests {
         b = "0x0"
         "###);
 
-        assert_snapshot!(graph.read_file("d/Move.toml"), @r###"
+        assert_snapshot!(
+            graph.read_file("d/Move.toml").unwrap(),
+            @r###"
         [package]
         name = "Any"
         edition = "2024"
@@ -977,19 +1015,27 @@ mod tests {
     /// Snapshot test for a repo with a git dependency
     #[test(tokio::test)]
     async fn git() {
-        let git_repo = git::new().await;
+        let base = vbase();
+        let git_repo = git::new(&base).await.unwrap();
         let commit = git_repo
-            .commit(|project| project.add_packages(["git_dep"]))
-            .await;
+            .commit(&base, |project| project.add_packages(["git_dep"]))
+            .await
+            .unwrap();
         let branch = commit.branch("main").await;
 
         let graph = TestPackageGraph::new(["root"])
             .add_git_dep("root", &git_repo, "git_dep", "main", |dep| dep)
-            .build();
+            .build(&base);
 
         // redact tempdir
-        let manifest = graph.read_file("root/Move.toml");
-        let path = git_repo.repo_path().to_string_lossy().to_string();
+        let manifest = graph
+            .read_file("root/Move.toml")
+            .unwrap();
+        let path = git_repo
+            .repo_path()
+            .unwrap()
+            .as_str()
+            .to_string();
 
         assert_snapshot!(manifest.replace(&path, "REPO"), @r#"
         [package]
