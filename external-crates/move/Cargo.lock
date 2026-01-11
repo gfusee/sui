@@ -2393,6 +2393,7 @@ dependencies = [
  "move-stackless-bytecode-2",
  "move-stdlib",
  "move-symbol-pool",
+ "move-vfs",
  "move-vm-runtime",
  "petgraph",
  "pretty_simple",

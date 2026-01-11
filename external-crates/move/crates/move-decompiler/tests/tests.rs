@@ -7,6 +7,7 @@ use move_command_line_common::insta_assert;
 use move_package_alt::package::RootPackage;
 use move_package_alt_compilation::{build_config::BuildConfig, model_builder};
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 
 use tempfile::TempDir;
 
@@ -42,8 +43,12 @@ fn run_move_test(file_path: &Path) -> datatest_stable::Result<()> {
 
     let mut writer = Vec::new();
     let env = move_package_alt::flavor::vanilla::default_environment();
+    let virtual_pkg_dir = VirtualPath::physical()?
+        .cwd()
+        .join(pkg_dir)?;
+
     let root_pkg = RootPackage::<move_package_alt::flavor::Vanilla>::load_sync(
-        pkg_dir.to_path_buf(),
+        virtual_pkg_dir,
         env,
         config.mode_set(),
     )?;
@@ -95,8 +100,13 @@ fn run_full_test(file_path: &Path) -> datatest_stable::Result<()> {
 
     let mut writer = Vec::new();
     let env = move_package_alt::flavor::vanilla::default_environment();
+
+    let virtual_pkg_dir = VirtualPath::physical()?
+        .cwd()
+        .join(pkg_dir)?;
+
     let loaded_root_pkg = RootPackage::<move_package_alt::flavor::Vanilla>::load_sync(
-        pkg_dir.to_path_buf(),
+        virtual_pkg_dir,
         env,
         config.mode_set(),
     )?;
