@@ -15,6 +15,7 @@ use std::{
     io::{self, Write},
     path::Path,
 };
+use move_vfs::wrappers::VirtualPath;
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -44,18 +45,31 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let debug_info_extension = DEBUG_INFO_EXTENSION;
+
+    let virtual_input_trace_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&args.input_trace_path)
+        .unwrap();
+
     let coverage_map = if args.is_raw_trace_file {
-        CoverageMap::from_trace_file(&args.input_trace_path)
+        CoverageMap::from_trace_file(&virtual_input_trace_path)
     } else {
-        CoverageMap::from_binary_file(&args.input_trace_path).unwrap()
+        CoverageMap::from_binary_file(&virtual_input_trace_path).unwrap()
     };
 
     let bytecode_bytes = fs::read(&args.module_binary_path).expect("Unable to read bytecode file");
     let compiled_module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)
         .expect("Module blob can't be deserialized");
 
+    let virtual_module_binary_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&args.module_binary_path)
+        .unwrap();
+
     let source_map = source_map_from_file(
-        &Path::new(&args.module_binary_path).with_extension(debug_info_extension),
+        &virtual_module_binary_path.with_extension(debug_info_extension).unwrap(),
     )
     .unwrap();
     let source_path = Path::new(&args.source_file_path);
@@ -69,8 +83,14 @@ fn main() {
         None => Box::new(io::stdout()),
     };
 
+    let virtual_source_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&source_path)
+        .unwrap();
+
     source_cov
-        .compute_source_coverage(source_path)
+        .compute_source_coverage(&virtual_source_path)
         .output_source_coverage(&mut coverage_writer)
         .unwrap();
 }

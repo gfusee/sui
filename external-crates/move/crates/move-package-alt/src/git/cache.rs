@@ -102,6 +102,7 @@ impl GitCache {
     ) -> GitResult<GitTree> {
         let filename = url_to_file_name(repo.as_str());
         let path_to_repo = self.root_dir.join(format!("{filename}_{sha}"))?;
+        let path_in_repo = path_in_repo.clean();
 
         if path_in_repo.to_string_lossy().starts_with("..") {
             return Err(GitError::BadPath {
