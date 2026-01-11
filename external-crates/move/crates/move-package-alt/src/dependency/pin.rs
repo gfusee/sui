@@ -16,6 +16,7 @@ use crate::{
     },
 };
 use move_vfs::wrappers::VirtualPath;
+use path_clean::PathClean;
 use std::fmt;
 use std::path::PathBuf;
 use tracing::debug;
@@ -273,7 +274,8 @@ impl LocalDepInfo {
                 absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
                 relative_path_from_root_package: parent_local
                     .relative_path_from_root_package
-                    .join(&self.local),
+                    .join(&self.local)
+                    .clean(),
             }),
             Pinned::Root(_) => Pinned::Local(PinnedLocalDependency {
                 absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
