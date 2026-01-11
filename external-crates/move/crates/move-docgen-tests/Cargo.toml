@@ -32,6 +32,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true
+move-vfs.workspace = true
 
 [[test]]
 name = "testsuite"

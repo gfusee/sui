@@ -2463,6 +2463,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-symbol-pool",
+ "move-vfs",
  "num",
  "once_cell",
  "regex",

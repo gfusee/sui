@@ -10,6 +10,7 @@ use move_package_alt_compilation::model_builder;
 use std::path::Path;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use move_vfs::wrappers::VirtualPath;
 
 const ROOT_DOC_TEMPLATE_NAME: &str = "root_template.md";
 
@@ -53,8 +54,12 @@ fn test_impl(toml_path: &Path, flags: DocgenFlags, test_case: &str) -> datatest_
 
     // Block on the async function
     let env = move_package_alt::flavor::vanilla::default_environment();
+
+    let virtual_cwd = VirtualPath::physical()?.cwd();
+    let virtual_toml_parent_path = virtual_cwd.join(toml_path.parent().unwrap())?;
+
     let root_pkg = RootPackage::<Vanilla>::load_sync(
-        toml_path.parent().unwrap().to_path_buf(),
+        virtual_toml_parent_path,
         env,
         config.mode_set(),
     )?;
@@ -67,7 +72,7 @@ fn test_impl(toml_path: &Path, flags: DocgenFlags, test_case: &str) -> datatest_
     };
     let options = options(root_doc_template, flags);
     let docgen = Docgen::new(&model, &options);
-    let file_contents = docgen.generate(&model)?;
+    let file_contents = docgen.generate(&virtual_cwd, &model)?;
     let [(path, contents)] = file_contents
         .iter()
         .filter(|(path, _contents)| !path.contains("dependencies"))
