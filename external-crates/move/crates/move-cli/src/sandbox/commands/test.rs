@@ -129,13 +129,11 @@ fn copy_pkg_and_deps(
     tmp_dir: &VirtualPath,
     pkg_dir: VirtualPath,
 ) -> anyhow::Result<VirtualPath> {
-    let pkg_dir_path_buf = PathBuf::from(pkg_dir.as_str().to_string());
-
     let paths = match package_paths(pkg_dir.clone()) {
         Ok(paths) => paths,
         Err(e) => {
             debug!("couldn't find packages: {e}");
-            [pkg_dir].into()
+            [pkg_dir.clone()].into()
         }
     };
 
@@ -144,10 +142,12 @@ fn copy_pkg_and_deps(
     let relative_paths_from_pkg_dir = paths
         .iter()
         .map(|pkg_path| {
-            pathdiff::diff_paths(&cwd_path_buf, pkg_path.as_str())
+            pathdiff::diff_paths(pkg_path.as_str(), &cwd_path_buf)
                 .ok_or_else(|| anyhow!("failed to diff paths: {pkg_path:?}"))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let pkg_dir_relative = pathdiff::diff_paths(pkg_dir.as_str(), &cwd_path_buf)
+        .ok_or_else(|| anyhow!("failed to diff paths: {pkg_dir:?}"))?;
 
     let prefix = make_dir_prefix(&relative_paths_from_pkg_dir);
 
@@ -162,7 +162,7 @@ fn copy_pkg_and_deps(
         simple_copy_dir(&tmp_dir.join(&prefix)?.join(&relative_path)?, &virtual_path)?;
     }
 
-    Ok(tmp_dir.join(prefix)?.join(pkg_dir_path_buf)?)
+    Ok(tmp_dir.join(prefix)?.join(pkg_dir_relative)?)
 }
 
 /// Return the paths to all the packages needed by the package at `pkg_dir` (including itself); if
@@ -197,6 +197,10 @@ fn simple_copy_dir(dst: &VirtualPath, src: &VirtualPath) -> VfsResult<()> {
         if src_entry.is_dir()? {
             simple_copy_dir(&dst_entry_path, &src_entry)?;
         } else {
+            if dst_entry_path.exists()? {
+                dst_entry_path.remove_file()?;
+            }
+
             src_entry.copy_file(&dst_entry_path)?;
         }
     }
