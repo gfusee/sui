@@ -14,6 +14,7 @@ use move_coverage::coverage_map::CoverageMap;
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use move_ir_types::location::Spanned;
 use std::{fs, path::Path};
+use move_vfs::wrappers::VirtualPath;
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -69,8 +70,15 @@ fn main() {
 
     let source_path = Path::new(&args.bytecode_file_path).with_extension(move_extension);
     let source = fs::read_to_string(&source_path).ok();
+
+    let virtual_bytecode_file_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&args.bytecode_file_path)
+        .unwrap();
+
     let source_map = source_map_from_file(
-        &Path::new(&args.bytecode_file_path).with_extension(debug_info_extension),
+        &virtual_bytecode_file_path.with_extension(debug_info_extension).unwrap(),
     );
 
     let mut disassembler_options = DisassemblerOptions::new();
@@ -100,8 +108,14 @@ fn main() {
     let mut disassembler = Disassembler::new(source_mapping, disassembler_options);
 
     if let Some(file_path) = &args.code_coverage_path {
+        let virtual_file_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(&file_path)
+            .unwrap();
+
         disassembler.add_coverage_map(
-            CoverageMap::from_binary_file(file_path)
+            CoverageMap::from_binary_file(&virtual_file_path)
                 .unwrap()
                 .to_unified_exec_map(),
         );

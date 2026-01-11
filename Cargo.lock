@@ -8220,6 +8220,7 @@ dependencies = [
  "move-coverage",
  "move-ir-types",
  "move-symbol-pool",
+ "move-vfs",
 ]
 
 [[package]]
