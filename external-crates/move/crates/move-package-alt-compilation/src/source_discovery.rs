@@ -63,7 +63,12 @@ mod tests {
     use super::*;
     use move_package_alt::package::paths::PackagePath;
     use std::fs;
-    use tempfile::TempDir;
+    use std::path::Path;
+    use move_vfs::tempdir::TempDir;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     fn create_test_package_structure(root: &Path) -> Result<()> {
         // Create Move.toml file (required for PackagePath)
@@ -94,8 +99,11 @@ mod tests {
 
     #[test]
     fn test_get_sources_normal_mode() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         create_test_package_structure(package_path).expect("Failed to create test structure");
 
@@ -105,7 +113,7 @@ mod tests {
         };
 
         let pkg_path =
-            PackagePath::new(package_path.to_path_buf()).expect("Failed to create package path");
+            PackagePath::new(virtual_package_path).expect("Failed to create package path");
         let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
 
         // In normal mode, should only get files from sources and scripts directories
@@ -122,8 +130,10 @@ mod tests {
 
     #[test]
     fn test_get_sources_test_mode() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         create_test_package_structure(package_path).expect("Failed to create test structure");
 
@@ -133,7 +143,7 @@ mod tests {
         };
 
         let pkg_path =
-            PackagePath::new(package_path.to_path_buf()).expect("Failed to create package path");
+            PackagePath::new(virtual_package_path).expect("Failed to create package path");
         let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
 
         // In test mode, should get files from sources, scripts, and tests directories
@@ -150,8 +160,10 @@ mod tests {
 
     #[test]
     fn test_get_sources_missing_directories() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         // Create Move.toml file (required for PackagePath)
         fs::write(
@@ -170,7 +182,7 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(package_path.to_path_buf()).expect("Failed to create package path");
+            PackagePath::new(virtual_package_path).expect("Failed to create package path");
         let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
 
         // Should only get the one file from sources
@@ -180,8 +192,10 @@ mod tests {
 
     #[test]
     fn test_get_sources_empty_directories() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         // Create directories but don't put any Move files in them
         fs::create_dir_all(package_path.join("sources")).expect("Failed to create sources dir");
@@ -194,7 +208,7 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(package_path.to_path_buf()).expect("Failed to create package path");
+            PackagePath::new(virtual_package_path).expect("Failed to create package path");
         let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
 
         // Should return empty vector
@@ -203,8 +217,10 @@ mod tests {
 
     #[test]
     fn test_get_sources_nested_move_files() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let cwd = vbase();
+        let temp_dir = TempDir::new(&cwd).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         // Create nested directory structure
         fs::create_dir_all(package_path.join("sources/subdir"))
@@ -227,7 +243,7 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(package_path.to_path_buf()).expect("Failed to create package path");
+            PackagePath::new(virtual_package_path).expect("Failed to create package path");
         let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
 
         // Should get both the top-level and nested Move files
@@ -241,8 +257,10 @@ mod tests {
 
     #[test]
     fn test_source_paths_for_config_normal_mode() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         // Create all possible directories
         fs::create_dir_all(package_path.join("sources")).expect("Failed to create sources dir");
@@ -254,19 +272,21 @@ mod tests {
             ..Default::default()
         };
 
-        let paths = source_paths_for_config(package_path, &config);
+        let paths = source_paths_for_config(&virtual_package_path, &config).unwrap();
 
         // In normal mode, should only include sources and scripts
         assert_eq!(paths.len(), 2);
-        assert!(paths.iter().any(|p| p.ends_with("sources")));
-        assert!(paths.iter().any(|p| p.ends_with("scripts")));
-        assert!(!paths.iter().any(|p| p.ends_with("tests")));
+        assert!(paths.iter().any(|p| p.as_str().ends_with("sources")));
+        assert!(paths.iter().any(|p| p.as_str().ends_with("scripts")));
+        assert!(!paths.iter().any(|p| p.as_str().ends_with("tests")));
     }
 
     #[test]
     fn test_source_paths_for_config_test_mode() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let package_path = temp_dir.path();
+        let vbase = vbase();
+        let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
+        let virtual_package_path = temp_dir.path().clone();
+        let package_path = Path::new(virtual_package_path.as_str());
 
         // Create all possible directories
         fs::create_dir_all(package_path.join("sources")).expect("Failed to create sources dir");
@@ -278,12 +298,12 @@ mod tests {
             ..Default::default()
         };
 
-        let paths = source_paths_for_config(package_path, &config);
+        let paths = source_paths_for_config(&virtual_package_path, &config).unwrap();
 
         // In test mode, should include sources, scripts, and tests
         assert_eq!(paths.len(), 3);
-        assert!(paths.iter().any(|p| p.ends_with("sources")));
-        assert!(paths.iter().any(|p| p.ends_with("scripts")));
-        assert!(paths.iter().any(|p| p.ends_with("tests")));
+        assert!(paths.iter().any(|p| p.as_str().ends_with("sources")));
+        assert!(paths.iter().any(|p| p.as_str().ends_with("scripts")));
+        assert!(paths.iter().any(|p| p.as_str().ends_with("tests")));
     }
 }
