@@ -2772,6 +2772,7 @@ dependencies = [
  "move-stackless-bytecode",
  "move-stdlib",
  "move-symbol-pool",
+ "move-vfs",
  "move-vm-runtime",
  "tempfile",
  "tokio",

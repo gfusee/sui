@@ -6,6 +6,7 @@ use move_stackless_bytecode_2::from_model;
 use move_command_line_common::insta_assert;
 use move_package_alt_compilation::{build_config::BuildConfig, model_builder};
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 
 use tempfile::TempDir;
 
@@ -27,8 +28,13 @@ fn run_test(file_path: &Path) -> datatest_stable::Result<()> {
 
     // Block on the async function
     let env = move_package_alt::flavor::vanilla::default_environment();
+
+    let virtual_pkg_dir = VirtualPath::physical()?
+        .cwd()
+        .join(pkg_dir)?;
+
     let root_pkg =
-        RootPackage::<Vanilla>::load_sync(pkg_dir.to_path_buf(), env, config.mode_set())?;
+        RootPackage::<Vanilla>::load_sync(virtual_pkg_dir, env, config.mode_set())?;
 
     let test_module_names = std::io::BufReader::new(std::fs::File::open(file_path)?)
         .lines()
