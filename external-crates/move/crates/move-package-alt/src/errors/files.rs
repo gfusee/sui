@@ -6,7 +6,7 @@ use std::{
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::SimpleFile;
 use move_vfs::wrappers::VirtualPath;
-use serde::de::DeserializeOwned;
+use serde::de::{DeserializeOwned, Expected};
 
 /// A wrapper around [PathBuf] that implements [Display]
 #[derive(Clone)]
@@ -103,7 +103,7 @@ impl FileHandle {
 
 impl Debug for FileHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.path().fmt(f)
+        Debug::fmt(self.path().as_str(), f)
     }
 }
 

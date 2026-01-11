@@ -467,7 +467,7 @@ mod tests {
         let package_path = PackagePath::new(vpath(c.join(relative_path))).unwrap();
 
         // The result should be the canonicalized path to B
-        assert_eq!(package_path.0.0, vpath(b.clean()));
+        assert_eq!(package_path.0.0.as_str(), b.clean().to_string_lossy());
     }
 
     #[test]
