@@ -17,7 +17,7 @@ pub fn source_map_from_file(file_path: &VirtualPath) -> Result<SourceMap> {
     }
 
     let mut bytes = Vec::new();
-    file_path.open_file()?.read(&mut bytes)?;
+    file_path.open_file()?.read_to_end(&mut bytes)?;
     bcs::from_bytes::<SourceMap>(&bytes)
         .map_err(|_| format_err!("Error deserializing into source map"))
 }
