@@ -284,14 +284,6 @@ mod tests {
     };
     use move_vfs::wrappers::VirtualPath;
 
-    fn vpath(path_buf: PathBuf) -> VirtualPath {
-        VirtualPath::physical()
-            .unwrap()
-            .cwd()
-            .join(path_buf)
-            .unwrap()
-    }
-
     fn vbase() -> VirtualPath {
         VirtualPath::physical().unwrap()
     }
@@ -417,20 +409,20 @@ mod tests {
                 pkg.set_legacy()
                     .set_legacy_addresses([("c", None::<String>)])
                     .publish(OriginalID::from(0x1), PublishedID::from(0x2), Some(1))
-                    .add_file(vpath(PathBuf::from("sources/c.move")), "module c::c;")
+                    .add_file("sources/c.move", "module c::c;")
             })
             .add_package("d1", |pkg| pkg.set_legacy())
             .add_package("d2", |pkg| {
                 pkg.set_legacy()
                     .set_legacy_addresses([("d2", None::<String>)])
-                    .add_file(vpath(PathBuf::from("sources/d2.move")), "module d2::d2;")
+                    .add_file("sources/d2.move", "module d2::d2;")
             })
             .add_package("e1", |pkg| pkg.set_legacy())
             .add_package("e2", |pkg| {
                 pkg.set_legacy()
                     .set_legacy_addresses([("e2", None::<String>)])
                     .publish(OriginalID::from(0x3), PublishedID::from(0x4), Some(1))
-                    .add_file(vpath(PathBuf::from("sources/e2.move")), "module e2::e2;")
+                    .add_file("sources/e2.move", "module e2::e2;")
             })
             .add_deps([("d1", "d2"), ("e1", "e2")])
             .build(&base);
@@ -534,7 +526,7 @@ mod tests {
             .add_package("foo", |pkg| {
                 pkg.set_legacy()
                     .set_legacy_addresses([("foo", Some("0x1")), ("bar", Some("0x2"))])
-                    .add_file(vpath(PathBuf::from("sources/foo.move")), "module foo::foo;")
+                    .add_file("sources/foo.move", "module foo::foo;")
             })
             .add_deps([("matches_foo", "foo"), ("does_not_match_foo", "foo")])
             .build(&base);

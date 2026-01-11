@@ -1042,7 +1042,7 @@ mod tests {
         let _commit = project
             .commit(&base, |project| {
                 project.add_package("a", |pkg| {
-                    pkg.add_file(vpath(PathBuf::from("sources/a.move")), "// just a comment")
+                    pkg.add_file("sources/a.move", "// just a comment")
                 })
             })
             .await
@@ -1200,8 +1200,8 @@ mod tests {
         let _commit = project
             .commit(&base, |proj| {
                 proj.add_package("a", |a| {
-                    a.add_file(vpath(PathBuf::from("b/c/d/Move.toml")), "# toml contents")
-                        .add_file(vpath(PathBuf::from("e/Move.toml")), "# ignored")
+                    a.add_file("b/c/d/Move.toml", "# toml contents")
+                        .add_file("e/Move.toml", "# ignored")
                 })
             })
             .await

@@ -109,7 +109,7 @@ pub struct PackageSpec {
     git_deps: Vec<GitSpec>,
 
     /// Additional files
-    files: BTreeMap<VirtualPath, String>,
+    files: BTreeMap<PathBuf, String>,
 
     /// Are implicit deps included?
     implicit_deps: bool,
@@ -318,7 +318,7 @@ impl TestPackageGraph {
 
             // add extra files
             for (path, contents) in self.inner[*node].files.iter() {
-                let dir_path = dir.join(path.as_str()).unwrap();
+                let dir_path = dir.join(path).unwrap();
                 dir_path.parent().create_dir_all().unwrap();
                 write!(dir_path.create_file().unwrap(), "{}", contents).unwrap();
             }
@@ -644,8 +644,9 @@ impl PackageSpec {
         self
     }
 
-    pub fn add_file(mut self, path: VirtualPath, contents: impl AsRef<str>) -> Self {
-        self.files.insert(path, contents.as_ref().to_string());
+    pub fn add_file(mut self, path: impl AsRef<Path>, contents: impl AsRef<str>) -> Self {
+        self.files
+            .insert(path.as_ref().to_path_buf(), contents.as_ref().to_string());
         self
     }
 
@@ -879,7 +880,7 @@ mod tests {
                 c.package_name("c_name")
                     .publish(OriginalID::from(0xcc00), PublishedID::from(0xcccc), None)
                     .version("v1.2.3")
-                    .add_file(vpath(PathBuf::from("sources/extra.move")), "// comment")
+                    .add_file("sources/extra.move", "// comment")
                     .implicit_deps(false)
             })
             .add_deps([("b", "c")])
