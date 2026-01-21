@@ -2,26 +2,55 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::build_config::BuildConfig;
-use anyhow::Result;
-use move_command_line_common::files::find_move_filenames;
+use anyhow::{bail, Result};
+use move_command_line_common::files::find_move_filenames_vfs;
 use move_compiler::shared::files::FileName;
 use move_package_alt::package::{layout::SourcePackageLayout, paths::PackagePath};
+use move_symbol_pool::Symbol;
 use move_vfs::VfsResult;
 use move_vfs::wrappers::VirtualPath;
 
 // Find all the source files for a package at the given path
-pub fn get_sources(path: &PackagePath, config: &BuildConfig) -> Result<Vec<FileName>> {
+pub fn get_sources(
+    path: &PackagePath,
+    config: &BuildConfig,
+    base_path: &VirtualPath,
+) -> Result<Vec<(VirtualPath, FileName)>> {
     let places_to_look = source_paths_for_config(path.path(), config)?;
-    Ok(find_move_filenames(
-        &places_to_look
-            .iter()
-            .map(|e| e.as_str().to_string())
-            .collect::<Vec<_>>(),
+
+    let source_paths = find_move_filenames_vfs(
+        &places_to_look,
         false,
-    )?
-    .into_iter()
-    .map(FileName::from)
-    .collect())
+    )?;
+
+    let mut result = Vec::new();
+
+    for virtual_source_path in source_paths {
+        let virtual_source_path_str = virtual_source_path.as_str();
+        let virtual_base_path_str = base_path.as_str();
+        let Some(relative_path_from_package) = pathdiff::diff_paths(
+            virtual_source_path_str,
+            virtual_base_path_str,
+        ) else {
+            bail!(
+                "Cannot find the diff path for path = {virtual_source_path_str}, and base = {virtual_base_path_str}"
+            );
+        };
+
+        let relative_path_str = relative_path_from_package.to_string_lossy();
+        let needs_dot = relative_path_str.starts_with(SourcePackageLayout::Sources.path())
+            || relative_path_str.starts_with(SourcePackageLayout::Scripts.path())
+            || relative_path_str.starts_with(SourcePackageLayout::Tests.path());
+        let file_name = if needs_dot {
+            Symbol::from(format!("./{}", relative_path_str))
+        } else {
+            Symbol::from(relative_path_str)
+        };
+
+        result.push((virtual_source_path, file_name));
+    }
+
+    Ok(result)
 }
 
 /// Get the source paths to look for source files in a package at the given path, based on the
@@ -66,8 +95,8 @@ mod tests {
     use std::path::Path;
     use move_vfs::tempdir::TempDir;
 
-    fn vbase() -> VirtualPath {
-        VirtualPath::physical().unwrap()
+    fn get_virtual_cwd() -> VirtualPath {
+        VirtualPath::physical().unwrap().cwd()
     }
 
     fn create_test_package_structure(root: &Path) -> Result<()> {
@@ -99,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_get_sources_normal_mode() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
 
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
@@ -113,13 +142,15 @@ mod tests {
         };
 
         let pkg_path =
-            PackagePath::new(virtual_package_path).expect("Failed to create package path");
-        let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
+            PackagePath::new(virtual_package_path.clone()).expect("Failed to create package path");
+        let sources = get_sources(&pkg_path, &config, &virtual_package_path)
+            .expect("Failed to get sources");
 
         // In normal mode, should only get files from sources and scripts directories
         assert_eq!(sources.len(), 3);
 
-        let source_paths: Vec<String> = sources.iter().map(|f| f.as_str().to_string()).collect();
+        let source_paths: Vec<String> =
+            sources.iter().map(|f| f.0.as_str().to_string()).collect();
 
         assert!(source_paths.iter().any(|p| p.ends_with("module1.move")));
         assert!(source_paths.iter().any(|p| p.ends_with("module2.move")));
@@ -130,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_get_sources_test_mode() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());
@@ -143,13 +174,15 @@ mod tests {
         };
 
         let pkg_path =
-            PackagePath::new(virtual_package_path).expect("Failed to create package path");
-        let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
+            PackagePath::new(virtual_package_path.clone()).expect("Failed to create package path");
+        let sources = get_sources(&pkg_path, &config, &virtual_package_path)
+            .expect("Failed to get sources");
 
         // In test mode, should get files from sources, scripts, and tests directories
         assert_eq!(sources.len(), 4);
 
-        let source_paths: Vec<String> = sources.iter().map(|f| f.as_str().to_string()).collect();
+        let source_paths: Vec<String> =
+            sources.iter().map(|f| f.0.as_str().to_string()).collect();
 
         assert!(source_paths.iter().any(|p| p.ends_with("module1.move")));
         assert!(source_paths.iter().any(|p| p.ends_with("module2.move")));
@@ -160,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_get_sources_missing_directories() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());
@@ -182,17 +215,19 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(virtual_package_path).expect("Failed to create package path");
-        let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
+            PackagePath::new(virtual_package_path.clone()).expect("Failed to create package path");
+        let sources = get_sources(&pkg_path, &config, &virtual_package_path)
+            .expect("Failed to get sources");
 
         // Should only get the one file from sources
         assert_eq!(sources.len(), 1);
-        assert!(sources[0].as_str().ends_with("module.move"));
+        assert!(sources[0].0.as_str().ends_with("module.move"));
+        assert!(sources[0].1.as_str().ends_with("module.move"));
     }
 
     #[test]
     fn test_get_sources_empty_directories() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());
@@ -208,8 +243,9 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(virtual_package_path).expect("Failed to create package path");
-        let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
+            PackagePath::new(virtual_package_path.clone()).expect("Failed to create package path");
+        let sources = get_sources(&pkg_path, &config, &virtual_package_path)
+            .expect("Failed to get sources");
 
         // Should return empty vector
         assert_eq!(sources.len(), 0);
@@ -217,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_get_sources_nested_move_files() {
-        let cwd = vbase();
+        let cwd = get_virtual_cwd();
         let temp_dir = TempDir::new(&cwd).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());
@@ -243,13 +279,15 @@ mod tests {
 
         let config = BuildConfig::default();
         let pkg_path =
-            PackagePath::new(virtual_package_path).expect("Failed to create package path");
-        let sources = get_sources(&pkg_path, &config).expect("Failed to get sources");
+            PackagePath::new(virtual_package_path.clone()).expect("Failed to create package path");
+        let sources = get_sources(&pkg_path, &config, &virtual_package_path)
+            .expect("Failed to get sources");
 
         // Should get both the top-level and nested Move files
         assert_eq!(sources.len(), 2);
 
-        let source_paths: Vec<String> = sources.iter().map(|f| f.as_str().to_string()).collect();
+        let source_paths: Vec<String> =
+            sources.iter().map(|f| f.0.as_str().to_string()).collect();
 
         assert!(source_paths.iter().any(|p| p.ends_with("module.move")));
         assert!(source_paths.iter().any(|p| p.ends_with("nested.move")));
@@ -257,7 +295,7 @@ mod tests {
 
     #[test]
     fn test_source_paths_for_config_normal_mode() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());
@@ -283,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_source_paths_for_config_test_mode() {
-        let vbase = vbase();
+        let vbase = get_virtual_cwd();
         let temp_dir = TempDir::new(&vbase).expect("Failed to create temp dir");
         let virtual_package_path = temp_dir.path().clone();
         let package_path = Path::new(virtual_package_path.as_str());

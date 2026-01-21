@@ -52,6 +52,12 @@ pub struct PinnedLocalDependency {
     relative_path_from_root_package: PathBuf,
 }
 
+impl PinnedLocalDependency {
+    pub fn relative_path_from_root_package(&self) -> &PathBuf {
+        &self.relative_path_from_root_package
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PinnedDependencyInfo(pub(super) Dependency<Pinned>);
 

@@ -68,10 +68,10 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
     let env = move_package_alt::flavor::vanilla::default_environment();
 
     let virtual_cwd = VirtualPath::physical()?.cwd();
-    let modules_full_path = virtual_cwd.join(modules_full_path())?;
+    let package_root = virtual_cwd.join(env!("CARGO_MANIFEST_DIR"))?;
 
     let model = config
-        .move_model_from_path::<Vanilla, Stdout>(modules_full_path, env, &mut std::io::stdout())
+        .move_model_from_path::<Vanilla, Stdout>(package_root, env, &mut std::io::stdout())
         .await?;
     let options = DocgenOptions {
         output_directory,

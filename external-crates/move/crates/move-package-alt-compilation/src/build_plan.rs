@@ -37,7 +37,7 @@ const EDITION_NAME: &str = "edition";
 pub struct BuildPlan<'a, F: MoveFlavor> {
     root_pkg: &'a RootPackage<F>,
     sorted_deps_ids: Vec<&'a PackageID>,
-    compiler_vfs_root: Option<VirtualPath>,
+    compiler_vfs_root: VirtualPath,
     build_config: BuildConfig,
 }
 
@@ -49,14 +49,23 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
             root_pkg,
             sorted_deps_ids,
             build_config: build_config.clone(),
-            compiler_vfs_root: None,
+            compiler_vfs_root: root_pkg.package_path().clone(),
         })
     }
 
-    pub fn set_compiler_vfs_root(mut self, vfs_root: VirtualPath) -> Self {
-        assert!(self.compiler_vfs_root.is_none());
-        self.compiler_vfs_root = Some(vfs_root);
-        self
+    pub fn create_with_vfs_root(
+        root_pkg: &'a RootPackage<F>,
+        build_config: &BuildConfig,
+        vfs_root: VirtualPath,
+    ) -> PackageResult<Self> {
+        let mut sorted_deps_ids = root_pkg.sorted_deps_ids();
+        sorted_deps_ids.reverse();
+        Ok(Self {
+            root_pkg,
+            sorted_deps_ids,
+            build_config: build_config.clone(),
+            compiler_vfs_root: vfs_root,
+        })
     }
 
     /// Compilation results in the process exit upon warning/failure
@@ -212,7 +221,7 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
             .collect();
         let (files, res) = build_for_driver(
             writer,
-            None,
+            self.compiler_vfs_root.clone(),
             &self.build_config,
             self.root_pkg,
             dependencies,

@@ -38,6 +38,7 @@ use move_package_alt::{
     schema::{Environment, PackageID},
 };
 use move_symbol_pool::Symbol;
+use pathdiff::diff_paths;
 use move_vfs::wrappers::VirtualPath;
 use std::{collections::BTreeMap, io::Write, path::PathBuf, str::FromStr};
 use tracing::debug;
@@ -77,13 +78,14 @@ pub fn compiler_flags(build_config: &BuildConfig) -> Flags {
 
 pub fn build_all<W: Write + Send, F: MoveFlavor>(
     w: &mut W,
-    vfs_root: Option<VirtualPath>,
+    vfs_root: VirtualPath,
     root_pkg: &RootPackage<F>,
     dependencies: BTreeSet<PackageID>,
     build_config: &BuildConfig,
     compiler_driver: impl FnOnce(Compiler) -> Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
 ) -> Result<CompiledPackage> {
     let project_root = root_pkg.package_path();
+    let project_root_rel = diff_paths(project_root.as_str(), vfs_root.as_str());
     let program_info_hook = SaveHook::new([SaveFlag::TypingInfo]);
     let package_name = Symbol::from(root_pkg.name().as_str());
     let (file_map, all_compiled_units) = build_for_driver(
@@ -107,7 +109,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
     let root_package_name = Symbol::from(package_name.to_string());
 
     for mut annot_unit in all_compiled_units {
-        let source_path = PathBuf::from(
+        let mut source_path = PathBuf::from(
             file_map
                 .get(&annot_unit.loc().file_hash())
                 .unwrap()
@@ -123,6 +125,15 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
             .named_module
             .source_map
             .set_from_file_path(p.join(file_name));
+        if package_name == root_package_name {
+            if let Some(project_root_rel) = project_root_rel.as_ref() {
+                if !source_path.is_absolute() {
+                    if let Ok(stripped) = source_path.strip_prefix(project_root_rel) {
+                        source_path = stripped.to_path_buf();
+                    }
+                }
+            }
+        }
         let unit = CompiledUnitWithSource {
             unit: annot_unit.named_module,
             source_path: project_root.join(source_path)?,
@@ -206,7 +217,7 @@ pub fn build_all<W: Write + Send, F: MoveFlavor>(
 #[allow(unreachable_code)] // TODO
 pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
     w: &mut W,
-    vfs_root: Option<VirtualPath>,
+    vfs_root: VirtualPath,
     build_config: &BuildConfig,
     root_pkg: &RootPackage<F>,
     dependencies: BTreeSet<PackageID>,
@@ -218,7 +229,7 @@ pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
         .into_iter()
         .filter(|p| p.is_root() || dependencies.contains(p.id()))
         .collect::<Vec<_>>();
-    let package_paths = make_deps_for_compiler(w, packages, build_config)?;
+    let package_paths = make_deps_for_compiler(w, packages, build_config, &vfs_root)?;
 
     debug!("Package paths {:#?}", package_paths);
 
@@ -233,7 +244,7 @@ pub fn build_for_driver<W: Write + Send, T, F: MoveFlavor>(
     let sui_mode = build_config.default_flavor == Some(Flavor::Sui);
     let flags = compiler_flags(build_config);
     let mut compiler =
-        Compiler::from_package_paths(vfs_root.map(|e| e.as_ref().clone()), package_paths, vec![])
+        Compiler::from_package_paths(Some(vfs_root.as_ref().clone()), package_paths, vec![])
             .unwrap()
             .set_flags(flags);
     if sui_mode {
@@ -368,6 +379,7 @@ pub fn make_deps_for_compiler<W: Write + Send, F: MoveFlavor>(
     w: &mut W,
     packages: Vec<PackageInfo<'_, F>>,
     build_config: &BuildConfig,
+    compiler_vfs_root: &VirtualPath,
 ) -> anyhow::Result<Vec<PackagePaths>> {
     let mut package_paths: Vec<PackagePaths> = vec![];
     for pkg in packages.into_iter() {
@@ -397,10 +409,14 @@ pub fn make_deps_for_compiler<W: Write + Send, F: MoveFlavor>(
 
         debug!("Package name {:?} -- Safe name {:?}", name, safe_name);
         debug!("Named address map {:#?}", addresses);
+        let base_path = compiler_vfs_root;
         let paths = PackagePaths {
             name: Some((safe_name, config)),
             // paths: sources,
-            paths: get_sources(pkg.path(), build_config)?,
+            paths: get_sources(pkg.path(), build_config, base_path)?
+                .into_iter()
+                .map(|e| Symbol::from(e.1.as_str()))
+                .collect::<Vec<_>>(),
             named_address_map: addresses.inner,
         };
 

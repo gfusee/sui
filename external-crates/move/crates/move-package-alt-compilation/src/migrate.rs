@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, io::BufRead, io::Write};
 use move_command_line_common::interactive::Terminal;
 use move_compiler::{diagnostics::Migration, editions::Edition};
 use once_cell::sync::Lazy;
+use pathdiff::diff_paths;
 
 use crate::build_plan::BuildPlan;
 use move_package_alt::flavor::MoveFlavor;
@@ -136,8 +137,14 @@ impl<F: MoveFlavor, W: Write + Send, R: BufRead> MigrationContext<'_, F, W, R> {
 
         let filename =
             migration.record_diff(self.build_plan.root_package_path().as_ref().clone())?;
+        let relative_filename = diff_paths(
+            filename.as_str(),
+            self.build_plan.root_package_path().as_str(),
+        )
+        .map(|path| format!("./{}", path.to_string_lossy()))
+        .unwrap_or_else(|| filename.as_str().to_string());
         self.terminal.write(WROTE_PATCHFILE)?;
-        self.terminal.writeln(filename.as_str())?;
+        self.terminal.writeln(&relative_filename)?;
         self.terminal.newline()?;
 
         if !apply {

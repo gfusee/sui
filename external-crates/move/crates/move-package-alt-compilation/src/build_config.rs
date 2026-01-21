@@ -131,7 +131,7 @@ impl BuildConfig {
         env: &Environment,
         writer: &mut W,
     ) -> anyhow::Result<CompiledPackage> {
-        let root_pkg = RootPackage::<F>::load(path, env.clone(), self.mode_set()).await?;
+        let root_pkg = RootPackage::<F>::load(path.clone(), env.clone(), self.mode_set()).await?;
         BuildPlan::create(&root_pkg, self)?.compile(writer, |compiler| compiler)
     }
 
@@ -145,7 +145,7 @@ impl BuildConfig {
     ) -> anyhow::Result<()> {
         // we set test to migrate all the code
         self.test_mode = true;
-        let root_pkg = RootPackage::<F>::load(path, env, self.mode_set()).await?;
+        let root_pkg = RootPackage::<F>::load(path.clone(), env, self.mode_set()).await?;
         let build_plan = BuildPlan::create(&root_pkg, &self)?;
 
         migrate(build_plan, writer, reader)?;

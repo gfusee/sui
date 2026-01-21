@@ -67,8 +67,21 @@ impl FileSystemExt for PhysicalFS {
 }
 
 impl FileSystemExt for OverlayFS {
-    fn open_lockable(&self, _path: &str, _should_truncate: bool) -> VfsResult<Lockable> {
-        unimplemented!("Is it needed?")
+    fn open_lockable(&self, path: &str, should_truncate: bool) -> VfsResult<Lockable> {
+        // TODO: this implementation is not correct because relies on the physical fs, but sufficient for the proof of concept
+
+        let lock = OpenOptions::new()
+            .truncate(should_truncate)
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&path)?;
+
+        let lockable = Lockable {
+            inner: Box::new(lock),
+        };
+
+        Ok(lockable)
     }
 }
 

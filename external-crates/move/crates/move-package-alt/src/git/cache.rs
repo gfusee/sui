@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{io::BufRead, path::PathBuf, process::Stdio};
+use std::{io::BufRead, path::{Path, PathBuf}, process::Stdio};
 
 use indoc::formatdoc;
 use tokio::process::Command;
@@ -26,8 +26,14 @@ static CONFIG: OnceCell<VirtualPath> = OnceCell::new();
 // TODO: this should be moved into [crate::dependency::git]
 pub(crate) fn get_cache_path(base: &VirtualPath) -> &'static VirtualPath {
     CONFIG.get_or_init(|| {
-        base.cwd()
-            .join(move_command_line_common::env::MOVE_HOME.clone())
+        let move_home = move_command_line_common::env::MOVE_HOME.clone();
+        let base = if Path::new(&move_home).is_absolute() {
+            VirtualPath::physical().expect("creating physical VFS should work")
+        } else {
+            base.cwd()
+        };
+
+        base.join(move_home)
             .expect("joining root path with MOVE_HOME should work")
             .join("git")
             .expect("joining MOVE_HOME path with git should work")

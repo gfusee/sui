@@ -72,7 +72,27 @@ impl LocalDepInfo {
 impl FetchError {
     fn from_package(pinned: &Pinned) -> impl FnOnce(PackagePathError) -> Self {
         let pin = format!("{pinned}");
-        |e| Self::BadPackage(e, pin)
+        move |e| {
+            let e = match pinned {
+                Pinned::Local(local) => {
+                    let rel = local.relative_path_from_root_package().to_string_lossy().to_string();
+                    match e {
+                        PackagePathError::InvalidDirectory { .. } => {
+                            PackagePathError::InvalidDirectory { path: rel }
+                        }
+                        PackagePathError::InvalidPackage { .. } => {
+                            PackagePathError::InvalidPackage { path: rel }
+                        }
+                        PackagePathError::InvalidFile { .. } => {
+                            PackagePathError::InvalidFile { path: rel }
+                        }
+                        e => e,
+                    }
+                }
+                _ => e,
+            };
+            Self::BadPackage(e, pin)
+        }
     }
 
     fn from_git(pinned: &Pinned) -> impl FnOnce(GitError) -> Self {

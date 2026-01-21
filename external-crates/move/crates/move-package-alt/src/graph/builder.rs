@@ -9,7 +9,7 @@ use crate::{
     logging::user_note,
     package::{
         EnvironmentName, Package, lockfile::Lockfiles, package_lock::PackageSystemLock,
-        paths::PackagePath,
+        paths::{PackagePath, PackagePathError},
     },
     schema::{Environment, PackageID, PackageName},
 };
@@ -20,11 +20,64 @@ use move_vfs::wrappers::VirtualPath;
 use petgraph::graph::{DiGraph, NodeIndex};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
+    path::Component,
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
+
+fn dep_display(dep: &Pinned) -> String {
+    match dep {
+        Pinned::Local(local) => {
+            let rel_path = local.relative_path_from_root_package();
+            let escapes_root = rel_path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir));
+            if escapes_root {
+                dep.unfetched_path()
+                    .ok()
+                    .map(|path| path.as_str().to_string())
+                    .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string())
+            } else {
+                rel_path.to_string_lossy().to_string()
+            }
+        }
+        _ => dep
+            .unfetched_path()
+            .ok()
+            .map(|path| path.as_str().to_string())
+            .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string()),
+    }
+}
+
+fn dep_path_string(dep: &Pinned) -> String {
+    dep.unfetched_path()
+        .ok()
+        .map(|path| path.as_str().to_string())
+        .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string())
+}
+
+fn normalize_dep_error(dep: &Pinned, err: PackageError) -> PackageError {
+    match (dep, err) {
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidDirectory { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidDirectory {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidPackage { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidPackage {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidFile { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidFile {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (_, err) => err,
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum LockfileError {
@@ -293,12 +346,7 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         )
         .await
         .map_err(|err| PackageError::DepError {
-            dep: package
-                .dep_for_self()
-                .unfetched_path()
-                .ok()
-                .map(|e| e.as_str().to_string())
-                .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string()),
+            dep: dep_display(package.dep_for_self()),
             err: Box::new(err),
         })?;
 
@@ -376,8 +424,8 @@ impl<F: MoveFlavor> PackageCache<F> {
                 Ok(node)
             }
             Err(e) => Err(PackageError::DepError {
-                dep: dep.unfetched_path()?.as_str().to_string(),
-                err: Box::new(e),
+                dep: dep_display(dep),
+                err: Box::new(normalize_dep_error(dep, e)),
             }),
         }
     }

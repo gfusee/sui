@@ -6,23 +6,23 @@ use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
 use move_command_line_common::{env::read_bool_env_var, files::find_filenames};
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
+use move_binary_format::file_format::CompiledModule;
 use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
 
 use anyhow::anyhow;
 use move_package_alt::{
     flavor::{Vanilla, vanilla},
-    package::{RootPackage, layout::SourcePackageLayout},
+    package::RootPackage,
 };
-use move_package_alt_compilation::{
-    layout::CompiledPackageLayout, on_disk_package::OnDiskCompiledPackage,
-};
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use move_package_alt_compilation::layout::CompiledPackageLayout;
 use move_vfs::VfsResult;
 use move_vfs::tempdir::TempDir;
 use move_vfs::wrappers::VirtualPath;
 use path_clean::clean;
 use std::{
     cmp::max,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     env,
     fmt::Write as FmtWrite,
     io::{self, BufRead, Write},
@@ -62,34 +62,27 @@ const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 fn collect_coverage(
     trace_file: &VirtualPath,
     build_dir: VirtualPath,
+    storage_dir: &VirtualPath,
 ) -> anyhow::Result<ExecCoverageMapWithModules> {
-    let pkg_root = &SourcePackageLayout::try_find_root(build_dir.clone()).unwrap();
-    let package_name = move_package_alt::read_name_from_manifest(pkg_root)?;
+    let state = OnDiskStateView::create(
+        PathBuf::from(build_dir.as_str()),
+        PathBuf::from(storage_dir.as_str()),
+    )?;
 
-    let pkg_path = &build_dir
-        .join(package_name)?
-        .join(CompiledPackageLayout::BuildInfo.path())?;
-    let pkg = OnDiskCompiledPackage::from_path(pkg_path)?.into_compiled_package()?;
-
-    let src_modules = pkg
-        .all_compiled_units_with_source()
-        .map(|unit| {
-            let absolute_path = unit.source_path.as_str().to_string();
-            Ok((absolute_path, unit.unit.module.clone()))
-        })
-        .collect::<anyhow::Result<HashMap<_, _>>>()?;
-
-    // build the filter
     let mut filter = BTreeMap::new();
-    for (entry, module) in src_modules.into_iter() {
+    for module_path in state.module_paths() {
+        let module_bytes = std::fs::read(&module_path)?;
+        let module = CompiledModule::deserialize_with_defaults(&module_bytes)?;
         let module_id = module.self_id();
         filter
             .entry(*module_id.address())
             .or_insert_with(BTreeMap::new)
-            .insert(module_id.name().to_owned(), (entry, module));
+            .insert(
+                module_id.name().to_owned(),
+                (module_path.to_string_lossy().to_string(), module),
+            );
     }
 
-    // collect filtered trace
     let coverage_map = CoverageMap::from_trace_file(trace_file)
         .to_unified_exec_map()
         .into_coverage_map_with_modules(filter);
@@ -115,7 +108,7 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
         max_depth = max(max_depth, depth);
     }
     let mut result = PathBuf::new();
-    for _ in 0..max_depth - 1 {
+    for _ in 0..max_depth {
         result.push("dir");
     }
     result
@@ -247,7 +240,6 @@ pub fn run_one(
         }
         command
     };
-
     if storage_dir.exists()? || build_output.exists()? {
         // need to clean before testing
         cli_command_template()
@@ -263,7 +255,6 @@ pub fn run_one(
     } else {
         None
     };
-
     // Disable colors in error reporting from the Move compiler
     unsafe { env::set_var(COLOR_MODE_ENV_VAR, "NONE") };
     for args_line in args_file {
@@ -325,7 +316,7 @@ pub fn run_one(
         None => None,
         Some(trace_path) => {
             if trace_path.exists()? {
-                Some(collect_coverage(trace_path, build_output.clone())?)
+                Some(collect_coverage(trace_path, build_output.clone(), &storage_dir)?)
             } else {
                 eprintln!(
                     "Trace file {:?} not found: coverage is only available with at least one `run` \
