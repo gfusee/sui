@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail, *};
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::{collections::BTreeMap, path::Path};
-use vfs::{VfsPath, VfsResult, error::VfsErrorKind};
+use vfs::{VfsResult, error::VfsErrorKind};
 
 /// Result of sha256 hash of a file's contents.
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
@@ -202,7 +203,7 @@ pub fn verify_and_create_named_address_mapping<T: Copy + std::fmt::Display + Eq>
 /// Determine if the virtual path at `vfs_path` exists distinguishing between whether the path did
 /// not exist, or if there were other errors in determining if the path existed.
 /// It implements the same functionality as try_exists above but for the virtual file system
-pub fn try_exists_vfs(vfs_path: &VfsPath) -> VfsResult<bool> {
+pub fn try_exists_vfs(vfs_path: &VirtualPath) -> VfsResult<bool> {
     use VfsResult as R;
     match vfs_path.metadata() {
         R::Ok(_) => R::Ok(true),
@@ -216,10 +217,10 @@ pub fn try_exists_vfs(vfs_path: &VfsPath) -> VfsResult<bool> {
 ///   of the file extension
 ///
 /// It implements the same functionality as find_filenames above but for the virtual file system
-pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
-    paths: &[VfsPath],
+pub fn find_filenames_vfs<Predicate: FnMut(&VirtualPath) -> bool>(
+    paths: &[VirtualPath],
     mut is_file_desired: Predicate,
-) -> anyhow::Result<Vec<VfsPath>> {
+) -> anyhow::Result<Vec<VirtualPath>> {
     let mut result = vec![];
 
     for p in paths {
@@ -252,9 +253,9 @@ pub fn find_filenames_vfs<Predicate: FnMut(&VfsPath) -> bool>(
 /// It implements the same functionality as find_move_filenames above but for the virtual file
 /// system
 pub fn find_move_filenames_vfs(
-    paths: &[VfsPath],
+    paths: &[VirtualPath],
     keep_specified_files: bool,
-) -> anyhow::Result<Vec<VfsPath>> {
+) -> anyhow::Result<Vec<VirtualPath>> {
     if keep_specified_files {
         let mut file_paths = vec![];
         let mut other_paths = vec![];

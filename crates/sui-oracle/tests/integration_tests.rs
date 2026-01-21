@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
+use shared_crypto::intent::Intent;
 use std::path::Path;
 use std::str::FromStr;
-
-use shared_crypto::intent::Intent;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_json_rpc_types::{ObjectChange, SuiExecutionStatus};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
@@ -470,7 +470,8 @@ async fn publish_package(
     client: &SuiClient,
     path: &Path,
 ) -> ObjectID {
-    let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(virtual_path).unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
     let gas = client

@@ -147,6 +147,11 @@ mod tests {
     use test_log::test;
 
     use crate::test_utils::graph_builder::TestPackageGraph;
+    use move_vfs::wrappers::VirtualPath;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     /// `root` depends on `a` which depends on `b`; the dependency from `a` to `b` is named `c`,
     /// and has specified `rename-from = "c"`.
@@ -154,10 +159,11 @@ mod tests {
     /// graphs rooted at both `root` and `a` should pass the rename-from check
     #[test(tokio::test)]
     async fn test_with_rename_from() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_deps([("root", "a")])
             .add_dep("a", "b", |dep| dep.name("c").rename_from("b"))
-            .build();
+            .build(&base);
 
         scenario
             .graph_for("root")
@@ -174,10 +180,11 @@ mod tests {
     /// rename-from check on root should succeed, since we only check the root package
     #[test(tokio::test)]
     async fn test_no_rename_from() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_deps([("root", "a")])
             .add_dep("a", "b", |dep| dep.name("c"))
-            .build();
+            .build(&base);
 
         scenario
             .graph_for("root")
@@ -202,9 +209,10 @@ mod tests {
     /// rename-from check should fail, indicating that `a.c` should have `rename-from = "b"`
     #[test(tokio::test)]
     async fn test_wrong_rename_from() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a", "b"])
             .add_dep("a", "b", |dep| dep.name("c").rename_from("d"))
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("a").await.check_rename_from().unwrap_err().to_string(), @r###"In Move.toml, the dependency `c` has `rename-from = "d"`, but the referred package is named `b`. Change the `rename-from` field to `b`."###);
     }
@@ -214,9 +222,10 @@ mod tests {
     /// rename-from check should fail, indicating that the rename-from is unnecessary
     #[test(tokio::test)]
     async fn test_unnecessary_rename_from() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a", "b"])
             .add_dep("a", "b", |dep| dep.rename_from("b"))
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("a").await.check_rename_from().unwrap_err().to_string(), @"In Move.toml, the dependency `b` has a `rename-from` field, but the referred package is already named `b`. Remove the unnecessary `rename-from` field.");
     }
@@ -229,13 +238,14 @@ mod tests {
     #[test(tokio::test)]
     #[ignore] // TODO
     async fn test_external_rename_error() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a", "b"])
             .add_dep(
                 "a",
                 "b",
                 |dep| dep.name("c"), /* TODO .make_external()*/
             )
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("a").await.check_rename_from().unwrap_err().to_string(), @"TODO");
     }
@@ -243,6 +253,7 @@ mod tests {
     #[test(tokio::test)]
     /// TODO: Add a mermaid diagram
     async fn test_modern_using_legacy_framework() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("std", |pkg| pkg.set_legacy().set_legacy_name("MoveStdLib"))
             .add_package("sui", |pkg| pkg.set_legacy().set_legacy_name("Sui"))
@@ -258,7 +269,7 @@ mod tests {
             // legacy -> legacy case (SuiSystem -> MoveStdLib (std)
             .add_dep("sui_system", "sui", |dep| dep.name("Sui"))
             .add_dep("sui_system", "std", |dep| dep.name("MoveStdLib"))
-            .build();
+            .build(&base);
 
         scenario
             .graph_for("root")
@@ -279,10 +290,11 @@ mod tests {
     /// appear in a modern manifest
     #[test(tokio::test)]
     async fn modern_uses_legacy_name() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["bat"])
             .add_package("sui", |pkg| pkg.set_legacy().set_legacy_name("Sui"))
             .add_dep("bat", "sui", |dep| dep.name("Sui"))
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("bat").await.check_rename_from().unwrap_err(), @r###"
         In Move.toml, the dependency `Sui` refers to a package named `sui`. Consider renaming the dependency to `sui`:
@@ -301,12 +313,13 @@ mod tests {
     /// (although dumb)
     #[test(tokio::test)]
     async fn modern_uses_legacy_name_with_rename() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["foo"])
             .add_package("std", |pkg| pkg.set_legacy().set_legacy_name("MoveStdlib"))
             .add_dep("foo", "std", |dep| {
                 dep.name("MoveStdlib").rename_from("std")
             })
-            .build();
+            .build(&base);
 
         scenario.graph_for("foo").await.check_rename_from().unwrap();
     }
@@ -317,12 +330,13 @@ mod tests {
     /// because you need to use the modern name in the rename-from field
     #[test(tokio::test)]
     async fn modern_uses_legacy_name_in_rename() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["bar"])
             .add_package("std", |pkg| pkg.set_legacy().set_legacy_name("MoveStdlib"))
             .add_dep("bar", "std", |dep| {
                 dep.name("foo").rename_from("MoveStdlib")
             })
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("bar").await.check_rename_from().unwrap_err(), @r###"In Move.toml, the dependency `foo` has `rename-from = "MoveStdlib"`, but the referred package is named `std`. Change the `rename-from` field to `std`."###);
     }
@@ -332,11 +346,12 @@ mod tests {
     /// The dependency is named `MoveStdlib`; this should succeed
     #[test(tokio::test)]
     async fn legacy_legacy_name() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("legacy", |pkg| pkg.set_legacy())
             .add_package("std", |pkg| pkg.set_legacy().set_legacy_name("MoveStdlib"))
             .add_dep("legacy", "std", |dep| dep.name("MoveStdlib"))
-            .build();
+            .build(&base);
 
         scenario
             .graph_for("legacy")
@@ -350,11 +365,12 @@ mod tests {
     /// The dependency is named `std`; this should succeed to aid transition to the new system
     #[test(tokio::test)]
     async fn legacy_modern_name() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("legacy", |pkg| pkg.set_legacy())
             .add_package("std", |pkg| pkg.set_legacy().set_legacy_name("MoveStdlib"))
             .add_dep("legacy", "std", |dep| dep.name("std"))
-            .build();
+            .build(&base);
 
         scenario
             .graph_for("legacy")
@@ -368,13 +384,14 @@ mod tests {
     /// The dependency is named `weird-name`; this should succeed
     #[test(tokio::test)]
     async fn legacy_malformed_name() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("baz", |pkg| pkg.set_legacy())
             .add_package("malformed", |pkg| {
                 pkg.set_legacy().set_legacy_name("weird-name")
             })
             .add_dep("baz", "malformed", |dep| dep.name("weird-name"))
-            .build();
+            .build(&base);
 
         scenario.graph_for("baz").await.check_rename_from().unwrap();
     }
@@ -385,13 +402,14 @@ mod tests {
     /// The dependency is named `Wrong`. This should fail because of the rename-from check
     #[test(tokio::test)]
     async fn legacy_wrong_name() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_package("legacy2", |pkg| pkg.set_legacy())
             .add_package("malformed", |pkg| {
                 pkg.set_legacy().set_legacy_name("weird-name")
             })
             .add_dep("legacy2", "malformed", |dep| dep.name("Wrong"))
-            .build();
+            .build(&base);
 
         assert_snapshot!(scenario.graph_for("legacy2").await.check_rename_from().unwrap_err(), @r###"
         In Move.toml, the dependency `Wrong` refers to a package named `malformed`. Consider renaming the dependency to `malformed`:

@@ -42,7 +42,7 @@ impl CombinedDependency {
 
         for (pkg, default) in dependencies.iter() {
             if system_dependencies.contains_key(pkg) {
-                return Err(ManifestError::with_file(file)(
+                return Err(ManifestError::with_file(file.path().clone())(
                     ManifestErrorKind::ExplicitImplicit { name: pkg.clone() },
                 ));
             }
@@ -115,7 +115,9 @@ impl CombinedDependency {
         replacement: ReplacementDependency,
     ) -> ManifestResult<Self> {
         let Some(dep) = replacement.dependency else {
-            return Err(ManifestError::with_file(file)(ManifestErrorKind::NoDepInfo));
+            return Err(ManifestError::with_file(file.path().clone())(
+                ManifestErrorKind::NoDepInfo,
+            ));
         };
 
         Ok(Self(Dependency {

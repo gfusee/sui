@@ -2,11 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt, path::PathBuf};
-
-use path_clean::PathClean;
-use tracing::debug;
-
+use super::{CombinedDependency, Dependency};
+use crate::git::GitResult;
 use crate::{
     dependency::{ResolvedDependency, combine::Combined, resolve::Resolved},
     errors::{FileHandle, PackageError, PackageResult, fmt_truncated},
@@ -18,8 +15,11 @@ use crate::{
         ManifestGitDependency, ModeName, OnChainDepInfo, PackageName, RootDepInfo,
     },
 };
-
-use super::{CombinedDependency, Dependency};
+use move_vfs::wrappers::VirtualPath;
+use path_clean::PathClean;
+use std::fmt;
+use std::path::PathBuf;
+use tracing::debug;
 
 /// [Dependency<Pinned>]s are guaranteed to always resolve to the same package source. For example,
 /// a git dependendency with a branch or tag revision may change over time (and is thus not
@@ -45,15 +45,33 @@ pub struct PinnedGitDependency {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinnedLocalDependency {
     /// The path to the package directory on the filesystem
-    absolute_path_to_package: PathBuf,
+    absolute_path_to_package: VirtualPath,
 
     /// The path from the root package to this package, used for serializing the local dependency
     /// back to the root package's lockfile.
     relative_path_from_root_package: PathBuf,
 }
 
+impl PinnedLocalDependency {
+    pub fn relative_path_from_root_package(&self) -> &PathBuf {
+        &self.relative_path_from_root_package
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PinnedDependencyInfo(pub(super) Dependency<Pinned>);
+
+impl PinnedGitDependency {
+    fn try_from_lockfile_git_dep_info(
+        base: &VirtualPath,
+        value: LockfileGitDepInfo,
+    ) -> Result<Self, GitError> {
+        let cache = GitCache::new(base)?;
+        let LockfileGitDepInfo { repo, rev, path } = value;
+        let tree = cache.tree_for_sha(repo, rev, path)?;
+        Ok(PinnedGitDependency { inner: tree })
+    }
+}
 
 impl PinnedDependencyInfo {
     /// Replace all dependencies in `deps` with their pinned versions:
@@ -74,9 +92,11 @@ impl PinnedDependencyInfo {
 
         // pinning - fix git shas and normalize local deps
         for dep in deps.into_iter() {
+            let base = dep.0.containing_file.path();
+
             let transformed = match dep.0.dep_info {
                 Resolved::Local(ref loc) => loc.clone().pin(parent)?,
-                Resolved::Git(ref git) => git.pin().await?,
+                Resolved::Git(ref git) => git.pin(base).await?,
                 Resolved::OnChain(_) => todo!(),
             };
 
@@ -174,12 +194,12 @@ impl Pinned {
 
     /// Return the absolute path to the directory that this package would be fetched into, without
     /// actually fetching it
-    pub fn unfetched_path(&self) -> PathBuf {
+    pub fn unfetched_path(&self) -> GitResult<VirtualPath> {
         match &self {
             Pinned::Git(dep) => dep.inner.path_to_tree(),
-            Pinned::Local(dep) => dep.absolute_path_to_package.clone(),
+            Pinned::Local(dep) => Ok(dep.absolute_path_to_package.clone()),
             Pinned::OnChain(_dep) => todo!(),
-            Pinned::Root(path) => path.path().to_path_buf(),
+            Pinned::Root(path) => Ok(path.path().clone()),
         }
     }
 
@@ -199,23 +219,18 @@ impl Pinned {
     ) -> PackageResult<Self> {
         match &pin {
             LockfileDependencyInfo::Local(loc) => Ok(Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: containing_file
-                    .path()
-                    .parent()
-                    .expect("files have parents")
-                    .join(&loc.local)
-                    .to_path_buf()
-                    .clean(),
-                relative_path_from_root_package: loc.local.to_path_buf().clean(),
+                absolute_path_to_package: containing_file.path().parent().join(&loc.local)?,
+                relative_path_from_root_package: loc.local.clone(),
             })),
             LockfileDependencyInfo::OnChain(chain) => Ok(Pinned::OnChain(chain.clone())),
-            LockfileDependencyInfo::Git(git) => Ok(Pinned::Git(git.clone().try_into()?)),
+            LockfileDependencyInfo::Git(git) => Ok(Pinned::Git(
+                PinnedGitDependency::try_from_lockfile_git_dep_info(
+                    containing_file.path(),
+                    git.clone(),
+                )?,
+            )),
             LockfileDependencyInfo::Root(_) => Ok(Pinned::Root(PackagePath::new(
-                containing_file
-                    .as_ref()
-                    .parent()
-                    .expect("files have parents")
-                    .to_path_buf(),
+                containing_file.as_ref().parent(),
             )?)),
         }
     }
@@ -241,22 +256,11 @@ impl Pinned {
 impl ManifestGitDependency {
     /// Replace the commit-ish [self.rev] with a commit (i.e. a SHA). Requires fetching the git
     /// repository
-    async fn pin(&self) -> PackageResult<Pinned> {
-        let cache = GitCache::new();
+    async fn pin(&self, base: &VirtualPath) -> PackageResult<Pinned> {
+        let cache = GitCache::new(base)?;
         let ManifestGitDependency { repo, rev, subdir } = self.clone();
-        let tree = cache.resolve_to_tree(&repo, &rev, Some(subdir)).await?;
+        let tree = cache.resolve_to_tree(&repo, &rev, base, subdir).await?;
         Ok(Pinned::Git(PinnedGitDependency { inner: tree }))
-    }
-}
-
-impl TryFrom<LockfileGitDepInfo> for PinnedGitDependency {
-    type Error = GitError;
-
-    fn try_from(value: LockfileGitDepInfo) -> Result<Self, Self::Error> {
-        let cache = GitCache::new();
-        let LockfileGitDepInfo { repo, rev, path } = value;
-        let tree = cache.tree_for_sha(repo, rev, Some(path))?;
-        Ok(PinnedGitDependency { inner: tree })
     }
 }
 
@@ -268,18 +272,20 @@ impl LocalDepInfo {
     fn pin(self, parent: &Pinned) -> PackageResult<Pinned> {
         let info: Pinned = match &parent {
             Pinned::Git(parent_git) => Pinned::Git(PinnedGitDependency {
-                inner: parent_git.inner.relative_tree(self.local)?,
+                inner: parent_git
+                    .inner
+                    .relative_tree(self.local.to_string_lossy())?,
             }),
             Pinned::Local(parent_local) => Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: parent.unfetched_path().join(&self.local).clean(),
+                absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
                 relative_path_from_root_package: parent_local
                     .relative_path_from_root_package
                     .join(&self.local)
                     .clean(),
             }),
             Pinned::Root(_) => Pinned::Local(PinnedLocalDependency {
-                absolute_path_to_package: parent.unfetched_path().join(&self.local).clean(),
-                relative_path_from_root_package: self.local.clean(),
+                absolute_path_to_package: parent.unfetched_path()?.join(&self.local)?,
+                relative_path_from_root_package: self.local,
             }),
             Pinned::OnChain(_) => todo!(),
         };
@@ -303,7 +309,7 @@ impl From<Pinned> for LockfileDependencyInfo {
             Pinned::Git(git) => Self::Git(LockfileGitDepInfo {
                 repo: git.inner.repo_url().to_string(),
                 rev: git.inner.sha().clone(),
-                path: git.inner.path_in_repo().to_path_buf(),
+                path: git.inner.path_in_repo().clone(),
             }),
             Pinned::OnChain(on_chain) => Self::OnChain(on_chain),
             Pinned::Root(_) => Self::Root(RootDepInfo { root: true }),
@@ -326,10 +332,23 @@ mod tests {
     use test_log::test;
 
     use crate::{schema::GitSha, test_utils::git};
+    use move_vfs::wrappers::VirtualPath;
 
     use super::*;
 
     const RANDOM_SHA: &str = "1111111111111111111111111111111111111111"; // 40 characters
+
+    fn vpath(path: impl AsRef<Path>) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path.as_ref())
+            .unwrap()
+    }
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     // Local pinning ///////////////////////////////////////////////////////////////////////////////
 
@@ -344,8 +363,8 @@ mod tests {
         let pinned = dep.pin(&parent).unwrap_as_local().clone();
 
         assert_eq!(
-            pinned.absolute_path_to_package.as_os_str(),
-            tempdir.path().join("child")
+            pinned.absolute_path_to_package.as_str(),
+            tempdir.path().join("child").to_string_lossy()
         );
         assert_eq!(
             pinned.relative_path_from_root_package.as_os_str(),
@@ -365,7 +384,7 @@ mod tests {
         let pinned = dep.pin(&parent).unwrap_as_local().clone();
 
         assert_eq!(
-            pinned.absolute_path_to_package.as_os_str(),
+            pinned.absolute_path_to_package.as_str(),
             "/root/parent/child"
         );
         assert_eq!(
@@ -399,7 +418,7 @@ mod tests {
 
         assert_eq!(
             // path in repo is updated
-            pinned.inner.path_in_repo().as_os_str(),
+            pinned.inner.path_in_repo().to_string_lossy(),
             "parent/child"
         );
     }
@@ -417,7 +436,10 @@ mod tests {
 
         assert_eq!(pinned.inner.repo_url(), parent_git.inner.repo_url());
         assert_eq!(pinned.inner.sha(), parent_git.inner.sha());
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), "packages/bar");
+        assert_eq!(
+            pinned.inner.path_in_repo().to_string_lossy(),
+            "packages/bar"
+        );
     }
 
     /// Pinning a local dep `{local = "../../d"}`
@@ -439,31 +461,34 @@ mod tests {
     /// Pinning a git dep with a full SHA returns it unchanged; the remote is not contacted
     #[test(tokio::test)]
     async fn git_full_sha() {
+        let base = vbase();
         let dep = new_git("child.git", Some(RANDOM_SHA), ".");
-        let pinned = dep.pin().await.unwrap_as_git();
+        let pinned = dep.pin(&base).await.unwrap_as_git();
 
         assert_eq!(pinned.inner.repo_url(), "child.git");
         assert_eq!(pinned.inner.sha().as_ref(), RANDOM_SHA);
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), ".");
+        assert_eq!(pinned.inner.path_in_repo().to_string_lossy(), ".");
     }
 
     /// Pinning a git dep with a partial SHA expands it to 40 characters
     #[test(tokio::test)]
     async fn git_partial_sha() {
-        let git_project = git::new().await;
+        let base = vbase();
+        let git_project = git::new(&base).await.unwrap();
         let commit = git_project
-            .commit(|project| project.add_packages(["a"]))
-            .await;
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
 
-        let repo = git_project.repo_path_str();
+        let repo = git_project.repo_path_str().unwrap();
         let sha = commit.sha();
 
         let dep = new_git(repo, Some(&sha[0..12]), "");
-        let pinned = dep.pin().await.unwrap_as_git();
+        let pinned = dep.pin(&base).await.unwrap_as_git();
 
-        assert_eq!(pinned.inner.repo_url(), git_project.repo_path_str());
+        assert_eq!(pinned.inner.repo_url(), git_project.repo_path_str().unwrap());
         assert_eq!(pinned.inner.sha().as_ref(), sha);
-        assert_eq!(pinned.inner.path_in_repo().as_os_str(), ".");
+        assert_eq!(pinned.inner.path_in_repo().to_string_lossy(), ".");
     }
 
     /// Pinning a git dep with a branch converts it to a sha
@@ -568,7 +593,7 @@ mod tests {
     /// Return a pinned dep for `{ local = "<path>" }`
     fn new_pinned_local_from(pkg_root: impl AsRef<Path>, path: impl AsRef<Path>) -> Pinned {
         Pinned::Local(PinnedLocalDependency {
-            absolute_path_to_package: pkg_root.as_ref().join(&path),
+            absolute_path_to_package: vpath(pkg_root.as_ref().join(&path)),
             relative_path_from_root_package: path.as_ref().to_path_buf(),
         })
     }
@@ -580,14 +605,14 @@ mod tests {
         sha: impl AsRef<str>,
         path: impl AsRef<Path>,
     ) -> Pinned {
-        let cache = GitCache::new();
+        let cache = GitCache::new(&vbase()).unwrap();
         let sha = GitSha::try_from(sha.as_ref().to_string()).expect("valid sha");
         Pinned::Git(PinnedGitDependency {
             inner: cache
                 .tree_for_sha(
                     repo.as_ref().to_string(),
                     sha,
-                    Some(path.as_ref().to_path_buf()),
+                    path.as_ref().to_path_buf(),
                 )
                 .unwrap(),
         })
@@ -603,7 +628,7 @@ mod tests {
         std::fs::write(root_dir.join("Move.toml"), "# Dummy Move.toml").unwrap();
 
         let root = Pinned::Root(
-            PackagePath::new(tempdir.path().join(relative_pkg_path.as_ref())).unwrap(),
+            PackagePath::new(vpath(tempdir.path().join(relative_pkg_path.as_ref()))).unwrap(),
         );
         (tempdir, root)
     }

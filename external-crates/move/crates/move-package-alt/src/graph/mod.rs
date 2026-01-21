@@ -192,6 +192,11 @@ mod tests {
     use test_log::test;
 
     use crate::{schema::PackageID, test_utils::graph_builder::TestPackageGraph};
+    use move_vfs::wrappers::VirtualPath;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     /// ```mermaid
     /// graph LR
@@ -208,11 +213,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_mode_filter_no_modes() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d", "e"])
             .add_deps([("root", "a"), ("b", "c"), ("a", "d")])
             .add_dep("a", "b", |dep| dep.modes(["test"]))
             .add_dep("d", "e", |dep| dep.modes(["spec"]))
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
         let filtered = graph.filter_for_mode(&vec![]);
@@ -242,11 +248,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_mode_filter_one_mode() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d", "e"])
             .add_deps([("root", "a"), ("b", "c"), ("a", "d")])
             .add_dep("a", "b", |dep| dep.modes(["test"]))
             .add_dep("d", "e", |dep| dep.modes(["spec"]))
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
         let filtered = graph.filter_for_mode(&vec!["test".into()]);
@@ -276,11 +283,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_mode_filter_multimodes() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d", "e"])
             .add_deps([("root", "a"), ("b", "c"), ("a", "d")])
             .add_dep("a", "b", |dep| dep.modes(["test"]))
             .add_dep("d", "e", |dep| dep.modes(["spec"]))
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
         let filtered = graph.filter_for_mode(&vec!["test".into(), "spec".into()]);
@@ -308,10 +316,11 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_multimode_filter() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_deps([("root", "a"), ("b", "c")])
             .add_dep("a", "b", |dep| dep.modes(["test", "spec"]))
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
         let filtered = graph.filter_for_mode(&vec!["test".into()]);

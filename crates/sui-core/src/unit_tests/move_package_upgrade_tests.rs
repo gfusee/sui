@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, language_storage::StructTag};
+use move_vfs::wrappers::VirtualPath;
 use sui_move_build::BuildConfig;
 use sui_protocol_config::ProtocolConfig;
 use sui_types::{
@@ -22,6 +23,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use sui_move_build::CompiledPackage;
 use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
 use sui_types::error::UserInputError;
 use sui_types::execution_status::{
@@ -39,6 +41,17 @@ use crate::authority::{
     authority_tests::execute_programmable_transaction,
     move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
 };
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+#[allow(dead_code)]
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
 
 #[macro_export]
 macro_rules! move_call {
@@ -109,7 +122,7 @@ fn pkg_path_of(pkg_name: &str) -> PathBuf {
 
 fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
     let with_unpublished_deps = false;
-    let package = BuildConfig::new_for_testing().build(path).unwrap();
+    let package = build_physical(BuildConfig::new_for_testing(), path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),

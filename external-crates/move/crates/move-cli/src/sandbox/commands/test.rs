@@ -4,32 +4,31 @@
 
 use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
-use move_command_line_common::{
-    env::read_bool_env_var,
-    files::{find_filenames, path_to_string},
-};
+use move_command_line_common::{env::read_bool_env_var, files::find_filenames};
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
+use move_binary_format::file_format::CompiledModule;
 use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
 
+use anyhow::anyhow;
 use move_package_alt::{
     flavor::{Vanilla, vanilla},
-    package::{RootPackage, layout::SourcePackageLayout},
+    package::RootPackage,
 };
-use move_package_alt_compilation::{
-    layout::CompiledPackageLayout, on_disk_package::OnDiskCompiledPackage,
-};
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use move_package_alt_compilation::layout::CompiledPackageLayout;
+use move_vfs::VfsResult;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 use path_clean::clean;
 use std::{
     cmp::max,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     env,
     fmt::Write as FmtWrite,
-    fs::{self, File},
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
     process::Command,
 };
-use tempfile::tempdir;
 use tracing::debug;
 
 // Basic datatest testing framework for the CLI. The `run_one` entrypoint expects
@@ -61,38 +60,29 @@ const DEFAULT_TRACE_FILE: &str = "trace";
 const STACK_TRACE_PREFIX: &str = "\nStack backtrace:";
 
 fn collect_coverage(
-    trace_file: &Path,
-    build_dir: &Path,
+    trace_file: &VirtualPath,
+    build_dir: VirtualPath,
+    storage_dir: &VirtualPath,
 ) -> anyhow::Result<ExecCoverageMapWithModules> {
-    let canonical_build = build_dir.canonicalize().unwrap();
+    let state = OnDiskStateView::create(
+        PathBuf::from(build_dir.as_str()),
+        PathBuf::from(storage_dir.as_str()),
+    )?;
 
-    let pkg_root = &SourcePackageLayout::try_find_root(&canonical_build).unwrap();
-    let package_name = move_package_alt::read_name_from_manifest(pkg_root)?;
-
-    let pkg_path = &build_dir
-        .join(package_name)
-        .join(CompiledPackageLayout::BuildInfo.path());
-    let pkg = OnDiskCompiledPackage::from_path(pkg_path)?.into_compiled_package()?;
-
-    let src_modules = pkg
-        .all_compiled_units_with_source()
-        .map(|unit| {
-            let absolute_path = path_to_string(&unit.source_path.canonicalize()?)?;
-            Ok((absolute_path, unit.unit.module.clone()))
-        })
-        .collect::<anyhow::Result<HashMap<_, _>>>()?;
-
-    // build the filter
     let mut filter = BTreeMap::new();
-    for (entry, module) in src_modules.into_iter() {
+    for module_path in state.module_paths() {
+        let module_bytes = std::fs::read(&module_path)?;
+        let module = CompiledModule::deserialize_with_defaults(&module_bytes)?;
         let module_id = module.self_id();
         filter
             .entry(*module_id.address())
             .or_insert_with(BTreeMap::new)
-            .insert(module_id.name().to_owned(), (entry, module));
+            .insert(
+                module_id.name().to_owned(),
+                (module_path.to_string_lossy().to_string(), module),
+            );
     }
 
-    // collect filtered trace
     let coverage_map = CoverageMap::from_trace_file(trace_file)
         .to_unified_exec_map()
         .into_coverage_map_with_modules(filter);
@@ -118,7 +108,7 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
         max_depth = max(max_depth, depth);
     }
     let mut result = PathBuf::new();
-    for _ in 0..max_depth - 1 {
+    for _ in 0..max_depth {
         result.push("dir");
     }
     result
@@ -127,25 +117,45 @@ fn make_dir_prefix(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> PathBuf
 /// Copy `pkg_dir` and all of its dependencies into `tmp_dir`, keeping all of the relative
 /// paths the same. This may require copying into a subdirectory of `tmp_dir` if the local paths
 /// start with `..`; the actual subdirectory containing the copied files is returned.
-fn copy_pkg_and_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> {
-    let paths = match package_paths(pkg_dir) {
+fn copy_pkg_and_deps(
+    cwd: VirtualPath,
+    tmp_dir: &VirtualPath,
+    pkg_dir: VirtualPath,
+) -> anyhow::Result<VirtualPath> {
+    let paths = match package_paths(pkg_dir.clone()) {
         Ok(paths) => paths,
         Err(e) => {
             debug!("couldn't find packages: {e}");
-            [pkg_dir.to_path_buf()].into()
+            [pkg_dir.clone()].into()
         }
     };
 
-    let prefix = make_dir_prefix(&paths);
+    let cwd_path_buf = PathBuf::from(cwd.as_str().to_string());
+
+    let relative_paths_from_pkg_dir = paths
+        .iter()
+        .map(|pkg_path| {
+            pathdiff::diff_paths(pkg_path.as_str(), &cwd_path_buf)
+                .ok_or_else(|| anyhow!("failed to diff paths: {pkg_path:?}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let pkg_dir_relative = pathdiff::diff_paths(pkg_dir.as_str(), &cwd_path_buf)
+        .ok_or_else(|| anyhow!("failed to diff paths: {pkg_dir:?}"))?;
+
+    let prefix = make_dir_prefix(&relative_paths_from_pkg_dir);
 
     debug!("copying {paths:?}");
 
-    for path in paths {
-        debug!("cp {:?} {:?}", &path, tmp_dir.join(&prefix).join(&path));
-        simple_copy_dir(&tmp_dir.join(&prefix).join(&path), &path)?;
+    for (virtual_path, relative_path) in paths.iter().zip(relative_paths_from_pkg_dir) {
+        debug!(
+            "cp {:?} {:?}",
+            &relative_path,
+            tmp_dir.join(&prefix)?.join(&relative_path)?
+        );
+        simple_copy_dir(&tmp_dir.join(&prefix)?.join(&relative_path)?, &virtual_path)?;
     }
 
-    Ok(tmp_dir.join(prefix).join(pkg_dir))
+    Ok(tmp_dir.join(prefix)?.join(pkg_dir_relative)?)
 }
 
 /// Return the paths to all the packages needed by the package at `pkg_dir` (including itself); if
@@ -155,7 +165,7 @@ fn copy_pkg_and_deps(tmp_dir: &Path, pkg_dir: &Path) -> anyhow::Result<PathBuf> 
 /// We copy as if `--mode test` were passed, so that `dev-dependencies` will be included; if tests
 /// use moded dependencies with any other modes, those dependencies won't be copied and this code
 /// will need to be fixed.
-fn package_paths(pkg_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+fn package_paths(pkg_dir: VirtualPath) -> anyhow::Result<Vec<VirtualPath>> {
     let rt = tokio::runtime::Runtime::new()?;
 
     let root_pkg = rt.block_on(RootPackage::<Vanilla>::load(
@@ -168,66 +178,69 @@ fn package_paths(pkg_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 
     Ok(packages
         .iter()
-        .map(|pkg| pkg.path().path().to_path_buf())
+        .map(|pkg| pkg.path().path().clone())
         .collect())
 }
 
 /// Recursively copy all files in `src` into `dir`
-fn simple_copy_dir(dst: &Path, src: &Path) -> io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
-        let src_entry = entry?;
-        let src_entry_path = src_entry.path();
-        let dst_entry_path = dst.join(src_entry.file_name());
-        if src_entry_path.is_dir() {
-            simple_copy_dir(&dst_entry_path, &src_entry_path)?;
+fn simple_copy_dir(dst: &VirtualPath, src: &VirtualPath) -> VfsResult<()> {
+    dst.create_dir_all()?;
+    for src_entry in src.read_dir()? {
+        let dst_entry_path = dst.join(src_entry.filename())?;
+        if src_entry.is_dir()? {
+            simple_copy_dir(&dst_entry_path, &src_entry)?;
         } else {
-            fs::copy(&src_entry_path, &dst_entry_path)?;
+            if dst_entry_path.exists()? {
+                dst_entry_path.remove_file()?;
+            }
+
+            src_entry.copy_file(&dst_entry_path)?;
         }
     }
     Ok(())
 }
 
-/// Run the `args_path` batch file with`cli_binary`
+/// Run the `args_path` batch file with`cli_binary`.
+/// VirtualPath parameters are assumed to be in the physical FS.
 pub fn run_one(
-    args_path: &Path,
+    args_path: &VirtualPath,
     cli_binary: &Path,
     use_temp_dir: bool,
     track_cov: bool,
 ) -> anyhow::Result<Option<ExecCoverageMapWithModules>> {
-    let args_file = io::BufReader::new(File::open(args_path)?).lines();
-    let cli_binary_path = cli_binary.canonicalize()?;
+    let args_file = io::BufReader::new(args_path.open_file()?).lines();
 
     // path where we will run the binary
-    let exe_dir = args_path.parent().unwrap();
+    let exe_dir = args_path.parent();
     let temp_dir = if use_temp_dir {
         // copy everything in the exe_dir into the temp_dir
-        let dir = tempdir()?;
-        let padded_dir = copy_pkg_and_deps(dir.path(), exe_dir)?;
-        simple_copy_dir(&padded_dir, exe_dir)?;
+        let dir = TempDir::new(args_path)?;
+        let padded_dir = copy_pkg_and_deps(args_path.cwd(), dir.path(), exe_dir.clone())?;
+        simple_copy_dir(&padded_dir, &exe_dir)?;
         Some((dir, padded_dir))
     } else {
         None
     };
-    let wks_dir = temp_dir.as_ref().map_or(exe_dir, |t| &t.1);
+    let wks_dir = temp_dir.as_ref().map_or(exe_dir.clone(), |t| t.1.clone());
 
-    let storage_dir = wks_dir.join(DEFAULT_STORAGE_DIR);
+    let storage_dir = wks_dir.join(DEFAULT_STORAGE_DIR)?;
     let build_output = wks_dir
-        .join(DEFAULT_BUILD_DIR)
-        .join(CompiledPackageLayout::Root.path());
+        .join(DEFAULT_BUILD_DIR)?
+        .join(CompiledPackageLayout::Root.path())?;
 
     // template for preparing a cli command
     let cli_command_template = || {
-        let mut command = Command::new(cli_binary_path.clone());
+        let mut command = Command::new(cli_binary);
+
+        // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         if let Some(work_dir) = temp_dir.as_ref() {
-            command.current_dir(&work_dir.1);
+            command.current_dir(&work_dir.1.as_str());
         } else {
-            command.current_dir(exe_dir);
+            command.current_dir(exe_dir.as_str());
         }
         command
     };
-
-    if storage_dir.exists() || build_output.exists() {
+    if storage_dir.exists()? || build_output.exists()? {
         // need to clean before testing
         cli_command_template()
             .arg("sandbox")
@@ -238,11 +251,10 @@ pub fn run_one(
 
     // always use the absolute path for the trace file as we may change dirs in the process
     let trace_file = if track_cov {
-        Some(wks_dir.canonicalize()?.join(DEFAULT_TRACE_FILE))
+        Some(wks_dir.join(DEFAULT_TRACE_FILE)?)
     } else {
         None
     };
-
     // Disable colors in error reporting from the Move compiler
     unsafe { env::set_var(COLOR_MODE_ENV_VAR, "NONE") };
     for args_line in args_file {
@@ -252,10 +264,11 @@ pub fn run_one(
             let external_cmd = external_cmd.trim_start();
             let mut command = Command::new("sh");
             command.arg("-c").arg(external_cmd);
+            // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
             if let Some(work_dir) = temp_dir.as_ref() {
-                command.current_dir(&work_dir.1);
+                command.current_dir(&work_dir.1.as_str());
             } else {
-                command.current_dir(exe_dir);
+                command.current_dir(exe_dir.as_str());
             }
             let cmd_output = command.output()?;
 
@@ -286,7 +299,7 @@ pub fn run_one(
                 // then, when running <args-B.txt>, coverage will not be tracked nor printed
                 unsafe { env::remove_var(MOVE_VM_TRACING_ENV_VAR_NAME) };
             }
-            Some(path) => unsafe { env::set_var(MOVE_VM_TRACING_ENV_VAR_NAME, path.as_os_str()) },
+            Some(path) => unsafe { env::set_var(MOVE_VM_TRACING_ENV_VAR_NAME, path.as_str()) }, // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         }
 
         let cmd_output = cli_command_template().args(args_iter).output()?;
@@ -302,8 +315,8 @@ pub fn run_one(
     let cov_info = match &trace_file {
         None => None,
         Some(trace_path) => {
-            if trace_path.exists() {
-                Some(collect_coverage(trace_path, &build_output)?)
+            if trace_path.exists()? {
+                Some(collect_coverage(trace_path, build_output.clone(), &storage_dir)?)
             } else {
                 eprintln!(
                     "Trace file {:?} not found: coverage is only available with at least one `run` \
@@ -327,21 +340,21 @@ pub fn run_one(
 
         // check that build and storage was deleted
         assert!(
-            !storage_dir.exists(),
+            !storage_dir.exists()?,
             "`move clean` failed to eliminate {} directory",
             DEFAULT_STORAGE_DIR
         );
         assert!(
-            !build_output.exists(),
+            !build_output.exists()?,
             "`move clean` failed to eliminate {} directory",
             DEFAULT_BUILD_DIR
         );
 
         // clean the trace file as well if it exists
         if let Some(trace_path) = &trace_file
-            && trace_path.exists()
+            && trace_path.exists()?
         {
-            fs::remove_file(trace_path)?;
+            trace_path.remove_file()?;
         }
     }
 
@@ -352,13 +365,13 @@ pub fn run_one(
 
     // compare output and exp_file
     let update_baseline = read_env_update_baseline();
-    let exp_path = args_path.with_extension(EXP_EXT);
+    let exp_path = args_path.with_extension(EXP_EXT)?;
     if update_baseline {
-        fs::write(exp_path, &output)?;
+        write!(exp_path.create_file()?, "{output}")?;
         return Ok(cov_info);
     }
 
-    let expected_output = fs::read_to_string(exp_path).unwrap_or_else(|_| "".to_string());
+    let expected_output = exp_path.read_to_string().unwrap_or_else(|_| "".to_string());
     if expected_output != output {
         let msg = format!(
             "Expected output differs from actual output:\n{}",
@@ -401,7 +414,9 @@ pub fn run_all(
             entry_path.exists()
         );
 
-        match run_one(entry_path, cli_binary, use_temp_dir, track_cov) {
+        let virtual_entry_path = VirtualPath::physical()?.cwd().join(&entry)?;
+
+        match run_one(&virtual_entry_path, cli_binary, use_temp_dir, track_cov) {
             Ok(cov_opt) => {
                 test_passed = test_passed.checked_add(1).unwrap();
                 if let Some(cov) = cov_opt {

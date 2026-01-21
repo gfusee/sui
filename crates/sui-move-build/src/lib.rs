@@ -4,7 +4,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     io::Write,
-    path::Path,
     str::FromStr,
 };
 
@@ -37,6 +36,7 @@ use move_package_alt_compilation::{
     build_config::BuildConfig as MoveBuildConfig, build_plan::BuildPlan,
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 
 use sui_package_alt::{SuiFlavor, testnet_environment};
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -56,6 +56,7 @@ mod build_tests;
 
 pub mod test_utils {
     use crate::{BuildConfig, CompiledPackage};
+    use move_vfs::wrappers::VirtualPath;
     use std::path::PathBuf;
 
     pub async fn compile_basics_package() -> CompiledPackage {
@@ -70,8 +71,10 @@ pub mod test_utils {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
+        let virtual_path = VirtualPath::physical().unwrap().join(path).unwrap();
+
         BuildConfig::new_for_testing()
-            .build_async(&path)
+            .build_async(virtual_path)
             .await
             .unwrap()
     }
@@ -185,13 +188,10 @@ impl BuildConfig {
         Ok((compiled_pkg, fn_info.unwrap()))
     }
 
-    pub async fn build_async(self, path: &Path) -> anyhow::Result<CompiledPackage> {
-        let mut root_pkg = RootPackage::<SuiFlavor>::load(
-            path.to_path_buf(),
-            self.environment.clone(),
-            self.config.mode_set(),
-        )
-        .await?;
+    pub async fn build_async(self, path: VirtualPath) -> anyhow::Result<CompiledPackage> {
+        let mut root_pkg =
+            RootPackage::<SuiFlavor>::load(path, self.environment.clone(), self.config.mode_set())
+                .await?;
 
         self.internal_build(&mut root_pkg)
     }
@@ -205,10 +205,10 @@ impl BuildConfig {
 
     /// Given a `path` and a `build_config`, build the package in that path, including its dependencies.
     /// If we are building the Sui framework, we skip the check that the addresses should be 0
-    pub fn build(self, path: &Path) -> anyhow::Result<CompiledPackage> {
+    pub fn build(self, path: VirtualPath) -> anyhow::Result<CompiledPackage> {
         // we need to block here to compile the package, which requires to fetch dependencies
         let mut root_pkg = RootPackage::<SuiFlavor>::load_sync(
-            path.to_path_buf(),
+            path,
             self.environment.clone(),
             self.config.mode_set(),
         )?;
@@ -635,11 +635,13 @@ impl PackageDependencies {
     }
 }
 
-pub fn parse_legacy_pkg_info(package_path: &Path) -> Result<LegacyPackageMetadata, anyhow::Error> {
+pub fn parse_legacy_pkg_info(
+    package_path: &VirtualPath,
+) -> Result<LegacyPackageMetadata, anyhow::Error> {
     parse_legacy_package_info(package_path)
 }
 
-pub fn published_at_property(package_path: &Path) -> Result<ObjectID, PublishedAtError> {
+pub fn published_at_property(package_path: &VirtualPath) -> Result<ObjectID, PublishedAtError> {
     let parsed_manifest =
         parse_legacy_package_info(package_path).expect("should read the manifest");
 

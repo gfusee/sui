@@ -5,6 +5,7 @@ mod test_utils;
 
 use anyhow::anyhow;
 use move_core_types::identifier::Identifier;
+use move_vfs::wrappers::VirtualPath;
 use prost_types::FieldMask;
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
@@ -140,7 +141,8 @@ async fn test_publish_and_move_call() {
     let sender = get_random_address(&addresses, vec![]);
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["..", "..", "examples", "move", "coin"]);
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(virtual_path).unwrap();
     let compiled_modules_bytes =
         compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

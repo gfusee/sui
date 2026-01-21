@@ -2,10 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, io::Write, path::Path};
+use std::{collections::BTreeSet, io::Write};
 
 use anyhow::bail;
-use vfs::VfsPath;
 
 use crate::{
     build_config::BuildConfig,
@@ -30,6 +29,7 @@ use move_package_alt::{
     schema::PackageID,
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use toml_edit::{DocumentMut, value};
 
 const EDITION_NAME: &str = "edition";
@@ -37,7 +37,7 @@ const EDITION_NAME: &str = "edition";
 pub struct BuildPlan<'a, F: MoveFlavor> {
     root_pkg: &'a RootPackage<F>,
     sorted_deps_ids: Vec<&'a PackageID>,
-    compiler_vfs_root: Option<VfsPath>,
+    compiler_vfs_root: VirtualPath,
     build_config: BuildConfig,
 }
 
@@ -49,14 +49,23 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
             root_pkg,
             sorted_deps_ids,
             build_config: build_config.clone(),
-            compiler_vfs_root: None,
+            compiler_vfs_root: root_pkg.package_path().clone(),
         })
     }
 
-    pub fn set_compiler_vfs_root(mut self, vfs_root: VfsPath) -> Self {
-        assert!(self.compiler_vfs_root.is_none());
-        self.compiler_vfs_root = Some(vfs_root);
-        self
+    pub fn create_with_vfs_root(
+        root_pkg: &'a RootPackage<F>,
+        build_config: &BuildConfig,
+        vfs_root: VirtualPath,
+    ) -> PackageResult<Self> {
+        let mut sorted_deps_ids = root_pkg.sorted_deps_ids();
+        sorted_deps_ids.reverse();
+        Ok(Self {
+            root_pkg,
+            sorted_deps_ids,
+            build_config: build_config.clone(),
+            compiler_vfs_root: vfs_root,
+        })
     }
 
     /// Compilation results in the process exit upon warning/failure
@@ -101,7 +110,7 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
         let project_root = self.root_pkg.package_path();
 
         self.clean(
-            &project_root.join(CompiledPackageLayout::Root.path()),
+            &project_root.join(CompiledPackageLayout::Root.path())?,
             self.sorted_deps_ids.clone(),
         )?;
 
@@ -133,7 +142,7 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
         let project_root = self.root_pkg.package_path();
 
         self.clean(
-            &project_root.join(CompiledPackageLayout::Root.path()),
+            &project_root.join(CompiledPackageLayout::Root.path())?,
             self.sorted_deps_ids.clone(),
         )?;
 
@@ -177,22 +186,24 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
 
     // Clean out old packages that are no longer used, or no longer used under the current
     // compilation flags
-    fn clean(&self, project_root: &Path, keep_paths: Vec<&PackageID>) -> anyhow::Result<()> {
+    fn clean(&self, project_root: &VirtualPath, keep_paths: Vec<&PackageID>) -> anyhow::Result<()> {
         // Compute the actual build directory based on install_dir configuration
-        let build_root = shared::get_build_output_path(project_root, &self.build_config);
+        let build_root = shared::get_build_output_path(project_root, &self.build_config)?;
 
         // Skip cleaning if the build directory doesn't exist yet
-        if !build_root.exists() {
+        if !build_root.exists()? {
             return Ok(());
         }
 
-        for dir in std::fs::read_dir(&build_root)? {
-            let path = dir?.path();
-            if !keep_paths.iter().any(|name| path.ends_with(name.as_str())) {
-                if path.is_file() {
-                    std::fs::remove_file(&path)?;
+        for dir in build_root.read_dir()? {
+            if !keep_paths
+                .iter()
+                .any(|name| dir.as_str().ends_with(name.as_str()))
+            {
+                if dir.is_file()? {
+                    dir.remove_file()?;
                 } else {
-                    std::fs::remove_dir_all(&path)?;
+                    dir.remove_dir_all()?;
                 }
             }
         }
@@ -210,7 +221,7 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
             .collect();
         let (files, res) = build_for_driver(
             writer,
-            None,
+            self.compiler_vfs_root.clone(),
             &self.build_config,
             self.root_pkg,
             dependencies,
@@ -235,7 +246,7 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
         let project_root = self.root_pkg.package_path();
 
         self.clean(
-            &project_root.join(CompiledPackageLayout::Root.path()),
+            &project_root.join(CompiledPackageLayout::Root.path())?,
             self.sorted_deps_ids.clone(),
         )?;
 
@@ -247,17 +258,18 @@ impl<'a, F: MoveFlavor> BuildPlan<'a, F> {
         let move_toml_path = self
             .root_pkg
             .package_path()
-            .join(SourcePackageLayout::Manifest.path());
-        let mut toml = std::fs::read_to_string(move_toml_path.clone())?
+            .join(SourcePackageLayout::Manifest.path())?;
+        let mut toml = move_toml_path
+            .read_to_string()?
             .parse::<DocumentMut>()
             .expect("Failed to read TOML file to update edition");
         toml[PACKAGE_NAME][EDITION_NAME] = value(edition.to_string());
-        std::fs::write(move_toml_path, toml.to_string())?;
+        write!(move_toml_path.create_file()?, "{}", toml.to_string())?;
         Ok(())
     }
 
     /// Get the path to the root package.
-    pub fn root_package_path(&self) -> &Path {
+    pub fn root_package_path(&self) -> &VirtualPath {
         self.root_pkg.package_path()
     }
 }

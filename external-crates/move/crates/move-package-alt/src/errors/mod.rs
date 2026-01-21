@@ -17,9 +17,6 @@ mod files;
 pub use files::FileHandle;
 pub use files::Files;
 
-use move_core_types::identifier::Identifier;
-use thiserror::Error;
-
 use crate::dependency::FetchError;
 use crate::dependency::ResolverError;
 use crate::git::GitError;
@@ -31,6 +28,10 @@ use crate::package::EnvironmentName;
 use crate::package::manifest::ManifestError;
 use crate::package::paths::FileError;
 use crate::package::paths::PackagePathError;
+use move_core_types::identifier::Identifier;
+use move_vfs::VfsError;
+use move_vfs::errors::TempDirError;
+use thiserror::Error;
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
@@ -64,6 +65,15 @@ pub enum PackageError {
 
     #[error(transparent)]
     FetchError(#[from] FetchError),
+
+    #[error(transparent)]
+    VfsError(#[from] VfsError),
+
+    #[error(transparent)]
+    TempDirError(#[from] TempDirError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 
     #[error("Invalid system dependency `{dep}`; the allowed system dependencies are: {valid}")]
     InvalidSystemDep { dep: String, valid: String },

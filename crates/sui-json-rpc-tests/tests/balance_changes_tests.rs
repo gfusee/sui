@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use std::path::PathBuf;
 use sui_move_build::BuildConfig;
 use sui_sdk::SuiClient;
@@ -19,7 +20,8 @@ async fn test_dry_run_publish_with_mocked_coin() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::new_for_testing().build(&path)?;
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(virtual_path)?;
     let compiled_modules_bytes = compiled_package
         .get_package_base64(false)
         .into_iter()

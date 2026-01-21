@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
+use move_vfs::wrappers::VirtualPath;
 
 #[allow(unused_variables)]
 fn run_all(args_path: &Path) -> datatest_stable::Result<()> {
@@ -12,8 +13,13 @@ fn run_all(args_path: &Path) -> datatest_stable::Result<()> {
         use std::path::PathBuf;
         let cli_exe = env!("CARGO_BIN_EXE_move");
         let use_temp_dir = !args_path.parent().unwrap().join("NO_TEMPDIR").exists();
+
+        let virtual_args_path = VirtualPath::physical()?
+            .cwd()
+            .join(args_path)?;
+
         test::run_one(
-            args_path,
+            &virtual_args_path,
             &PathBuf::from(cli_exe),
             /* use_temp_dir */ use_temp_dir,
             /* track_cov */ false,

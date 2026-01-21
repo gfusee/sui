@@ -25,6 +25,7 @@ hex.workspace = true
 move-stdlib-natives.workspace = true
 move-package-alt-compilation.workspace = true
 move-package-alt.workspace = true
+move-vfs.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

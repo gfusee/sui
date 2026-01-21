@@ -17,6 +17,7 @@ use crate::{BenchMoveCallArg, ExecutionEffects, ValidatorProxy, convert_move_cal
 use anyhow::anyhow;
 use async_trait::async_trait;
 use move_core_types::identifier::Identifier;
+use move_vfs::wrappers::VirtualPath;
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
 use regex::Regex;
@@ -576,8 +577,9 @@ struct AdversarialPayloadArgs {
 async fn get_max_package_published_compiled_package() -> CompiledPackage {
     let mut path = benchmark_move_base_dir();
     path.push("src/workloads/data/really_big_package");
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
     BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap()
 }

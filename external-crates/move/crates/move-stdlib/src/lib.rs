@@ -7,12 +7,8 @@ use move_core_types::parsing::address::NumericalAddress;
 use move_docgen::DocgenOptions;
 use move_package_alt::flavor::Vanilla;
 use move_package_alt_compilation::build_config::BuildConfig;
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Stdout,
-    path::{Path, PathBuf},
-};
+use move_vfs::wrappers::VirtualPath;
+use std::{collections::BTreeMap, fs, io::Stdout, path::PathBuf};
 
 #[cfg(test)]
 mod tests;
@@ -71,12 +67,11 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
 
     let env = move_package_alt::flavor::vanilla::default_environment();
 
+    let virtual_cwd = VirtualPath::physical()?.cwd();
+    let package_root = virtual_cwd.join(env!("CARGO_MANIFEST_DIR"))?;
+
     let model = config
-        .move_model_from_path::<Vanilla, Stdout>(
-            Path::new(&modules_full_path()).parent().unwrap(),
-            env,
-            &mut std::io::stdout(),
-        )
+        .move_model_from_path::<Vanilla, Stdout>(package_root, env, &mut std::io::stdout())
         .await?;
     let options = DocgenOptions {
         output_directory,
@@ -94,7 +89,7 @@ pub async fn build_doc(output_directory: String) -> anyhow::Result<()> {
         ..DocgenOptions::default()
     };
     let docgen = move_docgen::Docgen::new(&model, &options);
-    for (file, content) in docgen.generate(&model)? {
+    for (file, content) in docgen.generate(&virtual_cwd, &model)? {
         let path = PathBuf::from(&file);
         fs::create_dir_all(path.parent().unwrap())?;
         fs::write(path.as_path(), content)?;

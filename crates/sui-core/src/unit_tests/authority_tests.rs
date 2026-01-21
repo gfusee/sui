@@ -16,6 +16,7 @@ use move_core_types::language_storage::StructTag;
 use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::Identifier, language_storage::TypeTag,
 };
+use move_vfs::wrappers::VirtualPath;
 use rand::seq::SliceRandom;
 use rand::{SeedableRng, prelude::StdRng};
 use serde_json::json;
@@ -30,7 +31,7 @@ use sui_json_rpc_types::{
     SuiTransactionBlockEffectsV1, SuiTypeTag,
 };
 use sui_macros::{register_fail_point_arg, sim_test};
-use sui_move_build::BuildConfig;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_protocol_config::{
     Chain, ExecutionTimeEstimateParams, PerObjectCongestionControlMode, ProtocolConfig,
     ProtocolVersion,
@@ -137,6 +138,16 @@ impl TestCallArg {
             },
         }
     }
+}
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
 }
 
 // TODO break this up into a cleaner set of components. It does a bit too much
@@ -4439,8 +4450,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
     // add object_basics package object to genesis, since lots of test use it
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
-    let modules: Vec<_> = BuildConfig::new_for_testing()
-        .build_async(&path)
+    let modules: Vec<_> = build_async_physical(BuildConfig::new_for_testing(), &path)
         .await
         .unwrap()
         .get_modules()
@@ -4461,8 +4471,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
 pub async fn publish_aborts(state: Arc<AuthorityState>) -> (Arc<AuthorityState>, ObjectRef) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/aborts");
-    let modules: Vec<_> = BuildConfig::new_for_testing()
-        .build_async(&path)
+    let modules: Vec<_> = build_async_physical(BuildConfig::new_for_testing(), &path)
         .await
         .unwrap()
         .get_modules()
@@ -4496,8 +4505,7 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
     // add object_basics package object to genesis, since lots of test use it
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
-    let modules: Vec<_> = BuildConfig::new_for_testing()
-        .build_async(&path)
+    let modules: Vec<_> = build_async_physical(BuildConfig::new_for_testing(), &path)
         .await
         .unwrap()
         .get_modules()
@@ -5562,8 +5570,7 @@ async fn test_for_inc_201_dev_inspect() {
     // Module bytes
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/publish_with_event");
-    let modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .get_package_bytes(false);
 
@@ -5605,8 +5612,7 @@ async fn test_for_inc_201_dry_run() {
     // Module bytes
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/publish_with_event");
-    let modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .get_package_bytes(false);
 
@@ -5788,8 +5794,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .additional_named_addresses
         .insert("c".to_string(), AccountAddress::ZERO);
 
-    let modules = build_config
-        .build(&package_c_path)
+    let modules = build_physical(build_config, &package_c_path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -5822,8 +5827,7 @@ async fn test_publish_transitive_dependencies_ok() {
         ("c".to_string(), (package_c_id).into()),
     ]);
 
-    let modules = build_config
-        .build(&package_b_path)
+    let modules = build_physical(build_config, &package_b_path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -5859,8 +5863,7 @@ async fn test_publish_transitive_dependencies_ok() {
         ("c".to_string(), (package_c_id).into()),
     ]);
 
-    let modules = build_config
-        .build(&package_a_path)
+    let modules = build_physical(build_config, &package_a_path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -5903,8 +5906,7 @@ async fn test_publish_transitive_dependencies_ok() {
         ("c".to_string(), (package_c_id).into()),
     ]);
 
-    let modules = build_config
-        .build(&package_root_path)
+    let modules = build_physical(build_config, &package_root_path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -5948,8 +5950,7 @@ async fn test_publish_missing_dependency() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "object_basics"]);
 
-    let modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -5995,8 +5996,7 @@ async fn test_publish_missing_transitive_dependency() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "object_basics"]);
 
-    let modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -6042,8 +6042,7 @@ async fn test_publish_not_a_package_dependency() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "object_basics"]);
 
-    let modules = BuildConfig::new_for_testing()
-        .build(&path)
+    let modules = build_physical(BuildConfig::new_for_testing(), &path)
         .unwrap()
         .get_package_bytes(/* with_unpublished_deps */ false);
 

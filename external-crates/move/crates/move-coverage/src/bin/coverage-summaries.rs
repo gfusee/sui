@@ -15,6 +15,7 @@ use std::{
     io::{self, Write},
     path::Path,
 };
+use move_vfs::wrappers::VirtualPath;
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -111,10 +112,16 @@ fn main() {
             )
         }
     } else {
+        let virtual_input_trace_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(input_trace_path)
+            .unwrap();
+
         let coverage_map = if args.is_raw_trace_file {
-            CoverageMap::from_trace_file(input_trace_path)
+            CoverageMap::from_trace_file(&virtual_input_trace_path)
         } else {
-            CoverageMap::from_binary_file(input_trace_path).unwrap()
+            CoverageMap::from_binary_file(&virtual_input_trace_path).unwrap()
         };
         let unified_exec_map = coverage_map.to_unified_exec_map();
         if !args.csv_output {

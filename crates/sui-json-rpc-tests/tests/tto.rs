@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use std::path::PathBuf;
 use sui_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
@@ -49,8 +50,9 @@ async fn test_indexing_with_tto() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "tto"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =

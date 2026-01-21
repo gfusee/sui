@@ -12,11 +12,9 @@ use move_bytecode_utils::Modules;
 use move_compiler::{compiled_unit::CompiledUnit, shared::files::MappedFiles};
 use move_core_types::{account_address::AccountAddress, parsing::address::NumericalAddress};
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashSet},
-    path::PathBuf,
-};
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct BuildNamedAddresses {
@@ -57,7 +55,7 @@ pub struct CompiledPackageInfo {
 #[derive(Debug, Clone)]
 pub struct CompiledUnitWithSource {
     pub unit: CompiledUnit,
-    pub source_path: PathBuf,
+    pub source_path: VirtualPath,
 }
 
 impl CompiledPackage {

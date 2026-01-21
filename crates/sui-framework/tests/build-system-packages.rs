@@ -8,12 +8,13 @@ use move_compiler::editions::{Edition, Flavor};
 use move_package_alt_compilation::{
     build_config::BuildConfig as MoveBuildConfig, lint_flag::LintFlag,
 };
+use move_vfs::wrappers::VirtualPath;
 use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
-use sui_move_build::BuildConfig;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_package_alt::mainnet_environment;
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
@@ -123,6 +124,11 @@ async fn build_packages(
     .await;
 }
 
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
+
 async fn build_packages_with_move_config(
     bridge_path: &Path,
     deepbook_path: &Path,
@@ -137,49 +143,59 @@ async fn build_packages_with_move_config(
     stdlib_dir: &str,
     config: MoveBuildConfig,
 ) {
-    let stdlib_pkg = BuildConfig {
-        config: config.clone(),
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build_async(stdlib_path)
+    let stdlib_pkg = build_async_physical(
+        BuildConfig {
+            config: config.clone(),
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        },
+        stdlib_path,
+    )
     .await
     .unwrap();
-    let framework_pkg = BuildConfig {
-        config: config.clone(),
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build_async(sui_framework_path)
+    let framework_pkg = build_async_physical(
+        BuildConfig {
+            config: config.clone(),
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        },
+        sui_framework_path,
+    )
     .await
     .unwrap();
-    let system_pkg = BuildConfig {
-        config: config.clone(),
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build_async(sui_system_path)
+    let system_pkg = build_async_physical(
+        BuildConfig {
+            config: config.clone(),
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        },
+        sui_system_path,
+    )
     .await
     .unwrap();
-    let deepbook_pkg = BuildConfig {
-        config: config.clone(),
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build_async(deepbook_path)
+    let deepbook_pkg = build_async_physical(
+        BuildConfig {
+            config: config.clone(),
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        },
+        deepbook_path,
+    )
     .await
     .unwrap();
-    let bridge_pkg = BuildConfig {
-        config,
-        run_bytecode_verifier: true,
-        print_diags_to_stderr: false,
-        environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
-    }
-    .build_async(bridge_path)
+    let bridge_pkg = build_async_physical(
+        BuildConfig {
+            config,
+            run_bytecode_verifier: true,
+            print_diags_to_stderr: false,
+            environment: mainnet_environment(), // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        },
+        bridge_path,
+    )
     .await
     .unwrap();
 

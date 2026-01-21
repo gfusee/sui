@@ -10,6 +10,7 @@ use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
 };
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -59,11 +60,10 @@ pub struct TraceMap {
 
 impl CoverageMap {
     /// Takes in a file containing a raw VM trace, and returns an updated coverage map.
-    pub fn update_coverage_from_trace_file<P: AsRef<Path> + std::fmt::Debug>(
-        mut self,
-        filename: P,
-    ) -> Self {
-        let file = File::open(&filename)
+    pub fn update_coverage_from_trace_file(mut self, filename: &VirtualPath) -> Self {
+        let file = filename
+            .as_ref()
+            .open_file()
             .unwrap_or_else(|_| panic!("Unable to open coverage trace file '{:?}'", filename));
         for line in BufReader::new(file).lines() {
             let line = line.unwrap();
@@ -90,7 +90,7 @@ impl CoverageMap {
     }
 
     /// Takes in a file containing a raw VM trace, and returns a coverage map.
-    pub fn from_trace_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Self {
+    pub fn from_trace_file(filename: &VirtualPath) -> Self {
         let empty_module_map = CoverageMap {
             exec_maps: BTreeMap::new(),
         };
@@ -98,9 +98,11 @@ impl CoverageMap {
     }
 
     /// Takes in a file containing a serialized coverage map and returns a coverage map.
-    pub fn from_binary_file<P: AsRef<Path> + std::fmt::Debug>(filename: P) -> Result<Self> {
+    pub fn from_binary_file(filename: &VirtualPath) -> Result<Self> {
         let mut bytes = Vec::new();
-        File::open(&filename)
+        filename
+            .as_ref()
+            .open_file()
             .map_err(|e| format_err!("{}: Coverage map file '{:?}' doesn't exist", e, filename))?
             .read_to_end(&mut bytes)
             .ok()
@@ -332,9 +334,9 @@ impl TraceMap {
     }
 }
 
-pub fn output_map_to_file<M: Serialize, P: AsRef<Path>>(file_name: P, data: &M) -> Result<()> {
+pub fn output_map_to_file<M: Serialize>(file_name: &VirtualPath, data: &M) -> Result<()> {
     let bytes = bcs::to_bytes(data)?;
-    let mut file = File::create(file_name)?;
+    let mut file = file_name.create_file()?;
     file.write_all(&bytes)?;
     Ok(())
 }

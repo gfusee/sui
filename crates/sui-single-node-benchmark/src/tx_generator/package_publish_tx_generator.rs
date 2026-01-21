@@ -5,6 +5,7 @@ use crate::benchmark_context::BenchmarkContext;
 use crate::mock_account::Account;
 use crate::tx_generator::TxGenerator;
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -37,8 +38,13 @@ impl PackagePublishTxGenerator {
             info!("Publishing dependent package {}", name);
             let target_path = dir.join(&path);
             let module_bytes = if is_source_code {
+                let virtual_target_path = VirtualPath::physical()
+                    .unwrap()
+                    .cwd()
+                    .join(&target_path)
+                    .unwrap();
                 let compiled_package = BuildConfig::new_for_testing()
-                    .build_async(&target_path)
+                    .build_async(virtual_target_path)
                     .await
                     .unwrap();
                 compiled_package.get_package_bytes(false)
@@ -82,10 +88,16 @@ impl PackagePublishTxGenerator {
         let target_path = dir.join(path);
         let published_deps = dep_map.clone();
 
+        let virtual_target_path = VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(&target_path)
+            .unwrap();
+
         let mut compiled_package = BuildConfig::new_for_testing_replace_addresses(
             dep_map.into_iter().map(|(k, v)| (k.to_string(), v)),
         )
-        .build_async(&target_path)
+        .build_async(virtual_target_path)
         .await
         .unwrap();
 

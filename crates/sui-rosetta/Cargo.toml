@@ -49,6 +49,7 @@ sui-swarm-config.workspace = true
 sui-sdk.workspace = true
 sui-move-build.workspace = true
 sui-test-transaction-builder.workspace = true
+move-vfs.workspace = true
 test-cluster.workspace = true
 tempfile.workspace = true
 rand.workspace = true

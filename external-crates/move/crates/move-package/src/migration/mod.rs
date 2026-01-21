@@ -9,7 +9,7 @@ use std::{
 use move_command_line_common::interactive::Terminal;
 use move_compiler::{diagnostics::Migration, editions::Edition};
 use once_cell::sync::Lazy;
-
+use move_vfs::wrappers::VirtualPath;
 use crate::compilation::build_plan::BuildPlan;
 
 pub const MIGRATION_MSG: &str = "Package toml does not specify an edition. As of 2024, Move requires all packages to define \
@@ -145,7 +145,11 @@ impl<W: Write, R: BufRead> MigrationContext<'_, W, R> {
             self.terminal.writeln("Changes complete")?;
         }
 
-        let filename = migration.record_diff(self.build_plan.root_package_path())?;
+        let virtual_root_package_path = VirtualPath::physical()?
+            .cwd()
+            .join(self.build_plan.root_package_path())?;
+
+        let filename = migration.record_diff(virtual_root_package_path.as_ref().clone())?;
         self.terminal.write(WROTE_PATCHFILE)?;
         self.terminal.writeln(filename.as_str())?;
         self.terminal.newline()?;

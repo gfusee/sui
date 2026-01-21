@@ -22,6 +22,7 @@ use crate::toolchain::CURRENT_COMPILER_VERSION;
 use crate::{BytecodeSourceVerifier, ValidationMode};
 use move_package_alt::package::RootPackage;
 use move_package_alt::schema::{Environment, OriginalID, PublishAddresses, PublishedID};
+use move_vfs::wrappers::VirtualPath;
 use sui_package_alt::{BuildParams, PublishedMetadata, SuiFlavor};
 use sui_types::digests::get_testnet_chain_identifier;
 use sui_types::supported_protocol_versions::Chain;
@@ -767,7 +768,11 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         // setup b as a bytecode package
         let pkg_path = copy_published_package(&tempdir, "b", b_ref.0.into()).await?;
 
-        BuildConfig::new_for_testing().build(&pkg_path).unwrap();
+        let virtual_pkg_path = VirtualPath::physical()?.cwd().join(pkg_path.clone())?;
+
+        BuildConfig::new_for_testing()
+            .build(virtual_pkg_path)
+            .unwrap();
 
         fs::remove_dir_all(pkg_path.join("sources"))?;
     };
@@ -832,7 +837,12 @@ fn compile_package_with_unpublished_deps(package: impl AsRef<Path>) -> CompiledP
 fn _compile(package: impl AsRef<Path>, with_unpublished_deps: bool) -> CompiledPackage {
     let mut config = BuildConfig::new_for_testing();
     config.config.set_unpublished_deps_to_zero = with_unpublished_deps;
-    config.build(package.as_ref()).unwrap()
+    let virtual_package = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(package)
+        .unwrap();
+    config.build(virtual_package).unwrap()
 }
 
 fn sanitize_id(mut message: String, m: &HashMap<SuiAddress, &str>) -> String {
@@ -1001,7 +1011,9 @@ async fn write_published_toml(
     let env_name = Chain::Testnet.as_str().to_string();
     let chain_id = get_testnet_chain_identifier().to_string();
     let env = Environment::new(env_name, chain_id.clone());
-    let mut root_pkg = RootPackage::<SuiFlavor>::load(pkg_path, env.clone(), vec![]).await?;
+    let virtual_pkg_path = VirtualPath::physical()?.cwd().join(pkg_path)?;
+    let mut root_pkg =
+        RootPackage::<SuiFlavor>::load(virtual_pkg_path, env.clone(), vec![]).await?;
     root_pkg.write_publish_data(move_package_alt::schema::Publication {
         chain_id,
         addresses: PublishAddresses {

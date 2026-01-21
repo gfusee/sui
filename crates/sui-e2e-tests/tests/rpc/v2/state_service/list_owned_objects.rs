@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use prost_types::FieldMask;
 use std::path::PathBuf;
 use sui_macros::sim_test;
@@ -46,8 +47,9 @@ async fn test_indexing_with_tto() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "rpc", "data", "tto"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =
@@ -311,8 +313,9 @@ async fn test_filter_by_type() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "rpc", "data", "trusted_coin"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =

@@ -2,11 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::{collections::BTreeMap, fmt, path::Path};
-
-use indexmap::IndexMap;
-use tracing::debug;
+use std::{collections::BTreeMap, fmt};
 
 use super::paths::{EphemeralPubfilePath, OutputPath, PackagePath};
 use super::{EnvironmentID, manifest::Manifest};
@@ -24,13 +20,16 @@ use crate::{
     package::EnvironmentName,
     schema::ParsedLockfile,
 };
+use indexmap::IndexMap;
+use move_vfs::wrappers::VirtualPath;
+use tracing::debug;
 
 #[derive(Clone, Debug)]
 pub struct PackageConfig {
     /// The path to read all input files from (e.g. lockfiles, pubfiles, etc). If this path is
     /// different from `output_path`, the package system won't touch any files here Note that in
     /// the case of ephemeral loads, `self.load_type.ephemeral_file` may also be read
-    input_path: PathBuf,
+    input_path: VirtualPath,
 
     /// The chain ID to build for
     chain_id: EnvironmentID,
@@ -41,7 +40,7 @@ pub struct PackageConfig {
     /// The directory to write all output files into (e.g. updated lockfiles, etc)
     /// Note that in the case of ephemeral loads, `self.load_type.ephemeral_file` may also be
     /// written
-    output_path: PathBuf,
+    output_path: VirtualPath,
 
     /// The modes to load for
     modes: Vec<ModeName>,
@@ -106,12 +105,12 @@ pub struct RootPackage<F: MoveFlavor + fmt::Debug> {
 }
 
 impl PackageConfig {
-    fn persistent(path: impl AsRef<Path>, env: Environment, modes: Vec<ModeName>) -> Self {
+    fn persistent(path: VirtualPath, env: Environment, modes: Vec<ModeName>) -> Self {
         Self {
-            input_path: path.as_ref().to_path_buf(),
+            input_path: path.clone(),
             chain_id: env.id,
             load_type: LoadType::Persistent { env: env.name },
-            output_path: path.as_ref().to_path_buf(),
+            output_path: path.clone(),
             modes,
             force_repin: false,
             ignore_digests: false,
@@ -133,9 +132,9 @@ impl LoadType {
 /// It's like a facade for all functionality, controlled by this.
 impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     pub fn environments(
-        path: impl AsRef<Path>,
+        path: &VirtualPath,
     ) -> PackageResult<IndexMap<EnvironmentName, EnvironmentID>> {
-        let package_path = PackagePath::new(path.as_ref().to_path_buf())?;
+        let package_path = PackagePath::new(path.clone())?;
         let mtx = package_path.lock()?;
         let mut environments = F::default_environments();
 
@@ -152,7 +151,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load(
-        path: impl AsRef<Path>,
+        path: VirtualPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -162,8 +161,12 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// A synchronous version of `load` that can be used to load a package while blocking in place.
-    pub fn load_sync(path: PathBuf, env: Environment, modes: Vec<ModeName>) -> PackageResult<Self> {
-        block_on!(Self::load(path.as_path(), env, modes))
+    pub fn load_sync(
+        path: VirtualPath,
+        env: Environment,
+        modes: Vec<ModeName>,
+    ) -> PackageResult<Self> {
+        block_on!(Self::load(path, env, modes))
     }
 
     /// Load the root package from `root` in environment `build_env`, but replace all the addresses
@@ -175,21 +178,21 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_ephemeral(
-        root: impl AsRef<Path>,
+        root: VirtualPath,
         build_env: Option<EnvironmentName>,
         chain_id: EnvironmentID,
-        pubfile_path: impl AsRef<Path>,
+        pubfile_path: VirtualPath,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
         let ephemeral_file = EphemeralPubfilePath::new(pubfile_path)?;
         let config = PackageConfig {
-            input_path: root.as_ref().to_path_buf(),
+            input_path: root.clone(),
             chain_id,
             load_type: LoadType::Ephemeral {
                 build_env,
                 ephemeral_file,
             },
-            output_path: root.as_ref().to_path_buf(),
+            output_path: root.clone(),
             modes,
             force_repin: false,
             ignore_digests: false,
@@ -205,7 +208,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     /// TODO: We should load from lockfiles instead of manifests for deps.
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_force_repin(
-        path: impl AsRef<Path>,
+        path: VirtualPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -226,7 +229,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     ///
     /// dependencies with modes will be filtered out if those modes don't intersect with `modes`
     pub async fn load_ignore_digests(
-        path: impl AsRef<Path>,
+        path: VirtualPath,
         env: Environment,
         modes: Vec<ModeName>,
     ) -> PackageResult<Self> {
@@ -256,7 +259,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
 
         debug!(
             "creating RootPackage (CWD: {:?})\n{config:#?}",
-            std::env::current_dir()
+            config.input_path.cwd().as_str()
         );
 
         debug!("getting ephemeral files");
@@ -342,7 +345,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// Return the path to the directory containing the root package
-    pub fn package_path(&self) -> &Path {
+    pub fn package_path(&self) -> &VirtualPath {
         self.input_path.path()
     }
 
@@ -539,6 +542,18 @@ mod tests {
         },
     };
 
+    fn vpath(path_buf: PathBuf) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path_buf)
+            .unwrap()
+    }
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
+
     /// Create the following directory structure:
     /// ```ignore
     /// packages/
@@ -604,8 +619,8 @@ pkg_b = { local = "../pkg_b" }"#,
         let names = &["pkg_a", "pkg_b", "nodeps", "graph"];
 
         for name in names {
-            let pkg_path = root_path.join("packages").join(name);
-            let package = RootPackage::<Vanilla>::load(&pkg_path, env.clone(), vec![])
+            let pkg_path = vpath(root_path.join("packages").join(name));
+            let package = RootPackage::<Vanilla>::load(pkg_path, env.clone(), vec![])
                 .await
                 .unwrap();
             assert_eq!(
@@ -619,7 +634,7 @@ pkg_b = { local = "../pkg_b" }"#,
     #[test(tokio::test)]
     async fn test_root_package_operations() {
         let (env, root_path) = setup_test_move_project().await;
-        let pkg_path = root_path.join("packages").join("graph");
+        let pkg_path = vpath(root_path.join("packages").join("graph"));
 
         // Test environment operations
         assert!(
@@ -629,7 +644,7 @@ pkg_b = { local = "../pkg_b" }"#,
         );
 
         // Test loading root package with check for environment existing in manifest
-        let root = RootPackage::<Vanilla>::load(&pkg_path, env, vec![])
+        let root = RootPackage::<Vanilla>::load(pkg_path, env, vec![])
             .await
             .unwrap();
 
@@ -653,7 +668,7 @@ pkg_b = { local = "../pkg_b" }"#,
         let environment =
             Environment::new(DEFAULT_ENV_NAME.to_string(), DEFAULT_ENV_ID.to_string());
 
-        let load_err = RootPackage::<Vanilla>::load(&project.root(), environment, vec![])
+        let load_err = RootPackage::<Vanilla>::load(vpath(project.root()), environment, vec![])
             .await
             .unwrap_err();
 
@@ -671,11 +686,11 @@ pkg_b = { local = "../pkg_b" }"#,
     async fn test_load_and_check_for_env() {
         let (_, root_path) = setup_test_move_project().await;
 
-        let path = root_path.join("graph");
+        let path = vpath(root_path.join("graph"));
         // should fail as devnet does not exist in the manifest
         assert!(
             RootPackage::<Vanilla>::load(
-                &path,
+                path,
                 Environment::new("devnet".to_string(), "abcd1234".to_string()),
                 vec![]
             )
@@ -691,12 +706,17 @@ pkg_b = { local = "../pkg_b" }"#,
     async fn test_rename_from() {
         // `a` depends on `b` which has name `b_name`, but there is no rename-from
         // building the root package should fail because of rename-from validation
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a"])
             .add_package("b", |b| b.package_name("b_name"))
             .add_deps([("a", "b")])
-            .build();
+            .build(&base);
 
-        RootPackage::<Vanilla>::load(scenario.path_for("a"), default_environment(), vec![])
+        RootPackage::<Vanilla>::load(
+            scenario.path_for("a").unwrap(),
+            default_environment(),
+            vec![],
+        )
             .await
             .unwrap_err();
     }
@@ -704,12 +724,17 @@ pkg_b = { local = "../pkg_b" }"#,
     /// This gives a snapshot of a generated lockfile
     #[test(tokio::test)]
     async fn graph_to_lockfile() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["example", "baz", "bar"])
             .add_deps([("example", "baz"), ("baz", "bar")])
-            .build();
+            .build(&base);
 
         let env = default_environment();
-        let mut root = RootPackage::<Vanilla>::load(scenario.path_for("example"), env, vec![])
+        let mut root = RootPackage::<Vanilla>::load(
+            scenario.path_for("example").unwrap(),
+            env,
+            vec![],
+        )
             .await
             .unwrap();
 
@@ -762,17 +787,21 @@ pkg_b = { local = "../pkg_b" }"#,
     /// A git dependency on a branch gets pinned to the sha
     #[test(tokio::test)]
     pub async fn git_branch_dep_pinned() {
+        let base = vbase();
         let env = default_environment();
-        let repo = git::new().await;
-        let commit = repo.commit(|project| project.add_packages(["a"])).await;
-        commit.branch("branch-name").await;
+        let repo = git::new(&base).await.unwrap();
+        let commit = repo
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
+        commit.branch("branch-name").await.unwrap();
 
         let project = TestPackageGraph::new(["root"])
             .add_git_dep("root", &repo, "a", "branch-name", |dep| dep)
-            .build();
+            .build(&base);
 
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
 
@@ -785,16 +814,20 @@ pkg_b = { local = "../pkg_b" }"#,
     /// A git dependency on a short sha gets pinned to the sha
     #[test(tokio::test)]
     pub async fn git_short_sha_dep_pinned() {
+        let base = vbase();
         let env = default_environment();
-        let repo = git::new().await;
-        let commit = repo.commit(|project| project.add_packages(["a"])).await;
+        let repo = git::new(&base).await.unwrap();
+        let commit = repo
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
 
         let project = TestPackageGraph::new(["root"])
             .add_git_dep("root", &repo, "a", commit.short_sha(), |dep| dep)
-            .build();
+            .build(&base);
 
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
 
@@ -808,18 +841,22 @@ pkg_b = { local = "../pkg_b" }"#,
     /// we get the sha of the first commit. See also [git_force_repin]
     #[test(tokio::test)]
     pub async fn git_no_repin() {
+        let base = vbase();
         let env = default_environment();
-        let repo = git::new().await;
-        let commit1 = repo.commit(|project| project.add_packages(["a"])).await;
-        commit1.branch("branch-name").await;
+        let repo = git::new(&base).await.unwrap();
+        let commit1 = repo
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
+        commit1.branch("branch-name").await.unwrap();
 
         let project = TestPackageGraph::new(["root"])
             .add_git_dep("root", &repo, "a", "branch-name", |dep| dep)
-            .build();
+            .build(&base);
 
         // load the root package and save the lockfile
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -827,13 +864,14 @@ pkg_b = { local = "../pkg_b" }"#,
 
         // change the branch
         let commit2 = repo
-            .commit(|project| project.add_package("a", |a| a.version("0.0.2")))
-            .await;
+            .commit(&base, |project| project.add_package("a", |a| a.version("0.0.2")))
+            .await
+            .unwrap();
         commit2.branch("branch-name").await;
 
         // reload the root package and save the lockfile again
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -847,18 +885,22 @@ pkg_b = { local = "../pkg_b" }"#,
     /// with forced repinning, we get the sha of the second commit. See also [git_no_repin]
     #[test(tokio::test)]
     pub async fn git_force_repin() {
+        let base = vbase();
         let env = default_environment();
-        let repo = git::new().await;
-        let commit1 = repo.commit(|project| project.add_packages(["a"])).await;
-        commit1.branch("branch-name").await;
+        let repo = git::new(&base).await.unwrap();
+        let commit1 = repo
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
+        commit1.branch("branch-name").await.unwrap();
 
         let project = TestPackageGraph::new(["root"])
             .add_git_dep("root", &repo, "a", "branch-name", |dep| dep)
-            .build();
+            .build(&base);
 
         // load the root package and save the lockfile
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -866,13 +908,18 @@ pkg_b = { local = "../pkg_b" }"#,
 
         // change the branch
         let commit2 = repo
-            .commit(|project| project.add_package("a", |a| a.version("0.0.2")))
-            .await;
+            .commit(&base, |project| project.add_package("a", |a| a.version("0.0.2")))
+            .await
+            .unwrap();
         commit2.branch("branch-name").await;
 
         // reload the root package with force repinning and save the lockfile again
         let mut root_pkg =
-            RootPackage::<Vanilla>::load_force_repin(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load_force_repin(
+                project.path_for("root").unwrap(),
+                env.clone(),
+                vec![],
+            )
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -887,18 +934,22 @@ pkg_b = { local = "../pkg_b" }"#,
     /// change should trigger a repin
     #[test(tokio::test)]
     pub async fn git_change_manifest() {
+        let base = vbase();
         let env = default_environment();
-        let repo = git::new().await;
-        let commit1 = repo.commit(|project| project.add_packages(["a"])).await;
-        commit1.branch("branch-name").await;
+        let repo = git::new(&base).await.unwrap();
+        let commit1 = repo
+            .commit(&base, |project| project.add_packages(["a"]))
+            .await
+            .unwrap();
+        commit1.branch("branch-name").await.unwrap();
 
         let project = TestPackageGraph::new(["root"])
             .add_git_dep("root", &repo, "a", "branch-name", |dep| dep)
-            .build();
+            .build(&base);
 
         // load the root package and save the lockfile
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -906,14 +957,19 @@ pkg_b = { local = "../pkg_b" }"#,
 
         // change the branch so we will notice a repin
         let commit2 = repo
-            .commit(|project| project.add_package("a", |a| a.version("0.0.2")))
-            .await;
-        commit2.branch("branch-name").await;
+            .commit(&base, |project| project.add_package("a", |a| a.version("0.0.2")))
+            .await
+            .unwrap();
+        commit2.branch("branch-name").await.unwrap();
 
         // modify the manifest and then reload
-        project.extend_file("root/Move.toml", "\n# extra stuff\n");
+        project.extend_file("root/Move.toml", "\n# extra stuff\n").unwrap();
         let mut root_pkg =
-            RootPackage::<Vanilla>::load_force_repin(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load_force_repin(
+                project.path_for("root").unwrap(),
+                env.clone(),
+                vec![],
+            )
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -926,26 +982,28 @@ pkg_b = { local = "../pkg_b" }"#,
     /// If we have a dep whose manifest is out of date, we repin everything
     #[test(tokio::test)]
     pub async fn git_change_dep_manifest() {
+        let base = vbase();
         // there are 3 packages: `root`, `dirty`, and `git_dep`.
         // root depends on a branch of git_dep and also depends on dirty
         // we first pin root, then we update the branch and dirty `dirty`
         // when we reload `root`, we should notice that `dirty` is dirty and repin, which should
         // cause `git_dep` to be bumped to the latest version
         let env = default_environment();
-        let repo = git::new().await;
+        let repo = git::new(&base).await.unwrap();
         let commit1 = repo
-            .commit(|project| project.add_packages(["git_dep"]))
-            .await;
-        commit1.branch("branch-name").await;
+            .commit(&base, |project| project.add_packages(["git_dep"]))
+            .await
+            .unwrap();
+        commit1.branch("branch-name").await.unwrap();
 
         let project = TestPackageGraph::new(["root", "dirty"])
             .add_git_dep("root", &repo, "git_dep", "branch-name", |dep| dep)
             .add_deps([("root", "dirty")])
-            .build();
+            .build(&base);
 
         // load the root package and save the lockfile
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load(project.path_for("root").unwrap(), env.clone(), vec![])
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -953,14 +1011,19 @@ pkg_b = { local = "../pkg_b" }"#,
 
         // change the branch so that we will notice a repin
         let commit2 = repo
-            .commit(|project| project.add_package("git_dep", |pkg| pkg.version("0.0.2")))
-            .await;
-        commit2.branch("branch-name").await;
+            .commit(&base, |project| project.add_package("git_dep", |pkg| pkg.version("0.0.2")))
+            .await
+            .unwrap();
+        commit2.branch("branch-name").await.unwrap();
 
         // modify the manifest for `dirty` and then reload
-        project.extend_file("dirty/Move.toml", "\n# extra stuff\n");
+        project.extend_file("dirty/Move.toml", "\n# extra stuff\n").unwrap();
         let mut root_pkg =
-            RootPackage::<Vanilla>::load_force_repin(project.path_for("root"), env.clone(), vec![])
+            RootPackage::<Vanilla>::load_force_repin(
+                project.path_for("root").unwrap(),
+                env.clone(),
+                vec![],
+            )
                 .await
                 .unwrap();
         root_pkg.save_lockfile_to_disk().unwrap();
@@ -993,9 +1056,10 @@ pkg_b = { local = "../pkg_b" }"#,
     /// the root address (with the ephemeral original ID)
     #[test(tokio::test)]
     async fn ephemeral_root() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["dummy"])
             .add_published("root", OriginalID::from(1), PublishedID::from(1))
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1015,10 +1079,10 @@ pkg_b = { local = "../pkg_b" }"#,
 
         // load root package with ephemeral file
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1041,10 +1105,11 @@ pkg_b = { local = "../pkg_b" }"#,
     /// the ephemeral address
     #[test(tokio::test)]
     async fn ephemeral_pub_and_eph() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep", OriginalID::from(1), PublishedID::from(1))
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1065,10 +1130,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1091,10 +1156,11 @@ pkg_b = { local = "../pkg_b" }"#,
     /// The ephemeral file contains two entries with the same `source`; this should not be allowed
     #[test(tokio::test)]
     async fn ephemeral_duplicates() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep", OriginalID::from(1), PublishedID::from(1))
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1121,10 +1187,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let err = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1137,10 +1203,11 @@ pkg_b = { local = "../pkg_b" }"#,
     /// original address. Note: it should also warn but this is not tested
     #[test(tokio::test)]
     async fn ephemeral_only_pub() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep", OriginalID::from(1), PublishedID::from(1))
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1155,10 +1222,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1182,9 +1249,10 @@ pkg_b = { local = "../pkg_b" }"#,
     /// ephemeral address.
     #[test(tokio::test)]
     async fn ephemeral_only_eph() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "dep"])
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1205,10 +1273,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1232,9 +1300,10 @@ pkg_b = { local = "../pkg_b" }"#,
     /// unpublished package
     #[test(tokio::test)]
     async fn ephemeral_unpublished() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "dep"])
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1249,10 +1318,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1272,11 +1341,12 @@ pkg_b = { local = "../pkg_b" }"#,
     /// environment, loading still succeeds.
     #[test(tokio::test)]
     async fn ephemeral_adds_equality() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep1", OriginalID::from(1), PublishedID::from(1))
             .add_published("dep2", OriginalID::from(2), PublishedID::from(2))
             .add_deps([("root", "dep1"), ("root", "dep2")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1301,10 +1371,10 @@ pkg_b = { local = "../pkg_b" }"#,
         .unwrap();
 
         RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
@@ -1315,11 +1385,12 @@ pkg_b = { local = "../pkg_b" }"#,
     /// environment, there is an error.
     #[test(tokio::test)]
     async fn ephemeral_drops_equality() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep1", OriginalID::from(1), PublishedID::from(1))
             .add_published("dep2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "dep1"), ("root", "dep2")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1344,10 +1415,10 @@ pkg_b = { local = "../pkg_b" }"#,
         .unwrap();
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await;
@@ -1369,10 +1440,11 @@ pkg_b = { local = "../pkg_b" }"#,
     /// addresses for the build environment
     #[test(tokio::test)]
     async fn ephemeral_empty() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_published("dep", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let tempdir = tempfile::tempdir().unwrap();
         let ephemeral = tempdir.path().join("nonexistent.toml");
@@ -1380,10 +1452,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             Some(DEFAULT_ENV_NAME.to_string()),
             "localnet".into(),
-            ephemeral.as_path(),
+            vpath(ephemeral),
             vec![],
         )
         .await
@@ -1406,11 +1478,12 @@ pkg_b = { local = "../pkg_b" }"#,
     /// (and does not update the normal pubfile)
     #[test(tokio::test)]
     async fn ephemeral_publish() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(Vec::<String>::new())
             .add_published("root", OriginalID::from(1), PublishedID::from(1))
             .add_published("dep", OriginalID::from(2), PublishedID::from(2))
             .add_deps([("root", "dep")])
-            .build();
+            .build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1425,17 +1498,20 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let mut root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await
         .unwrap();
 
-        let prepublish_pubfile =
-            std::fs::read_to_string(scenario.path_for("root/Published.toml")).unwrap();
+        let prepublish_pubfile = scenario
+            .path_for("root/Published.toml")
+            .unwrap()
+            .read_to_string()
+            .unwrap();
 
         // publish
         root.write_publish_data(Publication {
@@ -1450,8 +1526,11 @@ pkg_b = { local = "../pkg_b" }"#,
         .unwrap();
 
         // check
-        let postpublish_pubfile =
-            std::fs::read_to_string(scenario.path_for("root/Published.toml")).unwrap();
+        let postpublish_pubfile = scenario
+            .path_for("root/Published.toml")
+            .unwrap()
+            .read_to_string()
+            .unwrap();
         let ephemeral_data = std::fs::read_to_string(ephemeral.path()).unwrap();
 
         assert_eq!(prepublish_pubfile, postpublish_pubfile);
@@ -1474,7 +1553,8 @@ pkg_b = { local = "../pkg_b" }"#,
     /// Loading an ephemeral package with a mismatched `chain-id` fails
     #[test(tokio::test)]
     async fn ephemeral_chain_mismatch() {
-        let scenario = TestPackageGraph::new(["root"]).build();
+        let base = vbase();
+        let scenario = TestPackageGraph::new(["root"]).build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1489,10 +1569,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await;
@@ -1508,7 +1588,8 @@ pkg_b = { local = "../pkg_b" }"#,
     /// Loading an ephemeral package with a mismatched `build-env` fails
     #[test(tokio::test)]
     async fn ephemeral_build_env_mismatch() {
-        let scenario = TestPackageGraph::new(["root"]).build();
+        let base = vbase();
+        let scenario = TestPackageGraph::new(["root"]).build(&base);
 
         let mut ephemeral = tempfile::NamedTempFile::new().unwrap();
         write!(
@@ -1523,10 +1604,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             Some(DEFAULT_ENV_NAME.to_string()),
             "localnet".into(),
-            ephemeral.path(),
+            vpath(ephemeral.path().to_path_buf()),
             vec![],
         )
         .await;
@@ -1542,7 +1623,8 @@ pkg_b = { local = "../pkg_b" }"#,
     /// Loading an ephemeral package with no `build-env` (either passed or in the file) fails
     #[test(tokio::test)]
     async fn ephemeral_no_build_env() {
-        let scenario = TestPackageGraph::new(["root"]).build();
+        let base = vbase();
+        let scenario = TestPackageGraph::new(["root"]).build(&base);
 
         let tempdir = tempfile::tempdir().unwrap();
         let ephemeral = tempdir.path().join("nonexistent.toml");
@@ -1550,10 +1632,10 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             None,
             "localnet".into(),
-            ephemeral.join("nonexistent.toml"),
+            vpath(ephemeral.join("nonexistent.toml")),
             vec![],
         )
         .await;
@@ -1569,7 +1651,8 @@ pkg_b = { local = "../pkg_b" }"#,
     /// Loading an ephemeral package with an unrecognized `build-env` fails
     #[test(tokio::test)]
     async fn ephemeral_bad_build_env() {
-        let scenario = TestPackageGraph::new(["root"]).build();
+        let base = vbase();
+        let scenario = TestPackageGraph::new(["root"]).build(&base);
 
         let tempdir = tempfile::tempdir().unwrap();
         let ephemeral = tempdir.path().join("nonexistent.toml");
@@ -1577,18 +1660,19 @@ pkg_b = { local = "../pkg_b" }"#,
         // load root package with ephemeral file
 
         let root = RootPackage::<Vanilla>::load_ephemeral(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             Some("unknown environment".into()),
             "localnet".into(),
-            ephemeral.clone(),
+            vpath(ephemeral.clone()),
             vec![],
         )
         .await;
 
-        let message = root.unwrap_err().to_string().replace(
-            scenario.path_for("root").to_string_lossy().as_ref(),
-            "<DIR>",
-        );
+        let root_path = scenario.path_for("root").unwrap();
+        let message = root
+            .unwrap_err()
+            .to_string()
+            .replace(root_path.as_str(), "<DIR>");
 
         assert_snapshot!(message, @r#"Error while loading dependency <DIR>: Package `root` does not declare a `unknown environment` environment. The available environments are ["_test_env"]. Consider running with `--build-env _test_env`"#);
     }
@@ -1605,17 +1689,21 @@ pkg_b = { local = "../pkg_b" }"#,
     /// See also [mode_overrides_affected]
     #[test(tokio::test)]
     async fn mode_overrides_unaffected() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_published("c1", OriginalID::from(1), PublishedID::from(1))
             .add_published("c2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a"), ("a", "b"), ("b", "c1")])
             .add_dep("a", "c2", |dep| dep.set_override().modes(["test"]))
-            .build();
+            .build(&base);
 
-        let root =
-            RootPackage::<Vanilla>::load(scenario.path_for("root"), default_environment(), vec![])
-                .await
-                .unwrap();
+        let root = RootPackage::<Vanilla>::load(
+            scenario.path_for("root").unwrap(),
+            default_environment(),
+            vec![],
+        )
+        .await
+        .unwrap();
 
         let mut package_names: Vec<_> = root
             .packages()
@@ -1638,15 +1726,16 @@ pkg_b = { local = "../pkg_b" }"#,
     /// See also [mode_overrides_unaffected]
     #[test(tokio::test)]
     async fn mode_overrides_affected() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_published("c1", OriginalID::from(1), PublishedID::from(1))
             .add_published("c2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a"), ("a", "b"), ("b", "c1")])
             .add_dep("a", "c2", |dep| dep.set_override().modes(["test"]))
-            .build();
+            .build(&base);
 
         let root = RootPackage::<Vanilla>::load(
-            scenario.path_for("root"),
+            scenario.path_for("root").unwrap(),
             default_environment(),
             vec!["test".to_string()],
         )

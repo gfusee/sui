@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
-
 use super::{
     EnvironmentName, GitSha, LocalDepInfo, OnChainDepInfo, PackageName, PublishAddresses,
     RenderToml,
     toml_format::{expand_toml, flatten_toml},
 };
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 /// An identifier for a node in the package graph, used to index into the
 /// `[pinned.<environment>]` table

@@ -11,6 +11,7 @@ use crate::{
 };
 use anyhow::bail;
 use clap::{ArgAction, Parser};
+use move_vfs::wrappers::VirtualPath;
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]
@@ -36,8 +37,9 @@ pub struct Build {
 impl Build {
     pub async fn execute(&self) -> anyhow::Result<()> {
         let path = self.path.clone().unwrap_or_else(|| PathBuf::from("."));
+        let vfs_path = VirtualPath::physical()?.cwd().join(&path)?;
 
-        let envs = RootPackage::<Vanilla>::environments(&path)?;
+        let envs = RootPackage::<Vanilla>::environments(&vfs_path)?;
 
         let Some(chain_id) = envs.get(&self.environment) else {
             bail!("Environment {} not found", self.environment);
@@ -46,7 +48,7 @@ impl Build {
         let environment = Environment::new(self.environment.clone(), chain_id.clone());
 
         let mut root_pkg =
-            RootPackage::<Vanilla>::load(&path, environment, self.modes.clone()).await?;
+            RootPackage::<Vanilla>::load(vfs_path, environment, self.modes.clone()).await?;
 
         for pkg in root_pkg.packages() {
             println!("Package {}", pkg.name());

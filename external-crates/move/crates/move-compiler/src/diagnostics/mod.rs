@@ -38,7 +38,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
 };
-
+use vfs::VfsPath;
 //**************************************************************************************************
 // Types
 //**************************************************************************************************
@@ -1048,11 +1048,10 @@ impl Migration {
         output.join("")
     }
 
-    pub fn record_diff(&mut self, path: PathBuf) -> anyhow::Result<String> {
-        let output_path = path.join("migration.patch");
-        let string_result = output_path.to_str().unwrap_or("invalid path").to_string();
-        std::fs::write(output_path, self.render_output())?;
-        Ok(string_result)
+    pub fn record_diff(&mut self, path: VfsPath) -> anyhow::Result<VfsPath> {
+        let output_path = path.join("migration.patch")?;
+        write!(output_path.create_file()?, "{}", self.render_output())?;
+        Ok(output_path)
     }
 
     pub fn apply_changes<W: Write>(&mut self, w: &mut W) -> anyhow::Result<()> {

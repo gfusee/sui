@@ -10,6 +10,7 @@ use tempfile::TempDir;
 use move_package_alt::flavor::vanilla::{Vanilla, default_environment};
 use move_package_alt::package::layout::SourcePackageLayout;
 use move_package_alt_compilation::{build_config::BuildConfig, compile_package};
+use move_vfs::wrappers::VirtualPath;
 
 fn create_test_package(dir: &Path) -> std::io::Result<()> {
     let toml_content = r#"
@@ -59,8 +60,14 @@ async fn test_install_dir_creates_directory() {
     );
     let env = default_environment();
 
+    let virtual_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&package_path)
+        .unwrap();
+
     let result =
-        compile_package::<_, Vanilla>(&package_path, &build_config, &env, &mut Vec::new()).await;
+        compile_package::<_, Vanilla>(virtual_package_path, &build_config, &env, &mut Vec::new()).await;
 
     assert!(result.is_ok(), "Compilation should succeed");
 
@@ -102,8 +109,14 @@ async fn test_install_dir_relative_path() {
     let env = default_environment();
     let mut output = Cursor::new(Vec::new());
 
+    let virtual_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&package_path)
+        .unwrap();
+
     let result =
-        compile_package::<_, Vanilla>(&package_path, &build_config, &env, &mut output).await;
+        compile_package::<_, Vanilla>(virtual_package_path, &build_config, &env, &mut output).await;
 
     assert!(
         result.is_ok(),
@@ -142,8 +155,14 @@ async fn test_install_dir_absolute_path() {
     let env = default_environment();
     let mut output = Cursor::new(Vec::new());
 
+    let virtual_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&package_path)
+        .unwrap();
+
     let result =
-        compile_package::<_, Vanilla>(&package_path, &build_config, &env, &mut output).await;
+        compile_package::<_, Vanilla>(virtual_package_path, &build_config, &env, &mut output).await;
 
     assert!(result.is_ok(), "Compilation should succeed");
 
@@ -180,8 +199,14 @@ async fn test_no_install_dir_uses_default() {
     let env = default_environment();
     let mut output = Cursor::new(Vec::new());
 
+    let virtual_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&package_path)
+        .unwrap();
+
     let result =
-        compile_package::<_, Vanilla>(&package_path, &build_config, &env, &mut output).await;
+        compile_package::<_, Vanilla>(virtual_package_path, &build_config, &env, &mut output).await;
 
     assert!(result.is_ok(), "Compilation should succeed");
 
@@ -218,8 +243,14 @@ async fn test_install_dir_existing_directory() {
     let env = default_environment();
     let mut output = Cursor::new(Vec::new());
 
+    let virtual_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&package_path)
+        .unwrap();
+
     let result =
-        compile_package::<_, Vanilla>(&package_path, &build_config, &env, &mut output).await;
+        compile_package::<_, Vanilla>(virtual_package_path, &build_config, &env, &mut output).await;
 
     assert!(
         result.is_ok(),

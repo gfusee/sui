@@ -28,6 +28,7 @@ bcs.workspace = true
 [dev-dependencies]
 move-stdlib.workspace = true
 datatest-stable.workspace = true
+move-vfs.workspace = true
 
 [[test]]
 name = "from_source"

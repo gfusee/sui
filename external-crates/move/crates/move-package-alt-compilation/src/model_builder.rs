@@ -12,6 +12,7 @@ use move_model_2::source_model;
 use move_package_alt::{flavor::MoveFlavor, package::RootPackage};
 use move_symbol_pool::Symbol;
 use std::io::Write;
+use std::path::PathBuf;
 
 // NOTE: If there are now renamings, then the root package has the global resolution of all named
 // addresses in the package graph in scope. So we can simply grab all of the source files
@@ -42,7 +43,9 @@ pub fn build<W: Write + Send, F: MoveFlavor>(
     let all_compiled_units = compiled_package
         .all_compiled_units_with_source()
         .cloned()
-        .map(|CompiledUnitWithSource { unit, source_path }| (source_path, unit))
+        .map(|CompiledUnitWithSource { unit, source_path }| {
+            (PathBuf::from(source_path.as_str()), unit)
+        })
         .collect::<Vec<_>>();
     source_model::Model::from_source(
         compiled_package.file_map,

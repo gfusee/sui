@@ -44,6 +44,7 @@ exclude = [
   "external-crates/move/crates/move-package",
   "external-crates/move/crates/move-package-alt",
   "external-crates/move/crates/move-package-alt-compilation",
+  "external-crates/move/crates/move-vfs",
   "external-crates/move/crates/move-proc-macros",
   "external-crates/move/crates/move-regex-borrow-graph",
   "external-crates/move/crates/move-stackless-bytecode",
@@ -601,6 +602,7 @@ unescape = "0.1.0"
 ureq = "2.9.1"
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
+vfs = "0.10.0"
 walkdir = "2.5.0"
 webpki = { version = "0.103", package = "rustls-webpki", features = [
   "alloc",
@@ -630,6 +632,7 @@ move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-package-alt = { path = "external-crates/move/crates/move-package-alt" }
 move-package-alt-compilation = { path = "external-crates/move/crates/move-package-alt-compilation" }
+move-vfs = { path = "external-crates/move/crates/move-vfs" }
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = [

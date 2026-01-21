@@ -3,10 +3,10 @@
 
 use std::path::Path;
 
+use crate::BuildConfig;
 use fs_extra::dir::CopyOptions;
 use move_compiler::editions::Edition;
-
-use crate::BuildConfig;
+use move_vfs::wrappers::VirtualPath;
 
 #[tokio::test]
 async fn generate_struct_layouts() {
@@ -27,8 +27,13 @@ async fn generate_struct_layouts() {
     )
     .unwrap();
 
+    let build_path = VirtualPath::physical()
+        .unwrap()
+        .join(tempdir.path().join("sui-framework"))
+        .unwrap();
+
     let pkg = BuildConfig::new_for_testing()
-        .build_async(&tempdir.path().join("sui-framework"))
+        .build_async(build_path)
         .await
         .unwrap();
 
@@ -53,8 +58,11 @@ async fn development_mode_not_allowed() {
         .join("unit_tests")
         .join("data")
         .join("no_development_mode");
+
+    let virtual_path = VirtualPath::physical().unwrap().join(path).unwrap();
+
     let err = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .expect_err("Should have failed due to unsupported edition");
     assert!(

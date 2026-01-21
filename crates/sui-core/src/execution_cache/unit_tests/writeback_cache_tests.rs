@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use prometheus::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
@@ -14,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 use sui_framework::BuiltInFramework;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_test_transaction_builder::TestTransactionBuilder;
 use sui_types::{
     base_types::{FullObjectRef, SuiAddress, random_object_ref},
@@ -32,6 +34,17 @@ use crate::{
     authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
     execution_cache::ExecutionCacheAPI,
 };
+
+fn build_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build(virtual_path)
+}
+
+#[allow(dead_code)]
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
+}
 
 trait AssertInserted {
     fn assert_inserted(&self);
@@ -190,8 +203,7 @@ impl Scenario {
         // add object_basics package object to genesis, since lots of test use it
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("src/unit_tests/data/object_basics");
-        let modules: Vec<_> = BuildConfig::new_for_testing()
-            .build(&path)
+        let modules: Vec<_> = build_physical(BuildConfig::new_for_testing(), &path)
             .unwrap()
             .get_modules()
             .cloned()

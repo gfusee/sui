@@ -22,7 +22,7 @@ impl Build {
         let env = find_env::<F>(&rerooted_path, &config)?;
 
         config
-            .compile_package::<F, _>(&rerooted_path, &env, &mut std::io::stdout())
+            .compile_package::<F, _>(rerooted_path, &env, &mut std::io::stdout())
             .await?;
 
         Ok(())

@@ -404,9 +404,14 @@ mod tests {
         schema::{OriginalID, PublishedID},
         test_utils::graph_builder::{Scenario, TestPackageGraph},
     };
+    use move_vfs::wrappers::VirtualPath;
 
     use insta::assert_snapshot;
     use test_log::test;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     async fn linkage_err(scenario: &Scenario, root: &str) -> String {
         scenario
@@ -428,6 +433,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_basic() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d", "e"])
             .add_deps([
                 ("root", "a"),
@@ -437,7 +443,7 @@ mod tests {
                 ("c", "d"),
                 ("d", "e"),
             ])
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -454,6 +460,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_incompatible() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
@@ -464,7 +471,7 @@ mod tests {
                 ("b", "d1"),
                 ("c", "d2"),
             ])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -504,6 +511,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_compatible() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(1))
@@ -514,7 +522,7 @@ mod tests {
                 ("b", "d1"),
                 ("c", "d2"),
             ])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -553,6 +561,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
@@ -565,7 +574,7 @@ mod tests {
                 ("c", "d2"),
             ])
             .add_dep("a", "d3", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -583,6 +592,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_nooverride() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
@@ -595,7 +605,7 @@ mod tests {
                 ("b", "d1"),
                 ("c", "d2"),
             ])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -633,11 +643,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_direct_and_transitive_nooverride() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a"), ("a", "b"), ("a", "d1"), ("b", "d2")])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -675,11 +686,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_direct_no_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a"])
             .add_published("b1", OriginalID::from(1), PublishedID::from(1))
             .add_published("b2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a"), ("a", "b1"), ("a", "b2")])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -725,12 +737,13 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_direct_one_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a"])
             .add_published("b1", OriginalID::from(1), PublishedID::from(1))
             .add_published("b2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a"), ("a", "b1")])
             .add_dep("a", "b2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -771,13 +784,14 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_direct_both_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a"])
             .add_published("b1", OriginalID::from(1), PublishedID::from(1))
             .add_published("b2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a")])
             .add_dep("a", "b1", |dep| dep.set_override())
             .add_dep("a", "b2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @"Package `a` has override dependencies `b2` and `b1` that both resolve to the package with ID 0x00...0001");
         assert_snapshot!(linkage_err(&scenario, "a").await, @"Package `a` has override dependencies `b2` and `b1` that both resolve to the package with ID 0x00...0001");
@@ -793,9 +807,10 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_cyclic() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_deps([("root", "a"), ("a", "b"), ("b", "c"), ("c", "a")])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @"Package `a` (referenced by root::a) contains a cyclic dependency: dependency `a::b::c::a` refers back to `a`");
         assert_snapshot!(linkage_err(&scenario, "a").await, @"Package `a` contains a cyclic dependency: dependency `a::b::c::a` refers back to `a`");
@@ -811,11 +826,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_cyclic_different_version() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "b"])
             .add_published("a1", OriginalID::from(1), PublishedID::from(1))
             .add_published("a2", OriginalID::from(1), PublishedID::from(2))
             .add_deps([("root", "a1"), ("a1", "b"), ("b", "a2")])
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @"Package `a1` (referenced by root::a1) contains a cyclic dependency: dependency `a1::b::a2` resolves to a different version of the same package as `a1` (with original ID `0x00...0001`)");
         assert_snapshot!(linkage_err(&scenario, "a1").await, @"Package `a1` contains a cyclic dependency: dependency `a1::b::a2` resolves to a different version of the same package as `a1` (with original ID `0x00...0001`)");
@@ -833,10 +849,11 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_double_dep() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_deps([("root", "a"), ("a", "b")])
             .add_dep("a", "b", |dep| dep.name("b2"))
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -856,11 +873,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_double_dep_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_deps([("root", "a")])
             .add_dep("a", "b", |dep| dep.set_override())
             .add_dep("a", "b", |dep| dep.set_override().name("b2"))
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -884,6 +902,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_overridden_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b"])
             .add_published("c1", OriginalID::from(1), PublishedID::from(1))
             .add_published("c2", OriginalID::from(1), PublishedID::from(2))
@@ -897,7 +916,7 @@ mod tests {
                 ("c2", "d2"),
             ])
             .add_dep("a", "c2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -925,6 +944,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_diamond_with_side_override() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d"])
             .add_published("e1", OriginalID::from(1), PublishedID::from(1))
             .add_published("e2", OriginalID::from(1), PublishedID::from(2))
@@ -937,7 +957,7 @@ mod tests {
                 ("d", "e1"),
             ])
             .add_dep("c", "e2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
         Package depends on multiple versions of the package with ID 0x00...0001:
@@ -981,6 +1001,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_diamond_with_side_override_fixed() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c", "d"])
             .add_published("e1", OriginalID::from(1), PublishedID::from(1))
             .add_published("e2", OriginalID::from(1), PublishedID::from(2))
@@ -994,7 +1015,7 @@ mod tests {
             ])
             .add_dep("c", "e2", |dep| dep.set_override())
             .add_dep("a", "e2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         scenario.graph_for("root").await.linkage().unwrap();
         scenario.graph_for("a").await.linkage().unwrap();
@@ -1013,6 +1034,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_nested_overrides() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
@@ -1020,7 +1042,7 @@ mod tests {
             .add_deps([("root", "a"), ("a", "b"), ("b", "c"), ("c", "d1")])
             .add_dep("b", "d2", |dep| dep.set_override())
             .add_dep("a", "d3", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
         let linkage = graph.linkage().unwrap();
@@ -1053,6 +1075,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn test_best_error() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "e"])
             .add_published("c1", OriginalID::from(3), PublishedID::from(1))
             .add_published("c2", OriginalID::from(3), PublishedID::from(2))
@@ -1070,7 +1093,7 @@ mod tests {
                 ("c2", "b2"),
                 ("b2", "d2"),
             ])
-            .build();
+            .build(&base);
 
         // NOTE: read the doc comment for this test before updating snapshot
         assert_snapshot!(linkage_err(&scenario, "root").await, @r###"
@@ -1113,6 +1136,7 @@ mod tests {
     #[cfg_attr(not(doc), test(tokio::test))]
     #[ignore] // TODO: version checks not implemented
     async fn test_nested_overrides_bad_version() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "a", "b", "c"])
             .add_published("d1", OriginalID::from(1), PublishedID::from(1))
             .add_published("d2", OriginalID::from(1), PublishedID::from(2))
@@ -1120,7 +1144,7 @@ mod tests {
             .add_deps([("root", "a"), ("a", "b"), ("b", "c"), ("c", "d1")])
             .add_dep("b", "d3", |dep| dep.set_override())
             .add_dep("a", "d2", |dep| dep.set_override())
-            .build();
+            .build(&base);
 
         assert_snapshot!(linkage_err(&scenario, "root").await, @"");
         assert_snapshot!(linkage_err(&scenario, "a").await, @"");

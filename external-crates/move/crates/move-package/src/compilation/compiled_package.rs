@@ -46,6 +46,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use vfs::VfsPath;
+use move_vfs::wrappers::VirtualPath;
 
 #[derive(Debug, Clone)]
 pub enum CompilationCachingStatus {
@@ -232,12 +233,17 @@ impl OnDiskCompiledPackage {
         let bytecode_path = Path::new(bytecode_path_str);
         let path_to_file = CompiledPackageLayout::path_to_file_after_category(bytecode_path);
         let bytecode_bytes = std::fs::read(bytecode_path)?;
+        let virtual_source_map_path = VirtualPath::physical()?
+            .cwd()
+            .join(
+                self
+                    .root_path
+                    .join(CompiledPackageLayout::DebugInfo.path())
+                    .join(&path_to_file)
+                    .with_extension(DEBUG_INFO_EXTENSION)
+            )?;
         let source_map = source_map_from_file(
-            &self
-                .root_path
-                .join(CompiledPackageLayout::DebugInfo.path())
-                .join(&path_to_file)
-                .with_extension(DEBUG_INFO_EXTENSION),
+            &virtual_source_map_path,
         )?;
         let source_path = self
             .root_path
@@ -845,7 +851,7 @@ impl CompiledPackage {
             flags: docgen_flags,
         };
         let docgen = Docgen::new(model, &doc_options);
-        docgen.generate(model)
+        Ok(docgen.generate(&VirtualPath::physical()?.cwd(), model)?)
     }
 }
 

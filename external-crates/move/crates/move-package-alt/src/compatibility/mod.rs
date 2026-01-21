@@ -3,8 +3,6 @@ pub mod legacy_lockfile;
 pub mod legacy_parser;
 
 use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use move_core_types::account_address::{AccountAddress, AccountAddressParseError};
@@ -16,6 +14,8 @@ use crate::compatibility::legacy_parser::{LegacyPackageMetadata, parse_package_i
 use crate::package::layout::SourcePackageLayout;
 use crate::package::paths::PackagePath;
 use crate::schema::PackageName;
+use move_vfs::VfsFileType;
+use move_vfs::wrappers::VirtualPath;
 use toml::value::Value as TV;
 
 pub type LegacyVersion = (u64, u64, u64);
@@ -60,7 +60,7 @@ pub(crate) fn find_module_name_for_package(path: &PackagePath) -> Result<Option<
     let mut files = Vec::new();
     find_files(
         &mut files,
-        &path.path().join(SourcePackageLayout::Sources.path()),
+        &path.path().join(SourcePackageLayout::Sources.path())?,
         "move",
         5,
     );
@@ -69,7 +69,7 @@ pub(crate) fn find_module_name_for_package(path: &PackagePath) -> Result<Option<
     let mut names = HashSet::new();
 
     for file in files {
-        let file_contents = fs::read_to_string(file)?;
+        let file_contents = file.read_to_string()?;
         let module_names = parse_module_names(&file_contents)?;
 
         if !module_names.is_empty() {
@@ -102,24 +102,25 @@ fn parse_address_literal(address_str: &str) -> Result<AccountAddress, AccountAdd
 }
 
 /// Find all files matching the extension in a given path.
-fn find_files(files: &mut Vec<PathBuf>, dir: &Path, extension: &str, max_depth: usize) {
+fn find_files(files: &mut Vec<VirtualPath>, dir: &VirtualPath, extension: &str, max_depth: usize) {
     if max_depth == 0 {
         return;
     }
 
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-
+    if let Ok(entries) = dir.read_dir() {
+        for entry in entries {
             if let Ok(metadata) = entry.metadata() {
-                if metadata.is_file() {
-                    if let Some(ext) = path.extension()
-                        && ext == extension
-                    {
-                        files.push(path);
+                match metadata.file_type {
+                    VfsFileType::File => {
+                        if let Some(ext) = entry.extension()
+                            && ext == extension
+                        {
+                            files.push(entry);
+                        }
                     }
-                } else if metadata.is_dir() {
-                    find_files(files, &path, extension, max_depth - 1);
+                    VfsFileType::Directory => {
+                        find_files(files, &entry, extension, max_depth - 1);
+                    }
                 }
             }
         }
@@ -192,9 +193,9 @@ fn strip_comments(source: &str) -> String {
 
 /// Return legacy package metadata; this is needed for tests in sui side
 pub fn parse_legacy_package_info(
-    package_path: &Path,
+    package_path: &VirtualPath,
 ) -> Result<LegacyPackageMetadata, anyhow::Error> {
-    let manifest_string = std::fs::read_to_string(package_path.join("Move.toml"))?;
+    let manifest_string = package_path.join("Move.toml")?.read_to_string()?;
     let tv =
         toml::from_str::<TV>(&manifest_string).context("Unable to parse Move package manifest")?;
 

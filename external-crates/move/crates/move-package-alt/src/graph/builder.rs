@@ -9,24 +9,75 @@ use crate::{
     logging::user_note,
     package::{
         EnvironmentName, Package, lockfile::Lockfiles, package_lock::PackageSystemLock,
-        paths::PackagePath,
+        paths::{PackagePath, PackagePathError},
     },
     schema::{Environment, PackageID, PackageName},
 };
 
+use super::PackageGraph;
+use bimap::BiBTreeMap;
+use move_vfs::wrappers::VirtualPath;
+use petgraph::graph::{DiGraph, NodeIndex};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
-    path::PathBuf,
+    path::Component,
     sync::{Arc, Mutex},
 };
-
-use bimap::BiBTreeMap;
-use petgraph::graph::{DiGraph, NodeIndex};
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use tracing::debug;
 
-use super::PackageGraph;
+fn dep_display(dep: &Pinned) -> String {
+    match dep {
+        Pinned::Local(local) => {
+            let rel_path = local.relative_path_from_root_package();
+            let escapes_root = rel_path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir));
+            if escapes_root {
+                dep.unfetched_path()
+                    .ok()
+                    .map(|path| path.as_str().to_string())
+                    .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string())
+            } else {
+                rel_path.to_string_lossy().to_string()
+            }
+        }
+        _ => dep
+            .unfetched_path()
+            .ok()
+            .map(|path| path.as_str().to_string())
+            .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string()),
+    }
+}
+
+fn dep_path_string(dep: &Pinned) -> String {
+    dep.unfetched_path()
+        .ok()
+        .map(|path| path.as_str().to_string())
+        .unwrap_or_else(|| "unknown error in vfs unfetched_path function".to_string())
+}
+
+fn normalize_dep_error(dep: &Pinned, err: PackageError) -> PackageError {
+    match (dep, err) {
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidDirectory { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidDirectory {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidPackage { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidPackage {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (Pinned::Local(local), PackageError::PackagePath(PackagePathError::InvalidFile { .. })) => {
+            PackageError::PackagePath(PackagePathError::InvalidFile {
+                path: dep_path_string(&Pinned::Local(local.clone())),
+            })
+        }
+        (_, err) => err,
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum LockfileError {
@@ -54,7 +105,7 @@ struct PackageCache<F: MoveFlavor> {
     // infra
     // TODO: would dashmap simplify this?
     #[allow(clippy::type_complexity)]
-    cache: Mutex<BTreeMap<PathBuf, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
+    cache: Mutex<BTreeMap<VirtualPath, Arc<OnceCell<Option<Arc<Package<F>>>>>>>,
 }
 
 pub struct PackageGraphBuilder<F: MoveFlavor> {
@@ -295,11 +346,7 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         )
         .await
         .map_err(|err| PackageError::DepError {
-            dep: package
-                .dep_for_self()
-                .unfetched_path()
-                .to_string_lossy()
-                .to_string(),
+            dep: dep_display(package.dep_for_self()),
             err: Box::new(err),
         })?;
 
@@ -352,11 +399,13 @@ impl<F: MoveFlavor> PackageCache<F> {
         env: &Environment,
         mtx: &PackageSystemLock,
     ) -> PackageResult<Arc<Package<F>>> {
+        let unfetched_path = dep.unfetched_path()?;
+
         let cell = self
             .cache
             .lock()
             .expect("unpoisoned")
-            .entry(dep.unfetched_path())
+            .entry(unfetched_path)
             .or_default()
             .clone();
 
@@ -375,8 +424,8 @@ impl<F: MoveFlavor> PackageCache<F> {
                 Ok(node)
             }
             Err(e) => Err(PackageError::DepError {
-                dep: dep.unfetched_path().display().to_string(),
-                err: Box::new(e),
+                dep: dep_display(dep),
+                err: Box::new(normalize_dep_error(dep, e)),
             }),
         }
     }

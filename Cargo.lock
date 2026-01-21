@@ -7873,6 +7873,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-symbol-pool",
+ "move-vfs",
  "once_cell",
  "serde",
  "serde_json",
@@ -7916,6 +7917,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-symbol-pool",
+ "move-vfs",
  "serde",
  "serde_json",
 ]
@@ -8008,6 +8010,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-source-map",
  "move-disassembler",
+ "move-vfs",
  "ratatui",
  "regex",
 ]
@@ -8043,12 +8046,14 @@ dependencies = [
  "move-symbol-pool",
  "move-trace-format",
  "move-unit-test",
+ "move-vfs",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-runtime",
  "move-vm-test-utils",
  "move-vm-types",
  "path-clean",
+ "pathdiff",
  "serde",
  "serde_json",
  "serde_yaml 0.8.26",
@@ -8074,6 +8079,7 @@ dependencies = [
  "insta",
  "move-binary-format",
  "move-core-types",
+ "move-vfs",
  "once_cell",
  "packed_struct",
  "serde",
@@ -8164,6 +8170,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-trace-format",
+ "move-vfs",
  "petgraph 0.8.1",
  "serde",
 ]
@@ -8213,6 +8220,7 @@ dependencies = [
  "move-coverage",
  "move-ir-types",
  "move-symbol-pool",
+ "move-vfs",
 ]
 
 [[package]]
@@ -8231,6 +8239,7 @@ dependencies = [
  "move-ir-types",
  "move-model-2",
  "move-symbol-pool",
+ "move-vfs",
  "num",
  "once_cell",
  "regex",
@@ -8352,7 +8361,6 @@ dependencies = [
  "codespan-reporting",
  "colored",
  "derive-where",
- "fs4",
  "futures",
  "heck 0.3.3",
  "indexmap 2.8.0",
@@ -8363,6 +8371,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-symbol-pool",
+ "move-vfs",
  "named-lock",
  "once_cell",
  "path-clean",
@@ -8403,7 +8412,9 @@ dependencies = [
  "move-model-2",
  "move-package-alt",
  "move-symbol-pool",
+ "move-vfs",
  "once_cell",
+ "pathdiff",
  "petgraph 0.8.1",
  "serde",
  "serde_yaml 0.8.26",
@@ -8492,6 +8503,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-stdlib-natives",
+ "move-vfs",
  "move-vm-runtime",
  "sha2 0.9.9",
  "tokio",
@@ -8635,6 +8647,17 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "regex",
+]
+
+[[package]]
+name = "move-vfs"
+version = "0.1.0"
+dependencies = [
+ "fs4",
+ "move-symbol-pool",
+ "thiserror 1.0.69",
+ "uuid 1.2.2",
+ "vfs",
 ]
 
 [[package]]
@@ -10039,9 +10062,9 @@ checksum = "1e91099d4268b0e11973f036e885d652fb0b21fedcf69738c627f94db6a44f42"
 
 [[package]]
 name = "pathdiff"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
+checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 dependencies = [
  "camino",
 ]
@@ -13461,6 +13484,7 @@ dependencies = [
  "move-package-alt-compilation",
  "move-symbol-pool",
  "move-trace-format",
+ "move-vfs",
  "move-vm-config",
  "move-vm-profiler",
  "msim",
@@ -13771,6 +13795,7 @@ dependencies = [
  "indicatif",
  "itertools 0.13.0",
  "move-core-types",
+ "move-vfs",
  "mysten-common",
  "mysten-metrics",
  "prometheus",
@@ -14111,6 +14136,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-symbol-pool",
+ "move-vfs",
  "mysten-common",
  "mysten-metrics",
  "mysten-network",
@@ -14381,6 +14407,7 @@ dependencies = [
  "jsonrpsee",
  "move-binary-format",
  "move-core-types",
+ "move-vfs",
  "mysten-common",
  "mysten-metrics",
  "p256",
@@ -14545,6 +14572,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package-alt-compilation",
+ "move-vfs",
  "once_cell",
  "regex",
  "serde",
@@ -14564,6 +14592,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "bin-version",
+ "move-vfs",
  "serde",
  "serde_json",
  "sui-framework",
@@ -14585,6 +14614,7 @@ dependencies = [
  "move-cli",
  "move-package-alt-compilation",
  "move-unit-test",
+ "move-vfs",
  "msim",
  "prometheus",
  "sui-adapter-latest",
@@ -14689,6 +14719,7 @@ dependencies = [
  "move-core-types",
  "move-disassembler",
  "move-ir-types",
+ "move-vfs",
  "mysten-metrics",
  "mysten-network",
  "once_cell",
@@ -14965,6 +14996,7 @@ dependencies = [
  "insta",
  "jsonrpsee",
  "move-core-types",
+ "move-vfs",
  "msim",
  "prometheus",
  "rand 0.8.5",
@@ -15315,6 +15347,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "move-vfs",
  "schemars 0.8.21",
  "serde",
  "serde_json",
@@ -15414,6 +15447,7 @@ dependencies = [
  "hyper 1.5.2",
  "jsonrpsee",
  "move-core-types",
+ "move-vfs",
  "prometheus",
  "rand 0.8.5",
  "reqwest 0.12.9",
@@ -15657,6 +15691,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-unit-test",
+ "move-vfs",
  "move-vm-runtime",
  "mysten-metrics",
  "once_cell",
@@ -15679,6 +15714,7 @@ dependencies = [
  "tokio",
  "toml 0.7.4",
  "tracing",
+ "vfs",
  "walkdir",
 ]
 
@@ -15700,6 +15736,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-symbol-pool",
+ "move-vfs",
  "mysten-common",
  "serde-reflection",
  "sui-package-alt",
@@ -15972,6 +16009,7 @@ dependencies = [
  "clap",
  "dirs 4.0.0",
  "jsonpath_lib",
+ "move-vfs",
  "mysten-metrics",
  "once_cell",
  "prometheus",
@@ -16004,6 +16042,7 @@ dependencies = [
  "move-core-types",
  "move-package-alt",
  "move-package-alt-compilation",
+ "move-vfs",
  "serde",
  "shared-crypto",
  "sui-config",
@@ -16064,6 +16103,7 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
+ "move-vfs",
  "serde",
  "serde_json",
  "sui-move-build",
@@ -16255,6 +16295,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-trace-format",
+ "move-vfs",
  "prometheus",
  "serde",
  "serde_json",
@@ -16297,6 +16338,7 @@ dependencies = [
  "lru 0.10.0",
  "move-cli",
  "move-core-types",
+ "move-vfs",
  "mysten-metrics",
  "once_cell",
  "prost-types 0.14.1",
@@ -16593,6 +16635,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-symbol-pool",
+ "move-vfs",
  "once_cell",
  "prometheus",
  "serde",
@@ -16664,6 +16707,7 @@ dependencies = [
  "move-package-alt",
  "move-package-alt-compilation",
  "move-symbol-pool",
+ "move-vfs",
  "msim",
  "rand 0.8.5",
  "serde",
@@ -16759,6 +16803,7 @@ dependencies = [
  "indexmap 2.8.0",
  "move-binary-format",
  "move-core-types",
+ "move-vfs",
  "mysten-common",
  "prometheus",
  "rand 0.8.5",
@@ -16864,6 +16909,7 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "move-core-types",
+ "move-vfs",
  "shared-crypto",
  "sui-genesis-builder",
  "sui-move-build",
@@ -17123,6 +17169,7 @@ dependencies = [
  "move-binary-format",
  "move-command-line-common",
  "move-compiler",
+ "move-vfs",
  "msim",
  "sui-move-build",
  "tokio",
@@ -18586,6 +18633,7 @@ name = "transaction-fuzzer"
 version = "0.1.0"
 dependencies = [
  "move-core-types",
+ "move-vfs",
  "once_cell",
  "proptest",
  "proptest-derive",
@@ -18679,7 +18727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 

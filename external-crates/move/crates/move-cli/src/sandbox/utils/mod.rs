@@ -26,12 +26,14 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_ir_types::location::Loc;
+use move_package_alt::package::layout::SourcePackageLayout;
 use move_package_alt_compilation::compiled_package::CompiledUnitWithSource;
 use move_vm_test_utils::gas_schedule::Gas;
+use pathdiff::diff_paths;
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -139,12 +141,25 @@ pub(crate) fn explain_publish_error(
 ) -> Result<()> {
     use StatusCode::*;
     let mut files = HashMap::new();
-    let file_contents = std::fs::read_to_string(&unit.source_path)?;
+    let file_contents = unit.source_path.read_to_string()?;
     let file_hash = FileHash::new(&file_contents);
+    let pkg_root = unit.source_path.parent().parent();
+    let relative_source_path = diff_paths(unit.source_path.as_str(), pkg_root.as_str())
+        .unwrap_or_else(|| PathBuf::from(unit.source_path.as_str()));
+    let relative_source_path_str = relative_source_path.to_string_lossy();
+    let relative_source_path_str = if relative_source_path_str
+        .starts_with(SourcePackageLayout::Sources.path())
+        || relative_source_path_str.starts_with(SourcePackageLayout::Scripts.path())
+        || relative_source_path_str.starts_with(SourcePackageLayout::Tests.path())
+    {
+        format!("./{relative_source_path_str}")
+    } else {
+        relative_source_path_str.to_string()
+    };
     files.insert(
         file_hash,
         (
-            FileName::from(unit.source_path.to_string_lossy()),
+            FileName::from(relative_source_path_str.as_str()),
             Arc::from(file_contents),
         ),
     );

@@ -7,6 +7,7 @@
 use clap::Parser;
 use move_coverage::coverage_map::{CoverageMap, TraceMap, output_map_to_file};
 use std::path::Path;
+use move_vfs::wrappers::VirtualPath;
 
 #[derive(Debug, Parser)]
 #[clap(
@@ -33,18 +34,35 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let input_path = Path::new(&args.input_file_path);
+    let virtual_input_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&input_path)
+        .unwrap();
+
     let output_path = Path::new(&args.output_file_path);
+    let virtual_output_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&output_path)
+        .unwrap();
+
 
     if !args.use_trace_map {
         let coverage_map = if let Some(old_coverage_path) = &args.update {
             let path = Path::new(&old_coverage_path);
-            let old_coverage_map = CoverageMap::from_binary_file(path).unwrap();
-            old_coverage_map.update_coverage_from_trace_file(input_path)
+            let virtual_path = VirtualPath::physical()
+                .unwrap()
+                .cwd()
+                .join(path)
+                .unwrap();
+            let old_coverage_map = CoverageMap::from_binary_file(&virtual_path).unwrap();
+            old_coverage_map.update_coverage_from_trace_file(&virtual_input_path)
         } else {
-            CoverageMap::from_trace_file(input_path)
+            CoverageMap::from_trace_file(&virtual_input_path)
         };
 
-        output_map_to_file(output_path, &coverage_map)
+        output_map_to_file(&virtual_output_path, &coverage_map)
             .expect("Unable to serialize coverage map to output file")
     } else {
         let trace_map = if let Some(old_trace_path) = &args.update {
@@ -55,7 +73,7 @@ fn main() {
             TraceMap::from_trace_file(input_path)
         };
 
-        output_map_to_file(output_path, &trace_map)
+        output_map_to_file(&virtual_output_path, &trace_map)
             .expect("Unable to serialize trace map to output file")
     }
 }

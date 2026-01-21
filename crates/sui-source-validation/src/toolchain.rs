@@ -1,33 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::{Context, Result, anyhow, bail, ensure};
+use colored::Colorize;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use std::{
     collections::HashMap,
     ffi::OsStr,
     fs::File,
     io::{self, Read},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     str::FromStr,
 };
-
-use anyhow::{Context, Result, anyhow, bail, ensure};
-use colored::Colorize;
-use serde::{Deserialize, Serialize};
 use tar::Archive;
-use tempfile::TempDir;
 use tracing::{debug, info};
 
 use sui_package_alt::SuiFlavor;
 
 use move_binary_format::CompiledModule;
 use move_bytecode_source_map::utils::source_map_from_file;
+use move_command_line_common::files::find_filenames_vfs;
 use move_command_line_common::{
     env::MOVE_HOME,
-    files::{
-        DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, extension_equals,
-        find_filenames,
-    },
+    files::{DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION},
 };
 use move_compiler::{
     compiled_unit::NamedCompiledModule,
@@ -41,6 +38,8 @@ use move_package_alt::{
 use move_package_alt_compilation::compiled_package::CompiledUnitWithSource;
 use move_package_alt_compilation::layout::CompiledPackageLayout;
 use move_symbol_pool::Symbol;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 
 pub(crate) const CURRENT_COMPILER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const LEGACY_COMPILER_VERSION: &str = CURRENT_COMPILER_VERSION; // TODO: update this when Move 2024 is released
@@ -115,13 +114,17 @@ impl ToolchainVersion {
     /// Read toolchain version info from the root project directory. Tries to read Published.toml
     /// first (new pkg-alt format), then falls back to Move.lock (old format). Returns None if
     /// neither file exists or if no toolchain info is found.
-    pub fn read(root_path: &Path, env: &Environment) -> anyhow::Result<Option<ToolchainVersion>> {
-        let published_path = root_path.join("Published.toml");
-        let lock_path = root_path.join(SourcePackageLayout::Lock.path());
+    pub fn read(
+        root_path: &VirtualPath,
+        env: &Environment,
+    ) -> anyhow::Result<Option<ToolchainVersion>> {
+        let published_path = root_path.join("Published.toml")?;
+        let lock_path = root_path.join(SourcePackageLayout::Lock.path())?;
 
-        if published_path.exists() {
-            let contents =
-                std::fs::read_to_string(&published_path).context("Reading Published.toml file")?;
+        if published_path.exists()? {
+            let contents = published_path
+                .read_to_string()
+                .context("Reading Published.toml file")?;
             let parsed: ParsedPublishedFile<SuiFlavor> =
                 toml::de::from_str(&contents).context("Deserializing Published.toml")?;
 
@@ -149,9 +152,11 @@ impl ToolchainVersion {
             return Ok(None);
         }
 
-        if lock_path.exists() {
+        if lock_path.exists()? {
             debug!("Found Move.lock file, reading toolchain version from it");
-            let contents = std::fs::read_to_string(&lock_path).context("Reading Move.lock file")?;
+            let contents = lock_path
+                .read_to_string()
+                .context("Reading Move.lock file")?;
             let _ = LockfileHeader::from_str(&contents)?;
 
             #[derive(serde::Deserialize)]
@@ -222,15 +227,15 @@ pub(crate) fn units_for_toolchain(
             continue;
         }
 
-        let package_root = SourcePackageLayout::try_find_root(&local_unit.source_path)?;
-        let lock_file = package_root.join(SourcePackageLayout::Lock.path());
-        if !lock_file.exists() {
+        let package_root = SourcePackageLayout::try_find_root(local_unit.source_path.clone())?;
+        let lock_file = package_root.join(SourcePackageLayout::Lock.path())?;
+        if !lock_file.exists()? {
             // No lock file implies current compiler for this package.
             package_version_map.insert(*package, (current_toolchain(), vec![local_unit.clone()]));
             continue;
         }
 
-        let mut lock_file = File::open(lock_file)?;
+        let mut lock_file = lock_file.open_file()?;
         let lock_version = LockfileHeader::read(&mut lock_file)?.version;
         if lock_version == PRE_TOOLCHAIN_MOVE_LOCK_VERSION {
             // No need to attempt reading lock file toolchain
@@ -286,8 +291,8 @@ pub(crate) fn units_for_toolchain(
         if local_units.is_empty() {
             bail!("Expected one or more modules, but none found");
         }
-        let package_root = SourcePackageLayout::try_find_root(&local_units[0].source_path)?;
-        let install_dir = tempfile::tempdir()?; // place compiled packages in this temp dir, don't pollute this packages build dir
+        let package_root = SourcePackageLayout::try_find_root(local_units[0].source_path.clone())?;
+        let install_dir = TempDir::new(&local_units[0].source_path)?; // place compiled packages in this temp dir, don't pollute this packages build dir
         download_and_compile(
             package_root.clone(),
             &install_dir,
@@ -296,18 +301,19 @@ pub(crate) fn units_for_toolchain(
         )?;
 
         let compiled_unit_paths = vec![package_root.clone()];
-        let compiled_units = find_filenames(&compiled_unit_paths, |path| {
-            extension_equals(path, MOVE_COMPILED_EXTENSION)
+        let compiled_units = find_filenames_vfs(&compiled_unit_paths, |path| {
+            path.extension()
+                .is_some_and(|ext| ext == MOVE_COMPILED_EXTENSION)
         })?;
         let build_path = install_dir
             .path()
-            .join(CompiledPackageLayout::path(&CompiledPackageLayout::Root))
-            .join(package.as_str());
-        debug!("build path is {}", build_path.display());
+            .join(CompiledPackageLayout::path(&CompiledPackageLayout::Root))?
+            .join(package.as_str())?;
+        debug!("build path is {}", build_path.as_str());
 
         // Add all units compiled with the previous compiler.
         for bytecode_path in compiled_units {
-            info!("bytecode path {bytecode_path}, {package}");
+            info!("bytecode path {}, {package}", bytecode_path.as_str());
             let local_unit = decode_bytecode_file(build_path.clone(), &package, &bytecode_path)?;
             units.push((package, local_unit))
         }
@@ -316,7 +322,7 @@ pub(crate) fn units_for_toolchain(
 }
 
 fn download_and_compile(
-    root: PathBuf,
+    root: VirtualPath,
     install_dir: &TempDir,
     ToolchainVersion {
         compiler_version,
@@ -331,7 +337,11 @@ fn download_and_compile(
     dest_canonical_path.extend(["target", "release"]);
     let mut dest_canonical_binary = dest_canonical_path.clone();
 
-    let platform = detect_platform(&root, compiler_version, &dest_canonical_path)?;
+    let platform = detect_platform(
+        root.as_str(),
+        compiler_version,
+        dest_canonical_path.to_string_lossy(),
+    )?;
     if platform == "windows-x86_64" {
         dest_canonical_binary.push(CANONICAL_WIN_BINARY_NAME);
     } else {
@@ -404,8 +414,8 @@ fn download_and_compile(
         dest_canonical_binary.display(),
         edition.to_string().as_str(),
         flavor.to_string().as_str(),
-        root.display(),
-        install_dir.path().display(),
+        root.as_str(),
+        install_dir.path().as_str(),
     );
     info!(
         "{} {} (compiler @ {})",
@@ -422,9 +432,9 @@ fn download_and_compile(
             OsStr::new("--default-move-flavor"),
             OsStr::new(flavor.to_string().as_str()),
             OsStr::new("-p"),
-            OsStr::new(root.as_path()),
+            OsStr::new(root.as_str()), // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
             OsStr::new("--install-dir"),
-            OsStr::new(install_dir.path()),
+            OsStr::new(install_dir.path().as_str()), // TODO: works on Windows? Setting .current_dir(VirtualPath::as_str(...)) might lead to unexpected behaviors
         ])
         .output()
         .map_err(|e| {
@@ -434,9 +444,9 @@ fn download_and_compile(
 }
 
 fn detect_platform(
-    package_path: &Path,
+    package_path: impl Display,
     compiler_version: &String,
-    dest_dir: &Path,
+    dest_dir: impl Display,
 ) -> anyhow::Result<String> {
     let s = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => "macos-arm64",
@@ -454,8 +464,8 @@ fn detect_platform(
                  Operating System: {os}\n\
                  Architecture: {arch}\n\
                  You can manually put a {binary_name} binary for your platform in {} and rerun your command to continue.",
-                package_path.display(),
-                dest_dir.display(),
+                package_path,
+                dest_dir,
             )
         }
     };
@@ -481,27 +491,30 @@ fn set_executable_permission(path: &OsStr) -> anyhow::Result<()> {
 }
 
 fn decode_bytecode_file(
-    root_path: PathBuf,
+    root_path: VirtualPath,
     package_name: &Symbol,
-    bytecode_path_str: &str,
+    bytecode_path: &VirtualPath,
 ) -> anyhow::Result<CompiledUnitWithSource> {
     let package_name_opt = Some(*package_name);
-    let bytecode_path = Path::new(bytecode_path_str);
     let path_to_file = CompiledPackageLayout::path_to_file_after_category(bytecode_path);
-    let bytecode_bytes = std::fs::read(bytecode_path)?;
+    let mut bytecode_bytes = vec![];
+    bytecode_path
+        .open_file()?
+        .read_to_end(&mut bytecode_bytes)?;
     let source_map = source_map_from_file(
         &root_path
-            .join(CompiledPackageLayout::DebugInfo.path())
-            .join(&path_to_file)
-            .with_extension(DEBUG_INFO_EXTENSION),
+            .join(CompiledPackageLayout::DebugInfo.path())?
+            .join(&path_to_file)?
+            .with_extension(DEBUG_INFO_EXTENSION)?,
     )?;
     let source_path = &root_path
-        .join(CompiledPackageLayout::Sources.path())
-        .join(path_to_file)
-        .with_extension(MOVE_EXTENSION);
+        .join(CompiledPackageLayout::Sources.path())?
+        .join(path_to_file)?
+        .with_extension(MOVE_EXTENSION)?;
     ensure!(
-        source_path.is_file(),
-        "Error decoding package: Unable to find corresponding source file for '{bytecode_path_str}' in package {package_name}"
+        source_path.is_file()?,
+        "Error decoding package: Unable to find corresponding source file for '{}' in package {package_name}",
+        bytecode_path.as_str()
     );
     let module = CompiledModule::deserialize_with_defaults(&bytecode_bytes)?;
     let (address_bytes, module_name) = {

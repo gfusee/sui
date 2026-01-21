@@ -12,7 +12,8 @@ use crate::{
     interfaces::{RightScreen, SourceContext},
 };
 use move_binary_format::file_format::CompiledModule;
-use std::{cmp, fs, path::Path};
+use move_vfs::wrappers::VirtualPath;
+use std::cmp;
 
 const CONTEXT_SIZE: usize = 1000;
 
@@ -26,9 +27,13 @@ pub struct ModuleViewer {
 }
 
 impl ModuleViewer {
-    pub fn new(module: CompiledModule, source_map: SourceMap, source_location: &Path) -> Self {
+    pub fn new(
+        module: CompiledModule,
+        source_map: SourceMap,
+        source_location: &VirtualPath,
+    ) -> Self {
         let mut source_code = vec![];
-        let file_contents = fs::read_to_string(source_location).unwrap();
+        let file_contents = source_location.read_to_string().unwrap();
         assert!(
             source_map.check(&file_contents),
             "File contents are out of sync with source map"

@@ -46,6 +46,7 @@ move-vm-test-utils.workspace = true
 move-vm-config.workspace = true
 move-binary-format.workspace = true
 move-package-alt.workspace = true
+move-vfs.workspace = true
 move-package-alt-compilation.workspace = true
 move-symbol-pool.workspace = true
 move-unit-test.workspace = true
@@ -55,6 +56,7 @@ move-trace-format.workspace = true
 treeline.workspace = true
 tokio.workspace = true
 path-clean.workspace = true
+pathdiff.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true

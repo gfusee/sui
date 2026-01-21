@@ -99,6 +99,7 @@ use move_package_alt::{
     schema::{OriginalID, Publication, PublishAddresses, PublishedID},
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use sui_keys::key_derive;
 use sui_package_alt::{BuildParams, SuiFlavor, find_environment};
 use sui_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -899,8 +900,10 @@ impl SuiClientCommands {
                     }
                 })?;
 
+                let virtual_package_path = VirtualPath::physical()?.cwd().join(&package_path)?;
+
                 let mut root_pkg =
-                    load_root_pkg_for_publish_upgrade(context, &build_config, &package_path)
+                    load_root_pkg_for_publish_upgrade(context, &build_config, virtual_package_path)
                         .await?;
 
                 let verify =
@@ -1031,10 +1034,13 @@ impl SuiClientCommands {
 
                 let client = context.get_client().await?;
                 let _ = context.cache_chain_id(&client).await?;
+                let virtual_package_path = VirtualPath::physical()?
+                    .cwd()
+                    .join(args.package_path.as_path())?;
                 let mut root_package = load_root_pkg_for_publish_upgrade(
                     context,
                     &args.build_config,
-                    args.package_path.as_path(),
+                    virtual_package_path,
                 )
                 .await?;
 
@@ -1061,8 +1067,11 @@ impl SuiClientCommands {
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await?;
                 let active_env = context.get_active_env()?;
+                let virtual_package_path = VirtualPath::physical()?
+                    .cwd()
+                    .join(args.publish_args.package_path.as_path())?;
                 let mut root_package = load_root_pkg_for_test_publish(
-                    args.publish_args.package_path.as_path(),
+                    virtual_package_path,
                     active_env.alias.clone(),
                     chain_id,
                     args.build_env,
@@ -1814,12 +1823,17 @@ impl SuiClientCommands {
                     (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
                 };
 
-                let environment =
-                    find_environment(&package_path, build_config.environment.clone(), context)
-                        .await?;
+                let virtual_package_path = VirtualPath::physical()?.cwd().join(package_path)?;
+
+                let environment = find_environment(
+                    &virtual_package_path,
+                    build_config.environment.clone(),
+                    context,
+                )
+                .await?;
 
                 let mut root_pkg =
-                    load_root_pkg_for_publish_upgrade(context, &build_config, &package_path)
+                    load_root_pkg_for_publish_upgrade(context, &build_config, virtual_package_path)
                         .await?;
                 let build_config = BuildConfig {
                     config: build_config,
@@ -3519,14 +3533,14 @@ pub(crate) async fn pkg_tree_shake(
 pub async fn load_root_pkg_for_publish_upgrade(
     wallet: &WalletContext,
     build_config: &MoveBuildConfig,
-    path: &Path,
+    path: VirtualPath,
 ) -> anyhow::Result<RootPackage<SuiFlavor>> {
-    let env = find_environment(path, build_config.environment.clone(), wallet).await?;
+    let env = find_environment(&path, build_config.environment.clone(), wallet).await?;
     Ok(RootPackage::<SuiFlavor>::load(path, env, build_config.mode_set()).await?)
 }
 
 async fn load_root_pkg_for_test_publish(
-    package_path: &Path,
+    package_path: VirtualPath,
     active_env: String,
     chain_id: String,
     build_env: Option<String>,
@@ -3536,11 +3550,13 @@ async fn load_root_pkg_for_test_publish(
     let pubfile_path =
         pubfile_path.unwrap_or_else(|| PathBuf::from(format!("Pub.{active_env}.toml")));
 
+    let virtual_pubfile = VirtualPath::physical()?.cwd().join(pubfile_path)?;
+
     Ok(RootPackage::<SuiFlavor>::load_ephemeral(
         package_path,
         build_env,
         chain_id,
-        pubfile_path,
+        virtual_pubfile,
         modes,
     )
     .await?)

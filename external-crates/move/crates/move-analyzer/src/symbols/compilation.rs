@@ -52,6 +52,7 @@ use move_package_alt_compilation::{
     find_env,
     source_discovery::get_sources,
 };
+use move_vfs::wrappers::VirtualPath;
 
 pub const MANIFEST_FILE_NAME: &str = "Move.toml";
 
@@ -318,14 +319,22 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
 
     eprintln!("symbolicating {:?}", pkg_path);
 
-    let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
+    let overlay_fs_root = OverlayFS::new(&[
         VfsPath::new(MemoryFS::new()),
         ide_files_root.clone(),
         VfsPath::new(PhysicalFS::new("/")),
-    ]));
+    ]);
+
+    let cwd = std::env::current_dir()
+        .ok()
+        .map(|e| e.canonicalize().ok())
+        .flatten()
+        .map(|e| e.to_string_lossy().to_string());
+
+    let overlay_fs_root = VirtualPath::new(cwd, overlay_fs_root)?;
 
     let manifest_file = overlay_fs_root
-        .join(pkg_path.to_string_lossy())
+        .join(pkg_path)
         .and_then(|p| p.join(MANIFEST_FILE_NAME))
         .and_then(|p| p.open_file());
 
@@ -337,7 +346,7 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
         None
     };
 
-    let root_pkg = load_root_pkg::<F>(&build_config, pkg_path)?;
+    let root_pkg = load_root_pkg::<F>(&build_config, overlay_fs_root.join(pkg_path)?)?;
     let root_pkg_name = Symbol::from(root_pkg.name().to_string());
     // the package's transitive dependencies
     let mut dependencies: Vec<_> = root_pkg
@@ -345,13 +354,22 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
         .into_iter()
         .filter(|x| !x.is_root())
         .collect();
-    let build_plan =
-        BuildPlan::create(&root_pkg, &build_config)?.set_compiler_vfs_root(overlay_fs_root.clone());
+    println!("root_pkg: {}", root_pkg.package_path().as_str());
+    let compiler_base = overlay_fs_root.clone();
+    let build_plan = BuildPlan::create_with_vfs_root(
+        &root_pkg,
+        &build_config,
+        compiler_base.clone(),
+    )?;
 
     // Hash dependencies so we can check if something has changed.
     // TODO: do we still need this?
-    let mapped_files_data =
-        compute_mapped_files(&root_pkg, &build_config, overlay_fs_root.clone())?;
+    let mapped_files_data = compute_mapped_files(
+        &root_pkg,
+        &build_config,
+        overlay_fs_root.as_ref().clone(),
+        &compiler_base,
+    )?;
     let file_paths: Arc<BTreeMap<FileHash, PathBuf>> = Arc::new(
         mapped_files_data
             .files
@@ -369,7 +387,12 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
 
     let compiler_flags = compiler_flags(&build_config);
     let (mut caching_result, other_diags) = if let Ok(deps_package_paths) =
-        make_deps_for_compiler(&mut Vec::new(), dependencies.clone(), &build_config)
+        make_deps_for_compiler(
+            &mut Vec::new(),
+            dependencies.clone(),
+            &build_config,
+            &compiler_base,
+        )
     {
         let src_deps: BTreeMap<Symbol, PackagePaths> = deps_package_paths
             .into_iter()
@@ -459,7 +482,7 @@ pub fn get_compiled_pkg<F: MoveFlavor>(
                     root_pkg_name,
                     &sorted_deps,
                     compiler_flags,
-                    overlay_fs_root.clone(),
+                    overlay_fs_root.as_ref().clone(),
                 ) {
                     let analyzed_pkg_info = AnalyzedPkgInfo::new_precompiled_only(
                         program_deps,
@@ -817,6 +840,7 @@ fn compute_mapped_files<F: MoveFlavor>(
     root_pkg: &RootPackage<F>,
     build_config: &BuildConfig,
     overlay_fs: VfsPath,
+    compiler_base: &VirtualPath,
 ) -> anyhow::Result<MappedFilesData> {
     let mut mapped_files: MappedFiles = MappedFiles::empty();
     let mut hasher = Sha256::new();
@@ -824,12 +848,17 @@ fn compute_mapped_files<F: MoveFlavor>(
     let mut dep_pkg_paths = BTreeMap::new();
 
     for rpkg in root_pkg.packages() {
-        for f in get_sources(rpkg.path(), build_config).unwrap() {
+        let base_path = if rpkg.is_root() {
+            rpkg.path().path()
+        } else {
+            compiler_base
+        };
+        for f in get_sources(rpkg.path(), build_config, base_path).unwrap() {
             let is_dep = !rpkg.is_root();
             // dunce does a better job of canonicalization on Windows
-            let fname = dunce::canonicalize(f.as_str())
+            let fname = dunce::canonicalize(f.0.as_str())
                 .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| f.to_string());
+                .unwrap_or_else(|_| f.0.as_str().to_string());
             let mut contents = String::new();
             // there is a fair number of unwraps here but if we can't read the files
             // that by all accounts should be in the file system, then there is not much
@@ -841,7 +870,10 @@ fn compute_mapped_files<F: MoveFlavor>(
             if is_dep {
                 hasher.update(fhash.0);
                 dep_hashes.push(fhash);
-                dep_pkg_paths.insert(rpkg.id().clone().into(), rpkg.path().path().to_path_buf());
+                dep_pkg_paths.insert(
+                    rpkg.id().clone().into(),
+                    PathBuf::from(rpkg.path().path().as_str()),
+                );
             }
             // write to top layer of the overlay file system so that the content
             // is immutable for the duration of compilation and symbolication
@@ -1079,11 +1111,10 @@ fn is_parsed_pkg_modified(
 
 fn load_root_pkg<F: MoveFlavor>(
     build_config: &BuildConfig,
-    path: &Path,
+    path: VirtualPath,
 ) -> anyhow::Result<RootPackage<F>> {
-    let env = find_env::<F>(path, build_config)?;
-    let mut root_pkg =
-        RootPackage::<F>::load_sync(path.to_path_buf(), env, build_config.mode_set())?;
+    let env = find_env::<F>(&path, build_config)?;
+    let mut root_pkg = RootPackage::<F>::load_sync(path, env, build_config.mode_set())?;
 
     root_pkg.save_lockfile_to_disk()?;
 

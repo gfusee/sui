@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -199,8 +200,12 @@ async fn test_publish() -> Result<(), anyhow::Error> {
         .await?;
     let gas = objects.data.first().unwrap().object().unwrap();
 
+    let virtual_package_path = VirtualPath::physical()?
+        .cwd()
+        .join(Path::new("../../examples/move/basics"))?;
+
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(Path::new("../../examples/move/basics"))
+        .build_async(virtual_package_path)
         .await?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
@@ -493,7 +498,10 @@ async fn test_get_metadata() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::new_for_testing().build_async(&path).await?;
+    let virtual_path = VirtualPath::physical()?.cwd().join(&path)?;
+    let compiled_package = BuildConfig::new_for_testing()
+        .build_async(virtual_path)
+        .await?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
@@ -578,7 +586,10 @@ async fn test_get_total_supply() -> Result<(), anyhow::Error> {
     // Publish test coin package
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "dummy_modules_publish"]);
-    let compiled_package = BuildConfig::new_for_testing().build_async(&path).await?;
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    let compiled_package = BuildConfig::new_for_testing()
+        .build_async(virtual_path)
+        .await?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

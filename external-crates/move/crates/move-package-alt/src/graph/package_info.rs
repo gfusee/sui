@@ -271,6 +271,7 @@ impl<F: MoveFlavor> std::fmt::Debug for PackageInfo<'_, F> {
 mod tests {
     // TODO: example with a --[local]--> a/b --[local]--> a/c
     use std::collections::BTreeMap;
+    use std::path::PathBuf;
 
     use insta::assert_snapshot;
     use test_log::test;
@@ -281,6 +282,11 @@ mod tests {
         schema::{OriginalID, PackageName, PublishedID},
         test_utils::graph_builder::TestPackageGraph,
     };
+    use move_vfs::wrappers::VirtualPath;
+
+    fn vbase() -> VirtualPath {
+        VirtualPath::physical().unwrap()
+    }
 
     /// Return the packages in the graph, grouped by their name
     fn packages_by_name(
@@ -301,10 +307,11 @@ mod tests {
     /// Named addresses for `a` should contain `b`, `c`, and `d`
     #[test(tokio::test)]
     async fn modern_legacy_legacy_legacy_legacy() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root"])
             .add_legacy_packages(["a", "b", "c", "d"])
             .add_deps([("root", "a"), ("a", "b"), ("b", "c"), ("c", "d")])
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
 
@@ -332,6 +339,7 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn modern_legacy_modern_legacy() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["root", "b", "d"])
             .add_legacy_packages(["legacy_a", "legacy_c"])
             .add_deps([
@@ -340,7 +348,7 @@ mod tests {
                 ("b", "legacy_c"),
                 ("legacy_c", "d"),
             ])
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("root").await;
 
@@ -370,11 +378,12 @@ mod tests {
     #[cfg_attr(doc, aquamarine::aquamarine)]
     #[cfg_attr(not(doc), test(tokio::test))]
     async fn display_path() {
+        let base = vbase();
         let scenario = TestPackageGraph::new(["a", "b", "c", "d"])
             .add_dep("a", "b", |dep| dep.name("x").rename_from("b"))
             .add_dep("b", "c", |dep| dep.name("y").rename_from("c"))
             .add_deps([("c", "d")])
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("a").await;
         let packages = packages_by_name(&graph);
@@ -385,6 +394,7 @@ mod tests {
     #[test(tokio::test)]
     /// We are testing that if we have `_` in a legacy package's addresses.
     async fn check_legacy_underscore_addresses_cases() {
+        let base = vbase();
         let node_names: Vec<&str> = vec![];
         let scenario = TestPackageGraph::new(node_names)
             .add_package("a", |pkg| {
@@ -415,7 +425,7 @@ mod tests {
                     .add_file("sources/e2.move", "module e2::e2;")
             })
             .add_deps([("d1", "d2"), ("e1", "e2")])
-            .build();
+            .build(&base);
 
         // Scenario 1: We can load the package just fine, treating `_` as the root.
         let a_graph = scenario.graph_for("a").await;
@@ -428,9 +438,10 @@ mod tests {
 
         // Scenario 2: We cannot load the package because it defines addresses with `_` in them and this is not supported.
         let b_err = scenario.try_graph_for("b").await.unwrap_err();
+        let b_path = scenario.path_for("b").unwrap();
         let b_err_string = b_err
             .to_string()
-            .replace(scenario.path_for("b").to_string_lossy().as_ref(), "<DIR>");
+            .replace(b_path.as_str(), "<DIR>");
 
         assert_snapshot!(b_err_string, @r#"Error while loading dependency <DIR>: error while loading legacy manifest "<DIR>/Move.toml": Found non instantiated named address `foo` (declared as `_`). All addresses in the `addresses` field must be instantiated."#);
 
@@ -496,6 +507,7 @@ mod tests {
 
     #[test(tokio::test)]
     async fn test_address_can_appear_many_times() {
+        let base = vbase();
         let node_names: Vec<&str> = vec![];
         let scenario = TestPackageGraph::new(node_names)
             .add_package("matches_foo", |pkg| {
@@ -517,7 +529,7 @@ mod tests {
                     .add_file("sources/foo.move", "module foo::foo;")
             })
             .add_deps([("matches_foo", "foo"), ("does_not_match_foo", "foo")])
-            .build();
+            .build(&base);
 
         let graph = scenario.graph_for("matches_foo").await;
         let addresses = graph.root_package_info().named_addresses().unwrap();

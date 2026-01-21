@@ -1,20 +1,20 @@
 use std::{
     fmt::{Debug, Display},
-    fs, io,
-    path::{Path, PathBuf},
+    io,
 };
 
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::SimpleFile;
-use serde::de::DeserializeOwned;
+use move_vfs::wrappers::VirtualPath;
+use serde::de::{DeserializeOwned, Expected};
 
 /// A wrapper around [PathBuf] that implements [Display]
 #[derive(Clone)]
-pub struct DisplayPath(PathBuf);
+pub struct DisplayVirtualPath(VirtualPath);
 
 /// A collection that holds a file path and its contents. This is used for when parsing the
 /// manifest and lockfiles to enable nice reporting throughout the system.
-static FILES: AppendOnlyVec<SimpleFile<DisplayPath, String>> = AppendOnlyVec::new();
+static FILES: AppendOnlyVec<SimpleFile<DisplayVirtualPath, String>> = AppendOnlyVec::new();
 
 /// An implementation of [codespan_reporting::files::Files] for [FileHandle]s (using the
 /// global cache)
@@ -29,7 +29,7 @@ pub struct FileHandle {
 
 impl<'a> codespan_reporting::files::Files<'a> for Files {
     type FileId = FileHandle;
-    type Name = &'a DisplayPath;
+    type Name = &'a DisplayVirtualPath;
     type Source = &'a String;
 
     fn name(&'a self, id: Self::FileId) -> Result<Self::Name, codespan_reporting::files::Error> {
@@ -62,18 +62,17 @@ impl<'a> codespan_reporting::files::Files<'a> for Files {
 
 impl FileHandle {
     /// Reads the file located at [path] into the file cache and returns its ID
-    pub fn new(path: impl AsRef<Path>) -> io::Result<Self> {
-        let source = fs::read_to_string(&path)?;
+    pub fn new(path: VirtualPath) -> io::Result<Self> {
+        let source = path
+            .read_to_string()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let id = FILES.push(SimpleFile::new(
-            DisplayPath(path.as_ref().to_path_buf()),
-            source,
-        ));
+        let id = FILES.push(SimpleFile::new(DisplayVirtualPath(path), source));
         Ok(Self { id })
     }
 
     /// Return the path to the file at [id]
-    pub fn path(&self) -> &'static Path {
+    pub fn path(&self) -> &'static VirtualPath {
         &FILES[self.id].name().0
     }
 
@@ -89,33 +88,33 @@ impl FileHandle {
 
     /// Return a dummy file for test scaffolding
     #[cfg(test)]
-    pub fn dummy(path: impl AsRef<Path>, contents: impl AsRef<str>) -> Self {
+    pub fn dummy(path: VirtualPath, contents: impl AsRef<str>) -> Self {
         let id = FILES.push(SimpleFile::new(
-            DisplayPath(path.as_ref().to_path_buf()),
+            DisplayVirtualPath(path),
             contents.as_ref().to_string(),
         ));
         Self { id }
     }
 
-    fn simple_file(&self) -> &'static SimpleFile<DisplayPath, String> {
+    fn simple_file(&self) -> &'static SimpleFile<DisplayVirtualPath, String> {
         &FILES[self.id]
     }
 }
 
 impl Debug for FileHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.path().fmt(f)
+        Debug::fmt(self.path().as_str(), f)
     }
 }
 
-impl Display for DisplayPath {
+impl Display for DisplayVirtualPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl AsRef<Path> for FileHandle {
-    fn as_ref(&self) -> &Path {
+impl AsRef<VirtualPath> for FileHandle {
+    fn as_ref(&self) -> &VirtualPath {
         self.path()
     }
 }

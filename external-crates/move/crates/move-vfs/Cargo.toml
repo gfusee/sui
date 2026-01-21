@@ -1,0 +1,12 @@
+[package]
+name = "move-vfs"
+version = "0.1.0"
+license = "Apache-2.0"
+edition = "2024"
+
+[dependencies]
+fs4.workspace = true
+move-symbol-pool.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+vfs.workspace = true

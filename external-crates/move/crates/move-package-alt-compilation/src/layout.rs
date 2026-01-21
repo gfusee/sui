@@ -2,6 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -18,8 +19,8 @@ pub enum CompiledPackageLayout {
 }
 
 impl CompiledPackageLayout {
-    pub fn path(&self) -> &Path {
-        let path = match self {
+    pub fn path(&self) -> &str {
+        match self {
             Self::BuildInfo => "BuildInfo.yaml",
             Self::Root => "build",
             Self::Dependencies => "dependencies",
@@ -29,16 +30,16 @@ impl CompiledPackageLayout {
             Self::CompiledModules => "bytecode_modules",
             Self::CompiledDocs => "docs",
             Self::Disassembly => "disassembly",
-        };
-        Path::new(path)
+        }
     }
 
-    pub fn path_to_file_after_category(path: &Path) -> PathBuf {
+    pub fn path_to_file_after_category(virtual_path: &VirtualPath) -> PathBuf {
+        let path = PathBuf::from(virtual_path.as_str());
         let mut suffix_components = vec![];
         // reverse iterate until Root is found
         for component in path.components().rev() {
             let component_path: &Path = component.as_ref();
-            if component_path == Self::Root.path() {
+            if component_path.to_string_lossy() == Self::Root.path() {
                 break;
             }
             suffix_components.push(component);

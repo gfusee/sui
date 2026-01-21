@@ -6,6 +6,7 @@ use move_binary_format::file_format::Visibility;
 use move_binary_format::normalized;
 use move_core_types::identifier::IdentStr;
 use move_core_types::language_storage::StructTag;
+use move_vfs::wrappers::VirtualPath;
 use mysten_common::fatal;
 use rand::rngs::StdRng;
 use std::collections::{HashMap, HashSet};
@@ -333,8 +334,9 @@ impl SurferState {
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
     pub async fn publish_package(&mut self, path: &Path) {
         let rgp = self.cluster.get_reference_gas_price().await;
+        let virtual_path = VirtualPath::physical().unwrap().cwd().join(path).unwrap();
         let package = BuildConfig::new_for_testing()
-            .build_async(path)
+            .build_async(virtual_path)
             .await
             .unwrap();
         let modules = package.get_package_bytes(false);

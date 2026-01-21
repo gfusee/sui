@@ -605,7 +605,7 @@ impl SuiCommand {
                         let mut root_pkg = load_root_pkg_for_publish_upgrade(
                             &context,
                             &build_config,
-                            &rerooted_path,
+                            rerooted_path,
                         )
                         .await?;
 

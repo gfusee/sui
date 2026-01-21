@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::ident_str;
+use move_vfs::wrappers::VirtualPath;
 use sui_json_rpc_types::ObjectChange;
 use sui_macros::sim_test;
 use sui_move_build::BuildConfig;
@@ -49,8 +50,14 @@ async fn test_list_package_versions_with_upgrades() {
     let mut test_package_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     test_package_path.push("tests/move_test_code");
 
+    let virtual_test_package_path = VirtualPath::physical()
+        .unwrap()
+        .cwd()
+        .join(&test_package_path)
+        .unwrap();
+
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&test_package_path)
+        .build_async(virtual_test_package_path)
         .await
         .unwrap();
     let modules = compiled_package.get_package_bytes(false);

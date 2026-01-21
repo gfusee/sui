@@ -4,17 +4,18 @@
 use crate::test_utils::make_transfer_object_transaction;
 use crate::test_utils::make_transfer_sui_transaction;
 use move_core_types::{account_address::AccountAddress, ident_str};
+use move_vfs::wrappers::VirtualPath;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use shared_crypto::intent::{Intent, IntentScope};
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sui_authority_aggregation::quorum_map_then_reduce_with_timeout;
 use sui_macros::sim_test;
-use sui_move_build::BuildConfig;
+use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_types::crypto::get_key_pair_from_rng;
 use sui_types::crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair};
 use sui_types::crypto::{AuthoritySignature, Signer};
@@ -55,6 +56,11 @@ macro_rules! assert_matches {
             ),
         }
     };
+}
+
+async fn build_async_physical(config: BuildConfig, path: &Path) -> anyhow::Result<CompiledPackage> {
+    let virtual_path = VirtualPath::physical()?.cwd().join(path)?;
+    config.build_async(virtual_path).await
 }
 
 pub fn set_local_client_config(
@@ -348,8 +354,7 @@ async fn test_quorum_map_and_reduce_timeout() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "object_basics"]);
     let client_ip = make_socket_addr();
-    let modules: Vec<_> = build_config
-        .build_async(&path)
+    let modules: Vec<_> = build_async_physical(build_config, &path)
         .await
         .unwrap()
         .get_modules()

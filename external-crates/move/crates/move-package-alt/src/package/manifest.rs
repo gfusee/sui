@@ -2,10 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
 
 use codespan_reporting::diagnostic::Diagnostic;
 
@@ -22,6 +19,7 @@ use super::{
     *,
 };
 use indexmap::IndexMap;
+use move_vfs::wrappers::VirtualPath;
 use serde_spanned::Spanned;
 
 // TODO: replace this with something more strongly typed
@@ -41,7 +39,7 @@ pub struct ManifestError {
 
 #[derive(Debug)]
 enum ErrorLocation {
-    WholeFile(PathBuf),
+    WholeFile(VirtualPath),
 }
 
 #[derive(Error, Debug)]
@@ -117,12 +115,10 @@ impl Manifest {
 }
 
 impl ManifestError {
-    pub(crate) fn with_file<T: Into<ManifestErrorKind>>(
-        path: impl AsRef<Path>,
-    ) -> impl Fn(T) -> Self {
+    pub(crate) fn with_file<T: Into<ManifestErrorKind>>(path: VirtualPath) -> impl Fn(T) -> Self {
         move |e| ManifestError {
             kind: Box::new(e.into()),
-            location: ErrorLocation::WholeFile(path.as_ref().to_path_buf()),
+            location: ErrorLocation::WholeFile(path.clone()),
         }
     }
 
@@ -138,7 +134,7 @@ impl ManifestError {
     /// Create an error object representing a flavor rejection of the manifest
     pub(crate) fn flavor_rejected_manifest(manifest_handle: FileHandle, message: String) -> Self {
         Self {
-            location: ErrorLocation::WholeFile(manifest_handle.path().to_path_buf()),
+            location: ErrorLocation::WholeFile(manifest_handle.path().clone()),
             kind: Box::new(ManifestErrorKind::FlavorRejectedManifest(message)),
         }
     }
@@ -150,12 +146,21 @@ mod tests {
 
     use tempfile::TempDir;
     use test_log::test;
+    use move_vfs::wrappers::VirtualPath;
 
     use crate::{
         flavor::vanilla::default_environment, package::paths::PackagePath, schema::PackageName,
     };
 
     use super::Manifest;
+
+    fn vpath(path_buf: std::path::PathBuf) -> VirtualPath {
+        VirtualPath::physical()
+            .unwrap()
+            .cwd()
+            .join(path_buf)
+            .unwrap()
+    }
 
     /// Create a file containing `contents` and pass it to `Manifest::read_from_file`
     async fn load_manifest(contents: impl AsRef<[u8]>) -> anyhow::Result<Manifest> {
@@ -164,7 +169,7 @@ mod tests {
 
         let manifest_path = tempdir.path().join("Move.toml");
         std::fs::write(&manifest_path, contents).expect("write succeeds");
-        let package_path = PackagePath::new(tempdir.path().to_path_buf()).unwrap();
+        let package_path = PackagePath::new(vpath(tempdir.path().to_path_buf())).unwrap();
 
         Ok(Manifest::read_from_file(
             &package_path,

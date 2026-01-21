@@ -88,6 +88,7 @@ ouroboros = "0.17.2"
 packed_struct = "0.10.1"
 parking_lot = "0.11.1"
 paste = "1.0.5"
+pathdiff = "0.2.3"
 path-clean = "1.0.1"
 petgraph = "0.8.1"
 phf = { version = "0.11", features = ["macros"] }
@@ -140,6 +141,7 @@ tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
 treeline = "0.1.0"
 uint = "0.9.4"
 url = "2.2.2"
+uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 variant_count = "1.1.0"
 vfs = "0.10.0"
 walkdir = "2.3.1"
@@ -184,6 +186,7 @@ move-ir-types = { path = "crates/move-ir-types" }
 move-model = { path = "crates/move-model" }
 move-model-2 = { path = "crates/move-model-2" }
 move-package = { path = "crates/move-package" }
+move-vfs = { path = "crates/move-vfs" }
 move-package-alt = { path = "crates/move-package-alt" }
 move-package-alt-compilation = { path = "crates/move-package-alt-compilation" }
 move-proc-macros = { path = "crates/move-proc-macros"}

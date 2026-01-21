@@ -5,7 +5,7 @@
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use clap::ArgAction;
@@ -24,14 +24,14 @@ use move_package_alt::{
 };
 use move_symbol_pool::Symbol;
 
-use move_package_alt::{flavor::MoveFlavor, package::RootPackage, schema::Environment};
-
 use crate::{
     build_plan::BuildPlan,
     compiled_package::{BuildNamedAddresses, CompiledPackage},
     migrate::migrate,
     model_builder,
 };
+use move_package_alt::{flavor::MoveFlavor, package::RootPackage, schema::Environment};
+use move_vfs::wrappers::VirtualPath;
 
 use super::lint_flag::LintFlag;
 
@@ -127,25 +127,25 @@ pub struct BuildConfig {
 impl BuildConfig {
     pub async fn compile_package<F: MoveFlavor, W: Write + Send>(
         &self,
-        path: &Path,
+        path: VirtualPath,
         env: &Environment,
         writer: &mut W,
     ) -> anyhow::Result<CompiledPackage> {
-        let root_pkg = RootPackage::<F>::load(path, env.clone(), self.mode_set()).await?;
+        let root_pkg = RootPackage::<F>::load(path.clone(), env.clone(), self.mode_set()).await?;
         BuildPlan::create(&root_pkg, self)?.compile(writer, |compiler| compiler)
     }
 
     /// Migrate the package at `path`.
     pub async fn migrate_package<F: MoveFlavor, W: Write + Send, R: BufRead>(
         mut self,
-        path: &Path,
+        path: VirtualPath,
         env: Environment,
         writer: &mut W,
         reader: &mut R,
     ) -> anyhow::Result<()> {
         // we set test to migrate all the code
         self.test_mode = true;
-        let root_pkg = RootPackage::<F>::load(path, env, self.mode_set()).await?;
+        let root_pkg = RootPackage::<F>::load(path.clone(), env, self.mode_set()).await?;
         let build_plan = BuildPlan::create(&root_pkg, &self)?;
 
         migrate(build_plan, writer, reader)?;
@@ -154,7 +154,7 @@ impl BuildConfig {
 
     pub async fn move_model_from_path<F: MoveFlavor, W: Write + Send>(
         &self,
-        path: &Path,
+        path: VirtualPath,
         env: Environment,
         writer: &mut W,
     ) -> anyhow::Result<source_model::Model> {

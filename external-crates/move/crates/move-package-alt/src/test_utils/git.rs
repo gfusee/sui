@@ -41,12 +41,11 @@
 //! [`repo()`] can be used to create a [`RepoBuilder`] which provides a way of
 //! adding files to a blank repository and committing them.
 
-use tempfile::TempDir;
-
-use crate::git::run_git_cmd_with_args;
-use crate::test_utils::*;
-
 use super::graph_builder::TestPackageGraph;
+use crate::git::{GitResult, run_git_cmd_with_args};
+use move_vfs::VfsResult;
+use move_vfs::tempdir::TempDir;
+use move_vfs::wrappers::VirtualPath;
 
 /// A [RepoProject] represents a bare repository in a temporary directory. You can add new commits
 /// to the repository using [RepoProject::commit].
@@ -64,8 +63,8 @@ pub struct Commit<'repo> {
     sha: String,
 }
 
-pub async fn new() -> RepoProject {
-    RepoProject::new().await
+pub async fn new(base: &VirtualPath) -> GitResult<RepoProject> {
+    RepoProject::new(base).await
 }
 
 impl Commit<'_> {
@@ -77,172 +76,160 @@ impl Commit<'_> {
         self.sha[0..8].to_string()
     }
 
-    pub async fn branch(&self, name: impl AsRef<str>) -> String {
-        self.repo.branch(&self.sha, name.as_ref()).await;
-        name.as_ref().to_string()
+    pub async fn branch(&self, name: impl AsRef<str>) -> GitResult<String> {
+        self.repo.branch(&self.sha, name.as_ref()).await?;
+        Ok(name.as_ref().to_string())
     }
 
-    pub async fn tag(&self, name: impl AsRef<str>) -> String {
-        self.repo.tag(&self.sha, name.as_ref()).await;
-        name.as_ref().to_string()
+    pub async fn tag(&self, name: impl AsRef<str>) -> GitResult<String> {
+        self.repo.tag(&self.sha, name.as_ref()).await?;
+        Ok(name.as_ref().to_string())
     }
 }
 
 impl RepoProject {
-    pub async fn new() -> Self {
+    pub async fn new(base: &VirtualPath) -> GitResult<Self> {
         let result = Self {
-            root: TempDir::new().unwrap(),
+            root: TempDir::new(base)?,
         };
-        result.init().await;
-        result
+        result.init().await?;
+        Ok(result)
     }
 
-    pub fn repo_path(&self) -> PathBuf {
-        self.root.as_ref().join("repo")
+    pub fn repo_path(&self) -> VfsResult<VirtualPath> {
+        self.root.path().join("repo")
     }
 
-    pub fn repo_path_str(&self) -> String {
-        self.repo_path().to_string_lossy().to_string()
+    pub fn repo_path_str(&self) -> VfsResult<String> {
+        Ok(self.repo_path()?.as_str().to_string())
     }
 
     /// Builds a new project using `build` (starting from an empty directory), then commits it to
     /// the repository and updates the `main` branch. Returns the created commit
-    pub async fn commit<F>(&self, build: F) -> Commit
+    pub async fn commit<F>(&self, base: &VirtualPath, build: F) -> GitResult<Commit>
     where
         F: FnOnce(TestPackageGraph) -> TestPackageGraph,
     {
-        self.add_worktree().await;
-        let mut builder = TestPackageGraph::new(Vec::<&str>::new()).at(self.worktree_path());
+        self.add_worktree().await?;
+        let mut builder = TestPackageGraph::new(Vec::<&str>::new()).at(self.worktree_path()?);
         builder = build(builder);
-        builder.build();
+        builder.build(base);
 
-        self.add_all().await;
-        let sha = self.commit_worktree().await;
+        self.add_all().await?;
+        let sha = self.commit_worktree().await?;
         let result = Commit { repo: self, sha };
-        self.delete_worktree().await;
-        result
+        self.delete_worktree().await?;
+        Ok(result)
     }
 
     /// commit the contents of the worktree, updates the `main` branch, and returns the commit hash
-    async fn commit_worktree(&self) -> String {
+    async fn commit_worktree(&self) -> VfsResult<String> {
         run_git_cmd_with_args(
             &["commit", "--allow-empty", "-m", "test commit message"],
-            Some(&self.worktree_path()),
+            Some(&self.worktree_path()?),
         )
         .await
         .unwrap();
-        let mut result = run_git_cmd_with_args(&["rev-parse", "HEAD"], Some(&self.worktree_path()))
-            .await
-            .unwrap();
+        let mut result =
+            run_git_cmd_with_args(&["rev-parse", "HEAD"], Some(&self.worktree_path()?))
+                .await
+                .unwrap();
 
         // remove trailing newline
         result.pop();
 
-        run_git_cmd_with_args(&["branch", "-f", "main", &result], Some(&self.repo_path()))
+        run_git_cmd_with_args(&["branch", "-f", "main", &result], Some(&self.repo_path()?))
             .await
             .unwrap();
 
-        result
+        Ok(result)
     }
 
     /// add all files in the worktree
-    async fn add_all(&self) {
-        run_git_cmd_with_args(&["add", "."], Some(&self.worktree_path()))
-            .await
-            .unwrap();
-        run_git_cmd_with_args(&["status"], Some(&self.worktree_path()))
-            .await
-            .unwrap();
+    async fn add_all(&self) -> GitResult<()> {
+        let worktree_path = self.worktree_path()?;
+        run_git_cmd_with_args(&["add", "."], Some(&worktree_path)).await?;
+        run_git_cmd_with_args(&["status"], Some(&worktree_path)).await?;
+
+        Ok(())
     }
 
     /// update `branch_name` to refer to `sha`
-    async fn branch(&self, sha: &str, branch_name: &str) {
+    async fn branch(&self, sha: &str, branch_name: &str) -> GitResult<()> {
         run_git_cmd_with_args(
             &["branch", "--force", branch_name, sha],
-            Some(&self.repo_path()),
+            Some(&self.repo_path()?),
         )
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     /// update `tag` to refer to `sha`
-    async fn tag(&self, sha: &str, tag_name: &str) {
-        run_git_cmd_with_args(&["tag", "-f", tag_name, sha], Some(&self.repo_path()))
-            .await
-            .unwrap();
+    async fn tag(&self, sha: &str, tag_name: &str) -> GitResult<()> {
+        run_git_cmd_with_args(&["tag", "-f", tag_name, sha], Some(&self.repo_path()?)).await?;
+
+        Ok(())
     }
 
     /// create an empty repository with an initial empty commit inside of [Self::repo_path]
-    async fn init(&self) {
-        fs::create_dir_all(self.repo_path()).unwrap();
+    async fn init(&self) -> GitResult<()> {
+        let repo_path = self.repo_path()?;
+
+        repo_path.create_dir_all()?;
+        run_git_cmd_with_args(&["init", "--initial-branch", "main"], Some(&repo_path)).await?;
+        run_git_cmd_with_args(&["config", "user.email", "foo@bar.com"], Some(&repo_path)).await?;
         run_git_cmd_with_args(
-            &["init", "--initial-branch", "main"],
-            Some(&self.repo_path()),
+            &["config", "user.name", "Foo Bar"],
+            Some(&self.repo_path()?),
         )
-        .await
-        .unwrap();
-        run_git_cmd_with_args(
-            &["config", "user.email", "foo@bar.com"],
-            Some(&self.repo_path()),
-        )
-        .await
-        .unwrap();
-        run_git_cmd_with_args(&["config", "user.name", "Foo Bar"], Some(&self.repo_path()))
-            .await
-            .unwrap();
+        .await?;
 
         run_git_cmd_with_args(
             &["commit", "-m", "initial commit", "--allow-empty"],
-            Some(&self.repo_path()),
+            Some(&repo_path),
         )
-        .await
-        .unwrap();
+        .await?;
 
-        run_git_cmd_with_args(&["branch", "empty_commit"], Some(&self.repo_path()))
-            .await
-            .unwrap();
+        run_git_cmd_with_args(&["branch", "empty_commit"], Some(&repo_path)).await?;
 
-        run_git_cmd_with_args(&["checkout", "--detach"], Some(&self.repo_path()))
-            .await
-            .unwrap();
+        run_git_cmd_with_args(&["checkout", "--detach"], Some(&repo_path)).await?;
+
+        Ok(())
     }
 
     /// creates the worktree containing the empty initial commit
-    async fn add_worktree(&self) {
+    async fn add_worktree(&self) -> GitResult<()> {
         run_git_cmd_with_args(
             &[
                 "worktree",
                 "add",
                 "--detach",
-                self.worktree_path().to_string_lossy().as_ref(),
+                self.worktree_path()?.as_str(),
                 "empty_commit",
             ],
-            Some(&self.repo_path()),
+            Some(&self.repo_path()?),
         )
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     /// removes the worktree
-    async fn delete_worktree(&self) {
+    async fn delete_worktree(&self) -> GitResult<()> {
         run_git_cmd_with_args(
-            &[
-                "worktree",
-                "remove",
-                self.worktree_path().to_string_lossy().as_ref(),
-            ],
-            Some(&self.repo_path()),
+            &["worktree", "remove", self.worktree_path()?.as_str()],
+            Some(&self.repo_path()?),
         )
-        .await
-        .unwrap();
+        .await?;
 
-        run_git_cmd_with_args(&["checkout", "--detach", "main"], Some(&self.repo_path()))
-            .await
-            .unwrap();
+        run_git_cmd_with_args(&["checkout", "--detach", "main"], Some(&self.repo_path()?)).await?;
+
+        Ok(())
     }
 
-    fn worktree_path(&self) -> PathBuf {
-        self.root.as_ref().join("worktree")
+    fn worktree_path(&self) -> VfsResult<VirtualPath> {
+        self.root.path().join("worktree")
     }
 }
 

@@ -15,6 +15,7 @@ use move_package_alt::{
     schema::{Environment, EnvironmentName},
 };
 use move_package_alt_compilation::build_config::BuildConfig as MoveBuildConfig;
+use move_vfs::wrappers::VirtualPath;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
@@ -299,7 +300,10 @@ impl PackageRebuilder {
         // Create build config (following build.rs pattern)
         let config = MoveBuildConfig::default();
 
-        let envs = RootPackage::<SuiFlavor>::environments(&self.source_path)?;
+        let virtual_source_path = VirtualPath::physical()?
+            .cwd()
+            .join(self.source_path.clone())?;
+        let envs = RootPackage::<SuiFlavor>::environments(&virtual_source_path)?;
         let Some(env_id) = envs.get(&self.env) else {
             todo!()
         };
@@ -318,7 +322,7 @@ impl PackageRebuilder {
 
         // Build the package (same as build.rs does)
         let compiled_package = config
-            .build(&self.source_path)
+            .build(virtual_source_path)
             .context("Failed to build package")?;
 
         // Get the compiled modules

@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_vfs::wrappers::VirtualPath;
 use std::path::PathBuf;
-
 use sui_macros::sim_test;
 use sui_move_build::BuildConfig;
 use sui_rpc::Client;
@@ -173,8 +173,9 @@ async fn test_tto_receive_twice() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "rpc", "data", "tto"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =
@@ -448,8 +449,9 @@ async fn test_tto_success() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "rpc", "data", "tto"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =
@@ -809,8 +811,9 @@ async fn test_receive_input() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "rpc", "data", "tto"]);
+    let virtual_path = VirtualPath::physical().unwrap().cwd().join(&path).unwrap();
     let compiled_package = BuildConfig::new_for_testing()
-        .build_async(&path)
+        .build_async(virtual_path)
         .await
         .unwrap();
     let compiled_modules_bytes =

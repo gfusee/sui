@@ -1,11 +1,10 @@
-use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
-
 use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_spanned::Spanned;
-
-use move_compiler::editions::Edition;
+use std::path::PathBuf;
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::compatibility::legacy::LegacyData;
+use move_compiler::editions::Edition;
 
 use super::{
     EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, PublishAddresses, ResolverName,

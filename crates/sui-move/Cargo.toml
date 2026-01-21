@@ -28,6 +28,7 @@ move-disassembler.workspace = true
 move-ir-types.workspace = true
 move-package-alt.workspace = true
 move-package-alt-compilation.workspace = true
+move-vfs.workspace = true
 move-bytecode-source-map.workspace = true
 move-unit-test.workspace = true
 move-core-types.workspace = true
@@ -43,6 +44,7 @@ sui-protocol-config.workspace = true
 sui-sdk.workspace = true
 sui-types.workspace = true
 sui-package-alt.workspace = true
+vfs.workspace = true
 better_any = "0.1.1"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

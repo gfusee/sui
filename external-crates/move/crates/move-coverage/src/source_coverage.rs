@@ -16,12 +16,11 @@ use move_bytecode_source_map::source_map::SourceMap;
 use move_command_line_common::files::FileHash;
 use move_core_types::identifier::Identifier;
 use move_ir_types::location::Loc;
+use move_vfs::wrappers::VirtualPath;
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
-    fs,
     io::{self, Write},
-    path::Path,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -138,14 +137,14 @@ impl<'a> SourceCoverageBuilder<'a> {
         }
     }
 
-    pub fn compute_source_coverage(&self, file_path: &Path) -> SourceCoverage {
-        let file_contents = fs::read_to_string(file_path).unwrap();
+    pub fn compute_source_coverage(&self, file_path: &VirtualPath) -> SourceCoverage {
+        let file_contents = file_path.read_to_string().unwrap();
         assert!(
             self.source_map.check(&file_contents),
             "File contents out of sync with source map"
         );
         let mut files = Files::new();
-        let file_id = files.add(file_path.as_os_str().to_os_string(), file_contents.clone());
+        let file_id = files.add(file_path.as_str(), file_contents.clone());
 
         let mut uncovered_segments = BTreeMap::new();
 

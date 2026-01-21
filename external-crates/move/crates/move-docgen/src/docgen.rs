@@ -22,6 +22,7 @@ use move_model_2::{
     source_model::{self, Model},
 };
 use move_symbol_pool::Symbol;
+use move_vfs::wrappers::VirtualPath;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -214,7 +215,11 @@ impl<'env> Docgen<'env> {
     }
 
     /// Generate document contents, returning pairs of output file names and generated contents.
-    pub fn generate(mut self, env: &Model) -> anyhow::Result<Vec<(String, String)>> {
+    pub fn generate(
+        mut self,
+        cwd: &VirtualPath,
+        env: &Model,
+    ) -> anyhow::Result<Vec<(String, String)>> {
         // If there is a root templates, parse them.
         let root_templates = self
             .options
@@ -227,7 +232,9 @@ impl<'env> Docgen<'env> {
                     .to_str()
                     .unwrap()
                     .replace("_template", "");
-                match self.parse_root_template(file_name) {
+
+                let filepath = cwd.join(file_name).unwrap();
+                match self.parse_root_template(&filepath) {
                     Ok(elements) => Some((root_out_name, elements)),
                     Err(_) => {
                         self.unknown_loc_error(format!(
@@ -295,7 +302,10 @@ impl<'env> Docgen<'env> {
     }
 
     /// Parse a root template.
-    fn parse_root_template(&mut self, file_name: &str) -> anyhow::Result<Vec<TemplateElement>> {
+    fn parse_root_template(
+        &mut self,
+        file_path: &VirtualPath,
+    ) -> anyhow::Result<Vec<TemplateElement>> {
         static REX: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
                 r"(?xm)^\s*>\s*\{\{
@@ -307,7 +317,7 @@ impl<'env> Docgen<'env> {
             .unwrap()
         });
         let mut content = String::new();
-        let mut file = File::open(file_name)?;
+        let mut file = file_path.open_file()?;
         file.read_to_string(&mut content)?;
         let mut at = 0;
         let mut res = vec![];
