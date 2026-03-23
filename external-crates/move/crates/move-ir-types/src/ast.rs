@@ -698,6 +698,7 @@ pub enum Bytecode_ {
     MutBorrowField(DatatypeName, Vec<Type>, Field),
     ImmBorrowField(DatatypeName, Vec<Type>, Field),
     Add,
+    GasAdd,
     Sub,
     Mul,
     Mod,
@@ -1764,6 +1765,7 @@ impl fmt::Display for Bytecode_ {
                 field
             ),
             Bytecode_::Add => write!(f, "Add"),
+            Bytecode_::GasAdd => write!(f, "GasAdd"),
             Bytecode_::Sub => write!(f, "Sub"),
             Bytecode_::Mul => write!(f, "Mul"),
             Bytecode_::Mod => write!(f, "Mod"),

@@ -1996,6 +1996,11 @@ fn exp(context: &mut Context, ne: Box<N::Exp>) -> Box<T::Exp> {
                     let rloc = er.exp.loc;
                     subtype(context, rloc, msg, &er.ty, &Type_::bool(rloc));
                     Type_::bool(eloc)
+                },
+                GasAdd => {
+                    let rloc = er.exp.loc;
+                    subtype(context, rloc, msg, er.ty.clone(), er.ty.clone());
+                    er.ty.clone()
                 }
             };
             (ty, TE::UnaryExp(uop, er))

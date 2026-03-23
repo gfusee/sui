@@ -17,6 +17,7 @@ pub fn expect_no_verification_errors(err: VMError) -> VMError {
                 stored on chain that is unverifiable!\nError: {:?}",
                 &err
             );
+            println!("{}", message);
             let (
                 _old_status,
                 _old_sub_status,

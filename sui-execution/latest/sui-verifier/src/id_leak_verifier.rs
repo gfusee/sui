@@ -437,6 +437,7 @@ fn execute_inner(
         | Bytecode::CastU128
         | Bytecode::CastU256
         | Bytecode::Not
+        | Bytecode::GasAdd
         | Bytecode::VecLen(_)
         | Bytecode::VecPopBack(_) => {
             verifier.stack.pop().unwrap();

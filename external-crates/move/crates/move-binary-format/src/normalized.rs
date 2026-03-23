@@ -274,6 +274,7 @@ pub enum Bytecode<S: Hash + Eq> {
     MutBorrowField(Box<FieldRef<S>>),
     ImmBorrowField(Box<FieldRef<S>>),
     Add,
+    GasAdd,
     Sub,
     Mul,
     Mod,
@@ -1339,6 +1340,7 @@ impl<S: Hash + Eq> Bytecode<S> {
             FB::WriteRef => B::WriteRef,
             FB::FreezeRef => B::FreezeRef,
             FB::Add => B::Add,
+            FB::GasAdd => B::GasAdd,
             FB::Sub => B::Sub,
             FB::Mul => B::Mul,
             FB::Mod => B::Mod,
@@ -1586,6 +1588,7 @@ impl<S: Hash + Eq> Bytecode<S> {
             | Bytecode::MutBorrowField(_)
             | Bytecode::ImmBorrowField(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod
@@ -1660,6 +1663,7 @@ impl<S: Hash + Eq> Bytecode<S> {
             | Bytecode::MutBorrowField(_)
             | Bytecode::ImmBorrowField(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod
@@ -1754,6 +1758,7 @@ impl<S: Hash + Eq> Bytecode<S> {
             | Bytecode::MutBorrowField(_)
             | Bytecode::ImmBorrowField(_)
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod

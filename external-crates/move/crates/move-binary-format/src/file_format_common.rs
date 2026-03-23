@@ -352,6 +352,7 @@ pub enum Opcodes {
     UNPACK_VARIANT_GENERIC_IMM_REF = 0x54,
     UNPACK_VARIANT_GENERIC_MUT_REF = 0x55,
     VARIANT_SWITCH                 = 0x56,
+    GAS_ADD                      = 0x57,
 
     // ******** DEPRECATED BYTECODES ********
     // global storage opcodes are unused and deprecated
@@ -600,6 +601,7 @@ pub fn instruction_opcode(instruction: &Bytecode) -> Opcodes {
         ImmBorrowField(_) => Opcodes::IMM_BORROW_FIELD,
         ImmBorrowFieldGeneric(_) => Opcodes::IMM_BORROW_FIELD_GENERIC,
         Add => Opcodes::ADD,
+        GasAdd => Opcodes::GAS_ADD,
         Sub => Opcodes::SUB,
         Mul => Opcodes::MUL,
         Mod => Opcodes::MOD,

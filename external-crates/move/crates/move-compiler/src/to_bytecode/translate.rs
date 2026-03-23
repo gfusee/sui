@@ -1382,6 +1382,7 @@ fn unary_op(code: &mut IR::BytecodeBlock, sp!(loc, op_): UnaryOp) {
         loc,
         match op_ {
             O::Not => B::Not,
+            O::GasAdd => B::GasAdd
         },
     ));
 }

@@ -146,6 +146,7 @@ impl<'a> AcquiresVerifier<'a> {
             | Bytecode::CastU128
             | Bytecode::CastU256
             | Bytecode::Add
+            | Bytecode::GasAdd
             | Bytecode::Sub
             | Bytecode::Mul
             | Bytecode::Mod

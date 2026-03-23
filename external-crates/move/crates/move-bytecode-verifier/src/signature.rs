@@ -280,6 +280,7 @@ impl<'env, 'a, 'b, M: Meter + ?Sized> SignatureChecker<'env, 'a, 'b, M> {
                 | WriteRef
                 | FreezeRef
                 | Add
+                | GasAdd
                 | Sub
                 | Mul
                 | Mod

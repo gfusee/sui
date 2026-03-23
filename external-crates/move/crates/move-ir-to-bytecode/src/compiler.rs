@@ -1940,6 +1940,7 @@ fn compile_bytecode(
             }
         }
         IRBytecode_::Add => Bytecode::Add,
+        IRBytecode_::GasAdd => Bytecode::GasAdd,
         IRBytecode_::Sub => Bytecode::Sub,
         IRBytecode_::Mul => Bytecode::Mul,
         IRBytecode_::Mod => Bytecode::Mod,

@@ -71,6 +71,7 @@ fn verify_global_storage_access(module: &CompiledModule) -> Result<(), Execution
                 | Bytecode::ImmBorrowField(_)
                 | Bytecode::ImmBorrowFieldGeneric(_)
                 | Bytecode::Add
+                | Bytecode::GasAdd
                 | Bytecode::Sub
                 | Bytecode::Mul
                 | Bytecode::Mod
