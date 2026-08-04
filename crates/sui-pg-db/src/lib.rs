@@ -503,18 +503,30 @@ mod tests {
             calls: calls.clone(),
         });
 
-        let db = Db::for_write_with_url_provider(provider, DbArgs::default())
-            .await
-            .unwrap();
+        let db = Db::for_write_with_url_provider(
+            provider,
+            DbArgs {
+                db_connection_pool_size: 2,
+                ..DbArgs::default()
+            },
+        )
+        .await
+        .unwrap();
         assert_eq!(calls.as_ref().load(Ordering::SeqCst), 1);
 
-        let mut conn = db.connect().await.unwrap();
+        let mut conn1 = db.connect().await.unwrap();
         diesel::sql_query("SELECT 1")
-            .execute(&mut conn)
+            .execute(&mut conn1)
             .await
             .unwrap();
-
         assert_eq!(calls.as_ref().load(Ordering::SeqCst), 2);
+
+        let mut conn2 = db.connect().await.unwrap();
+        diesel::sql_query("SELECT 1")
+            .execute(&mut conn2)
+            .await
+            .unwrap();
+        assert_eq!(calls.as_ref().load(Ordering::SeqCst), 3);
     }
 
     #[derive(Debug, QueryableByName)]
