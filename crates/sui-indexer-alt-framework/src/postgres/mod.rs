@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use anyhow::Context;
 use anyhow::Result;
 use diesel_migrations::EmbeddedMigrations;
@@ -48,7 +50,32 @@ impl Indexer<Db> {
         metrics_prefix: Option<&str>,
         registry: &Registry,
     ) -> Result<Self> {
-        let store = Db::for_write(database_url, db_args) // I guess our store needs a constructor fn
+        Self::new_from_pg_with_url_provider(
+            Arc::new(database_url),
+            db_args,
+            indexer_args,
+            client_args,
+            ingestion_config,
+            migrations,
+            metrics_prefix,
+            registry,
+        )
+        .await
+    }
+
+    /// Create a new instance of the indexer framework using a dynamic database URL provider.
+    /// The provider is called every time a new physical Postgres connection is opened.
+    pub async fn new_from_pg_with_url_provider(
+        database_url_provider: DynDatabaseUrlProvider,
+        db_args: DbArgs,
+        indexer_args: IndexerArgs,
+        client_args: ClientArgs,
+        ingestion_config: IngestionConfig,
+        migrations: Option<&'static EmbeddedMigrations>,
+        metrics_prefix: Option<&str>,
+        registry: &Registry,
+    ) -> Result<Self> {
+        let store = Db::for_write_with_url_provider(database_url_provider, db_args)
             .await
             .context("Failed to connect to database")?;
 

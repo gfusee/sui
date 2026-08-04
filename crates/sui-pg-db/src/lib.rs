@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use async_trait::async_trait;
 use diesel::ConnectionError;
 use diesel::migration::Migration;
 use diesel::migration::MigrationSource;
@@ -43,6 +44,11 @@ pub use sui_field_count::FieldCount;
 pub use sui_sql_macro::sql;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+#[async_trait]
+pub trait DatabaseUrlProvider: Send + Sync + 'static {
+    async fn database_url(&self) -> Result<Url, ConnectionError>;
+}
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct DbArgs {
@@ -83,6 +89,8 @@ struct CancelGuard<'m>(Option<&'m PoolMetrics>);
 /// Wrapper struct over the remote `PooledConnection` type for dealing with the `Store` trait.
 pub struct Connection<'a>(PooledConnection<'a, AsyncPgConnectionWithId>);
 
+pub type DynDatabaseUrlProvider = Arc<dyn DatabaseUrlProvider>;
+
 impl DbArgs {
     pub fn connection_timeout(&self) -> Duration {
         Duration::from_millis(self.db_connection_timeout_ms)
@@ -97,19 +105,41 @@ impl Db {
     /// Construct a new DB connection pool talking to the database at `database_url` that supports
     /// write and reads. Instances of [Db] can be cloned to share access to the same pool.
     pub async fn for_write(database_url: Url, config: DbArgs) -> anyhow::Result<Self> {
-        Self::new(database_url, config, false).await
+        Self::for_write_with_url_provider(Arc::new(database_url), config).await
+    }
+
+    /// Construct a new DB connection pool using a dynamic URL provider that supports write and
+    /// reads. The provider is called for every new physical database connection.
+    pub async fn for_write_with_url_provider(
+        database_url_provider: DynDatabaseUrlProvider,
+        config: DbArgs,
+    ) -> anyhow::Result<Self> {
+        Self::new(database_url_provider, config, false).await
     }
 
     /// Construct a new DB connection pool talking to the database at `database_url` that defaults
     /// to read-only transactions. Instances of [Db] can be cloned to share access to the same
     /// pool.
     pub async fn for_read(database_url: Url, config: DbArgs) -> anyhow::Result<Self> {
-        Self::new(database_url, config, true).await
+        Self::for_read_with_url_provider(Arc::new(database_url), config).await
     }
 
-    async fn new(database_url: Url, db_args: DbArgs, read_only: bool) -> anyhow::Result<Self> {
+    /// Construct a new DB connection pool using a dynamic URL provider that defaults to read-only
+    /// transactions. The provider is called for every new physical database connection.
+    pub async fn for_read_with_url_provider(
+        database_url_provider: DynDatabaseUrlProvider,
+        config: DbArgs,
+    ) -> anyhow::Result<Self> {
+        Self::new(database_url_provider, config, true).await
+    }
+
+    async fn new(
+        database_url_provider: DynDatabaseUrlProvider,
+        db_args: DbArgs,
+        read_only: bool,
+    ) -> anyhow::Result<Self> {
         Ok(Db {
-            pool: pool(database_url, db_args, read_only).await?,
+            pool: pool(database_url_provider, db_args, read_only).await?,
             pool_metrics: None,
         })
     }
@@ -263,6 +293,13 @@ impl Default for DbArgs {
     }
 }
 
+#[async_trait]
+impl DatabaseUrlProvider for Url {
+    async fn database_url(&self) -> Result<Url, ConnectionError> {
+        Ok(self.clone())
+    }
+}
+
 impl<'m> Drop for CancelGuard<'m> {
     fn drop(&mut self) {
         if let Some(m) = self.0.take() {
@@ -301,7 +338,7 @@ impl DerefMut for Connection<'_> {
 }
 
 async fn pool(
-    database_url: Url,
+    database_url_provider: DynDatabaseUrlProvider,
     args: DbArgs,
     read_only: bool,
 ) -> anyhow::Result<Pool<AsyncPgConnectionWithId>> {
@@ -311,12 +348,15 @@ async fn pool(
     let tls_config = build_tls_config(args.tls_verify_cert, args.tls_ca_cert_path.clone())?;
 
     let mut config = ManagerConfig::default();
+    let initial_database_url = database_url_provider.database_url().await?;
 
-    config.custom_setup = Box::new(move |url| {
+    config.custom_setup = Box::new(move |_url| {
         let tls_config = tls_config.clone();
+        let database_url_provider = database_url_provider.clone();
 
         async move {
-            let mut conn = establish_tls_connection(url, tls_config).await?;
+            let database_url = database_url_provider.database_url().await?;
+            let mut conn = establish_tls_connection(database_url.as_str(), tls_config).await?;
 
             if let Some(timeout) = statement_timeout {
                 diesel::sql_query(format!("SET statement_timeout = {}", timeout.as_millis()))
@@ -337,7 +377,8 @@ async fn pool(
         .boxed()
     });
 
-    let manager = AsyncDieselConnectionManager::new_with_config(database_url.as_str(), config);
+    let manager =
+        AsyncDieselConnectionManager::new_with_config(initial_database_url.as_str(), config);
 
     Ok(Pool::builder()
         .max_size(args.db_connection_pool_size)
@@ -367,12 +408,30 @@ pub fn merge_migrations(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::temp::TempDb;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::Ordering;
+
     use anyhow::Error;
     use diesel::prelude::QueryableByName;
     use tokio::spawn;
     use tokio::time::timeout;
+
+    use crate::temp::TempDb;
+
+    use super::*;
+
+    struct CountingUrlProvider {
+        url: Url,
+        calls: Arc<AtomicU64>,
+    }
+
+    #[async_trait]
+    impl DatabaseUrlProvider for CountingUrlProvider {
+        async fn database_url(&self) -> Result<Url, ConnectionError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(self.url.clone())
+        }
+    }
 
     struct MetricTest {
         db: Db,
@@ -433,6 +492,29 @@ mod tests {
             .unwrap();
 
         info!(?resp);
+    }
+
+    #[tokio::test]
+    async fn url_provider_is_called_for_physical_connections() {
+        let temp_db = TempDb::new().unwrap();
+        let calls = Arc::new(AtomicU64::new(0));
+        let provider = Arc::new(CountingUrlProvider {
+            url: temp_db.database().url().clone(),
+            calls: calls.clone(),
+        });
+
+        let db = Db::for_write_with_url_provider(provider, DbArgs::default())
+            .await
+            .unwrap();
+        assert_eq!(calls.as_ref().load(Ordering::SeqCst), 1);
+
+        let mut conn = db.connect().await.unwrap();
+        diesel::sql_query("SELECT 1")
+            .execute(&mut conn)
+            .await
+            .unwrap();
+
+        assert_eq!(calls.as_ref().load(Ordering::SeqCst), 2);
     }
 
     #[derive(Debug, QueryableByName)]
